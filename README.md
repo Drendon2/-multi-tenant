@@ -61,11 +61,17 @@ Algunas reglas que no se ven a simple vista:
 - **Privacidad diferenciada por rol**: quién ve nombre, edad, teléfono, acudiente,
   encuesta o documento de identidad está definido de forma estricta (pensado para
   la Ley 1581 de Colombia). Ningún archivo subido se sirve por URL directa.
-- **El rol de administrador no se reparte hacia arriba.** Un director crea y
-  edita usuarios, pero no puede nombrar administradores ni tocar la cuenta de
-  uno: si pudiera, se daría el rol a sí mismo —o le cambiaría la contraseña al
-  administrador— y las tres pantallas que el enrutado le reserva dejarían de
-  significar nada.
+- **Un director dirige DEPARTAMENTOS, no la casa entera.** Se le asignan desde
+  administración, y solo ve las promotorías de esos: su panel, sus alertas, su
+  catálogo y su informe descargable van acotados. Sin ninguno asignado no ve
+  ninguna — el recorte cierra en falso a propósito, para que un director recién
+  creado no vea la institución completa mientras nadie decide qué le toca.
+- **El rol de administrador no se reparte hacia arriba.** Un director no entra a
+  la gestión de usuarios; a las personas llega por los grupos de sus
+  departamentos. Y donde sí puede editar, no puede nombrar administradores ni
+  tocar la cuenta de uno: si pudiera, se daría el rol a sí mismo —o le cambiaría
+  la contraseña al administrador— y el recorte de arriba dejaría de significar
+  nada.
 - **A un mayor de edad no se le discute la salida.** Rechazar una cancelación
   solo cabe con menores, y existe para dar tiempo a hablar con el acudiente antes
   de que un niño se salga por su cuenta.

@@ -347,13 +347,25 @@ datos a mano.
 | Rol | Qué puede hacer |
 |---|---|
 | **Administrador** | Todo: institución, estadísticas, copias de documentos de identidad |
-| **Director** | El catálogo académico y los usuarios, pero no la institución ni las estadísticas |
+| **Director** | El catálogo académico **de los departamentos que se le asignen**, pero no los usuarios, ni la institución, ni lo global (crear departamentos, periodos o promotorías) |
 | **Profesor** | Su Panel: sus promotorías, sus grupos, sus clases y su asistencia |
 | **Estudiante** | Su matrícula, sus clases y sus compañeros |
 
+> **A UN DIRECTOR HAY QUE MARCARLE SUS DEPARTAMENTOS**, en las casillas
+> «Departamentos que dirige» de ese mismo formulario. **Sin ninguno marcado no ve
+> ninguna promotoría**: ni panel, ni alertas, ni informe. El recorte cierra en
+> falso a propósito —un director recién creado no ve la casa entera mientras
+> nadie decide qué le toca— así que el aviso no es que falle, es que no verá
+> nada y parecerá roto.
+>
+> Y por eso **este paso va DESPUÉS del 2.5**: solo se pueden marcar
+> departamentos que ya existan. Si estás montando una institución nueva, crea
+> los departamentos primero y vuelve aquí.
+
 Los profesores también pueden **registrarse solos** en `/registro`. La cuenta
-queda sin rol y solo ve una pantalla de «cuenta pendiente» hasta que un director
-o un administrador se lo asigna desde Gestión → Usuarios.
+queda sin rol y solo ve una pantalla de «cuenta pendiente» hasta que **un
+administrador** se lo asigna desde Gestión → Usuarios. Un director no entra a esa
+pantalla desde el 12/09/2026.
 
 ## 2.5 Los departamentos
 
