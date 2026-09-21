@@ -96,6 +96,20 @@
       <button type="button" class="btn btn-secundario" data-qr-abrir>Pasar lista con el carné</button>
       <button type="button" class="btn btn-secundario btn-sm" data-qr-cerrar hidden>Apagar la cámara</button>
 
+      @unless ($plazoAbierto)
+      {{--
+        El plazo manda sobre el carné y hay que decirlo ANTES, no después de
+        escanear a veinte personas: sin este renglón el lector se ofrece igual,
+        marca bien, y la clase sigue sin verificarse sin que nada lo explique.
+        Le pasó al usuario el día del estreno.
+      --}}
+      <p class="campo-ayuda">
+        El plazo para verificar esta clase venció el
+        {{ $limiteConfirmacion->isoFormat('D [de] MMMM [a las] HH:mm') }}:
+        el carné <strong>marcará la asistencia, pero ya no la verifica</strong>.
+      </p>
+      @endunless
+
       <div class="qr-lector-camara" data-qr-camara hidden>
         <video playsinline muted></video>
         <div class="qr-lector-marco"></div>

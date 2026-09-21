@@ -465,6 +465,150 @@ class CarneQrTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // Cuando el carne NO verifica, la pantalla dice por que
+    // ------------------------------------------------------------------
+
+    /**
+     * EL SEGUNDO FALLO DE PRODUCCION DEL 21/09/2026.
+     *
+     * El usuario paso lista con el carne y no se le verifico nadie. La causa
+     * mas probable era el plazo —una clase de dias atras— pero lo que convirtio
+     * eso en un misterio fue que la pantalla CALLABA: el aviso solo sabia hablar
+     * cuando algo se escribia.
+     *
+     * Estas pruebas no comprueban que se confirme, que ya esta cubierto arriba.
+     * Comprueban que cuando NO se confirma se DIGA, que es lo que costo el rato.
+     */
+    public function test_pasado_el_plazo_el_aviso_explica_que_fue_el_plazo(): void
+    {
+        $matricula = $this->inscribir();
+        $clase = $this->clase();
+        $clase->update(['fecha_hora' => Carbon::now()->subHours(Clase::VENTANA_CONFIRMACION_HORAS + 1)]);
+
+        $this->pasarLista($clase, [
+            PaseDeLista::PREFIJO.$matricula->id => Asistencia::ASISTIO,
+            'qr' => [CarneQr::PREFIJO.$this->ana->codigoQr()],
+        ]);
+
+        $aviso = (string) session('success');
+
+        $this->assertStringContainsString('el plazo', $aviso);
+        $this->assertStringContainsString('venció', $aviso);
+        // Y la asistencia SI se guardo: el carne sigue sirviendo para pasar
+        // lista aunque ya no verifique.
+        $this->assertSame(Asistencia::ASISTIO, $clase->asistencias()->first()->estado);
+    }
+
+    /**
+     * EL VERBO CONCUERDA CON EL SUJETO, en singular y en plural.
+     *
+     * Esta prueba SI esta atada al texto, en contra de la regla de la casa de
+     * atarlas a clases o rutas — y es a proposito: aqui el texto ES lo que se
+     * comprueba. «El carné leído marcaron la asistencia» es lo que salio la
+     * primera vez, y es el TERCER caso del mismo descuido en la asistencia. Si
+     * alguien reescribe la frase, esta prueba tiene que obligarle a mirar la
+     * otra forma tambien.
+     */
+    public function test_el_aviso_del_plazo_concuerda_en_singular_y_en_plural(): void
+    {
+        $matricula = $this->inscribir();
+        $otro = $this->perfil('dos', 'estudiante');
+        $suya = $this->inscribirA($otro);
+        $clase = $this->clase();
+        $clase->update(['fecha_hora' => Carbon::now()->subHours(Clase::VENTANA_CONFIRMACION_HORAS + 1)]);
+
+        $this->pasarLista($clase, [
+            PaseDeLista::PREFIJO.$matricula->id => Asistencia::ASISTIO,
+            'qr' => [CarneQr::PREFIJO.$this->ana->codigoQr()],
+        ]);
+
+        $this->assertStringContainsString('El carné leído marcó la asistencia', (string) session('success'));
+
+        $this->pasarLista($clase, [
+            PaseDeLista::PREFIJO.$matricula->id => Asistencia::ASISTIO,
+            PaseDeLista::PREFIJO.$suya->id => Asistencia::ASISTIO,
+            'qr' => [
+                CarneQr::PREFIJO.$this->ana->codigoQr(),
+                CarneQr::PREFIJO.$otro->codigoQr(),
+            ],
+        ]);
+
+        $this->assertStringContainsString('Los 2 carnés leídos marcaron la asistencia', (string) session('success'));
+    }
+
+    /** Y el lector lo advierte ANTES, no despues de escanear a veinte personas. */
+    public function test_el_lector_avisa_del_plazo_vencido_antes_de_escanear(): void
+    {
+        $this->inscribir();
+        $clase = $this->clase();
+        $clase->update(['fecha_hora' => Carbon::now()->subHours(Clase::VENTANA_CONFIRMACION_HORAS + 1)]);
+
+        $this->actingAs($this->profesor->user)
+            ->get(route('clase-asistencia', $clase))
+            ->assertSee('marcará la asistencia, pero ya no la verifica', false);
+    }
+
+    /** Dentro del plazo no hay tal aviso: seria ruido en el camino normal. */
+    public function test_dentro_del_plazo_el_lector_no_avisa_de_nada(): void
+    {
+        $this->inscribir();
+        $clase = $this->clase();
+
+        $this->actingAs($this->profesor->user)
+            ->get(route('clase-asistencia', $clase))
+            ->assertDontSee('ya no la verifica', false);
+    }
+
+    /** A quien acabo marcado ausente se le dice que por eso no verifica. */
+    public function test_si_acabo_marcado_ausente_el_aviso_lo_explica(): void
+    {
+        $matricula = $this->inscribir();
+        $clase = $this->clase();
+
+        $this->pasarLista($clase, [
+            PaseDeLista::PREFIJO.$matricula->id => Asistencia::FALTO,
+            'qr' => [CarneQr::PREFIJO.$this->ana->codigoQr()],
+        ]);
+
+        $this->assertStringContainsString('no asistió', (string) session('success'));
+    }
+
+    /** Un carne que no es de esta lista tampoco se calla. */
+    public function test_un_carne_ajeno_lo_dice_en_el_aviso(): void
+    {
+        $matricula = $this->inscribir();
+        $clase = $this->clase();
+        $ajeno = $this->perfil('otro', 'estudiante');
+        $this->inscribirEnOtraPromotoria($ajeno);
+
+        $this->pasarLista($clase, [
+            PaseDeLista::PREFIJO.$matricula->id => Asistencia::ASISTIO,
+            'qr' => [CarneQr::PREFIJO.$ajeno->codigoQr()],
+        ]);
+
+        $this->assertStringContainsString('no es de ningún estudiante de esta lista', (string) session('success'));
+    }
+
+    /**
+     * SIN CARNES NO SE DICE NADA DE CARNES.
+     *
+     * Es la mitad que impide que el arreglo del silencio se convierta en ruido:
+     * quien pasa lista a mano —que sigue siendo la mayoria— no tiene por que
+     * leer una frase sobre una funcion que no uso.
+     */
+    public function test_pasar_lista_a_mano_no_menciona_el_carne(): void
+    {
+        $matricula = $this->inscribir();
+        $clase = $this->clase();
+
+        $this->pasarLista($clase, [
+            PaseDeLista::PREFIJO.$matricula->id => Asistencia::ASISTIO,
+        ]);
+
+        $this->assertStringNotContainsString('carné', (string) session('success'));
+    }
+
+    // ------------------------------------------------------------------
     // La red de seguridad: preguntarle al servidor de quien es el carne
     // ------------------------------------------------------------------
 
@@ -666,6 +810,21 @@ class CarneQrTest extends TestCase
     {
         $matricula = new Matricula([
             'estudiante_id' => $this->ana->id,
+            'promotoria_id' => $this->piano->id,
+            'periodo_id' => $this->periodo->id,
+            'estado' => Matricula::ACTIVA,
+        ]);
+        $matricula->save();
+        $matricula->repartirEn([$this->grupo->id]);
+
+        return $matricula;
+    }
+
+    /** Otra persona en el MISMO grupo, para los casos de plural. */
+    private function inscribirA(Perfil $estudiante): Matricula
+    {
+        $matricula = new Matricula([
+            'estudiante_id' => $estudiante->id,
             'promotoria_id' => $this->piano->id,
             'periodo_id' => $this->periodo->id,
             'estado' => Matricula::ACTIVA,

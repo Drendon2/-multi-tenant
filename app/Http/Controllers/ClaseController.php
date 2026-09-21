@@ -174,6 +174,12 @@ class ClaseController extends Controller
             'requeridas' => $clase->confirmaciones_requeridas,
             'verificada' => $clase->estaConfirmada($confirmaciones),
             'vencida' => $clase->verificacionVencida($confirmaciones),
+            // Distinto de `vencida`: aquella dice «cerro sin reunir las que
+            // pedia» y esta dice solo si la puerta sigue abierta. Una clase YA
+            // verificada no esta «vencida» y aun asi puede tener el plazo
+            // cerrado — y en las dos el carne deja de verificar, que es lo que
+            // el lector tiene que avisar ANTES de que alguien escanee.
+            'plazoAbierto' => $clase->confirmacionAbierta(),
             'limiteConfirmacion' => $clase->limite_confirmacion,
         ];
     }
@@ -217,7 +223,7 @@ class ClaseController extends Controller
         // quedo escrito, y el profesor que escanea a alguien y luego le cambia
         // la marca a «Falto» dejaria una confirmacion contradiciendo su propia
         // lista.
-        $confirmadas = $this->confirmarLosCarnesLeidos($request, $clase, $matriculas);
+        $carnes = $this->confirmarLosCarnesLeidos($request, $clase, $matriculas);
 
         $sinMarcar = $matriculas->count() - $marcados;
 
@@ -227,16 +233,7 @@ class ClaseController extends Controller
                 .' sin marcar: puedes volver a esta clase y completarlos.'
             : 'Asistencia guardada.';
 
-        if ($confirmadas > 0) {
-            // El VERBO concuerda tambien, no solo el sustantivo: «se verificaron
-            // 1 asistencia» es lo que salia, y se vio en el navegador con la
-            // suite en verde. Es el mismo descuido que ya se corrigio una vez en
-            // una de las dos verticales de asistencia y se repitio dos horas
-            // despues en la otra.
-            $mensaje .= $confirmadas === 1
-                ? ' Con el carné se verificó 1 asistencia.'
-                : " Con el carné se verificaron {$confirmadas} asistencias.";
-        }
+        $mensaje .= $this->loQuePasoConLosCarnes($clase, $carnes);
 
         // Sin JavaScript, la redireccion de siempre. Es la rama por defecto, no
         // el remiendo: la otra solo existe si alguien pidio el fragmento.
@@ -335,6 +332,68 @@ class ClaseController extends Controller
     }
 
     /**
+     * Lo que hay que contarle al profesor sobre los carnes que leyo.
+     *
+     * EXISTE PORQUE EL SILENCIO ERA EL FALLO. Hasta el 21/09/2026 esto solo
+     * sabia decir «se verificó 1 asistencia» cuando algo se escribia, y CALLABA
+     * en todos los demas casos — el plazo vencido, el carne de otra clase, el
+     * estudiante que acabo marcado «Falto»—. El usuario probo en produccion y
+     * le paso lista bien pero no se le verifico nadie, y la pantalla no le dio
+     * ni una pista de por que. Un aviso que solo habla cuando todo sale bien no
+     * es un aviso: es un adorno del camino feliz.
+     *
+     * El plazo va PRIMERO porque explica TODOS los rechazos a la vez y es el que
+     * no se puede deducir mirando la lista: los otros dos el profesor los ve
+     * —la marca de falta esta ahi, y el nombre ajeno tambien—, pero «vencieron
+     * las 48 horas» no esta escrito en ninguna parte de la fila.
+     *
+     * @param  array<string, int>  $carnes
+     */
+    private function loQuePasoConLosCarnes(Clase $clase, array $carnes): string
+    {
+        if ($carnes['leidos'] === 0) {
+            return '';
+        }
+
+        if ($carnes['confirmadas'] > 0) {
+            return $carnes['confirmadas'] === 1
+                // El VERBO concuerda tambien, no solo el sustantivo: «se
+                // verificaron 1 asistencia» es lo que salia, y se vio en el
+                // navegador con la suite en verde.
+                ? ' Con el carné se verificó 1 asistencia.'
+                : " Con el carné se verificaron {$carnes['confirmadas']} asistencias.";
+        }
+
+        // EL VERBO VA CON EL SUJETO, y no solo el sustantivo. «El carné leído
+        // marcaron la asistencia» es lo que salia, visto en el navegador con la
+        // suite en verde. Es la TERCERA vez que este mismo descuido aparece en
+        // la asistencia, asi que aqui las dos formas de cada frase se escriben
+        // juntas: separadas por un `{$plural}` suelto es como se vuelve a
+        // colar.
+        $uno = $carnes['leidos'] === 1;
+        $cuantos = $uno ? 'El carné leído' : "Los {$carnes['leidos']} carnés leídos";
+
+        if (! $clase->confirmacionAbierta()) {
+            return " {$cuantos} ".($uno ? 'marcó' : 'marcaron').' la asistencia, pero '
+                .($uno ? 'no verifica' : 'no verifican').' la clase: el plazo para verificarla '
+                .'venció el '.$clase->limite_confirmacion->isoFormat('D [de] MMMM [a las] HH:mm').'.';
+        }
+
+        if ($carnes['yaEstaban'] === $carnes['leidos']) {
+            return " {$cuantos} ya ".($uno ? 'había' : 'habían').' verificado esta clase antes.';
+        }
+
+        if ($carnes['ausentes'] > 0) {
+            return " {$cuantos} ".($uno ? 'no verifica' : 'no verifican').' la clase: quien queda '
+                .'marcado como que no asistió no puede dar fe de ella.';
+        }
+
+        return " {$cuantos} ".($uno ? 'no verificó' : 'no verificaron').' la clase: '
+            .($uno ? 'no es' : 'no son').' de ningún estudiante de esta lista, o '
+            .($uno ? 'lo reemplazaron' : 'los reemplazaron').' por uno nuevo.';
+    }
+
+    /**
      * Los carnes que la camara leyo en esta hoja: marca y confirma.
      *
      * POR QUE LOS CODIGOS VIAJAN Y NO SOLO LA CASILLA. El navegador ya sabe a
@@ -355,14 +414,20 @@ class ClaseController extends Controller
      * alternativa era dejar fuera de la verificacion a quien no sabe entrar al
      * sistema, que es a quien esto viene a servir.
      *
+     * DEVUELVE EL DESGLOSE Y NO UNA CIFRA, desde el 21/09/2026: quien llama
+     * tiene que poder decir por que NO se verifico nada, que es el caso que se
+     * callaba (ver `loQuePasoConLosCarnes`).
+     *
      * @param  Collection<int, Matricula>  $matriculas
+     * @return array<string, int>
      */
-    private function confirmarLosCarnesLeidos(Request $request, Clase $clase, Collection $matriculas): int
+    private function confirmarLosCarnesLeidos(Request $request, Clase $clase, Collection $matriculas): array
     {
+        $cuenta = ['leidos' => 0, 'confirmadas' => 0, 'yaEstaban' => 0, 'ausentes' => 0];
         $leidos = $request->input('qr');
 
         if (! is_array($leidos) || $leidos === []) {
-            return 0;
+            return $cuenta;
         }
 
         // Se limpia ANTES de consultar: lo que no tiene forma de carne no llega
@@ -378,8 +443,10 @@ class ClaseController extends Controller
             }
         }
 
+        $cuenta['leidos'] = count($codigos);
+
         if ($codigos === []) {
-            return 0;
+            return $cuenta;
         }
 
         // Una consulta para los dos mapas, no una por carne.
@@ -395,7 +462,7 @@ class ClaseController extends Controller
         $deLaHoja = $matriculas->whereIn('estudiante_id', $perfiles);
 
         if ($deLaHoja->isEmpty()) {
-            return 0;
+            return $cuenta;
         }
 
         // El estado TAL COMO QUEDO ESCRITO, releido de la base: es lo que decide
@@ -404,22 +471,35 @@ class ClaseController extends Controller
             ->whereIn('matricula_id', $deLaHoja->pluck('id'))
             ->pluck('estado', 'matricula_id');
 
-        $confirmadas = 0;
-
         foreach ($deLaHoja as $matricula) {
+            $estado = $estados[$matricula->id] ?? null;
+
             $confirmacion = ConfirmacionClase::registrar(
                 $clase,
                 $matricula,
-                $estados[$matricula->id] ?? null,
+                $estado,
                 ConfirmacionClase::CARNE,
             );
 
-            if ($confirmacion?->wasRecentlyCreated) {
-                $confirmadas++;
+            if ($confirmacion === null) {
+                // `registrar()` rechaza por dos motivos y solo uno se ve en la
+                // fila. El otro —el plazo— lo mira quien arma el aviso, que
+                // puede preguntarselo a la clase una vez en vez de por persona.
+                if ($estado !== null && $estado !== Asistencia::ASISTIO) {
+                    $cuenta['ausentes']++;
+                }
+
+                continue;
+            }
+
+            if ($confirmacion->wasRecentlyCreated) {
+                $cuenta['confirmadas']++;
+            } else {
+                $cuenta['yaEstaban']++;
             }
         }
 
-        return $confirmadas;
+        return $cuenta;
     }
 
     /**
