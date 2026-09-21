@@ -108,14 +108,20 @@ class MisClasesController extends Controller
             );
         }
 
-        // firstOrCreate y no create: dos pulsaciones seguidas del mismo boton no
-        // pueden acabar en un error de integridad contra el indice unico.
-        $confirmacion = ConfirmacionClase::firstOrCreate([
-            'clase_id' => $fila['clase']->id,
-            'matricula_id' => $fila['matricula']->id,
-        ]);
+        // Las dos comprobaciones de arriba se quedan porque son las que saben
+        // DECIR que pasa; esta escribe. `registrar()` vuelve a mirar el plazo y
+        // la falta —es la unica puerta de escritura, y por ella entra tambien el
+        // carne QR que lee el profesor— asi que un null aqui solo puede ser una
+        // carrera contra el reloj o contra una falta recien puesta: se vuelve
+        // sin ruido, igual que cuando ya estaba confirmada.
+        $confirmacion = ConfirmacionClase::registrar(
+            $fila['clase'],
+            $fila['matricula'],
+            $fila['asistencia'],
+            ConfirmacionClase::PROPIA,
+        );
 
-        if (! $confirmacion->wasRecentlyCreated) {
+        if ($confirmacion === null || ! $confirmacion->wasRecentlyCreated) {
             return $this->volver('');
         }
 

@@ -133,6 +133,15 @@
   <a class="btn btn-secundario btn-sm" href="{{ route('detalle-estudiante', $objetivo) }}">
     Ver encuesta y documento
   </a>
+  {{--
+    El carné con el que le pasan lista con la cámara. SOLO al administrador, ni
+    siquiera al profesor que lo tiene en su lista: es la llave con la que a esta
+    persona se le marca asistencia, y quien pasa lista es a quien esas marcas
+    vigilan. Está escrito entero en `CarneController`.
+  --}}
+  <a class="btn btn-secundario btn-sm" href="{{ route('carne-estudiante', $objetivo) }}">
+    Carné con código
+  </a>
   @endif
 </p>
 @endif

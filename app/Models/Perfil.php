@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * Perfil comun a TODOS los roles. Uno por cada cuenta, sin importar el rol.
@@ -179,6 +180,74 @@ class Perfil extends Model
     public function esPersonal(): bool
     {
         return in_array($this->rol, self::ROLES_PERSONAL, true);
+    }
+
+    /**
+     * El token del carne QR, creandolo la primera vez que alguien lo pide.
+     *
+     * SE GENERA AL PEDIRLO y no al crear el perfil, a diferencia del token de
+     * `Actividad`: aquella columna es NOT NULL y nace con la fila, mientras que
+     * aqui habia 885 perfiles anteriores a esta funcion. Un hook de `creating`
+     * habria dejado con codigo solo a quien se inscribiera desde hoy, y
+     * justamente los que mas lo necesitan son los que ya estaban. Asi el camino
+     * es uno solo para todos: se pide, y si no hay, se crea.
+     *
+     * `Str::random` usa el generador seguro del sistema. SON 16 CARACTERES Y NO
+     * 32 porque el largo del codigo decide lo tupida que sale la rejilla del QR
+     * —medido: 25 modulos con 16, 33 con 32— y esa rejilla la lee la camara de
+     * un telefono barato sobre una fotocopia arrugada. 16 caracteres de este
+     * alfabeto son 95 bits: adivinarlo no es un camino, y el camino de verdad
+     * para hacerse con un codigo ajeno es fotografiarlo, no adivinarlo.
+     *
+     * Guarda con `saveQuietly` —nada escucha a este modelo hoy, pero mirar un
+     * carne no es editar un perfil— y `codigo_qr` NO esta en `$fillable`: no
+     * hay ningun formulario que deba poder escribirlo.
+     */
+    public function codigoQr(): string
+    {
+        if ($this->codigo_qr === null || $this->codigo_qr === '') {
+            $this->codigo_qr = Str::random(16);
+            $this->saveQuietly();
+        }
+
+        return $this->codigo_qr;
+    }
+
+    /**
+     * Cambia el codigo: el carne anterior deja de servir en el acto.
+     *
+     * Existe porque un carne se pierde y se fotografia, y sin esto la unica
+     * salida seria borrar la cuenta. Devuelve el nuevo.
+     */
+    public function renovarCodigoQr(): string
+    {
+        $this->codigo_qr = Str::random(16);
+        $this->saveQuietly();
+
+        return $this->codigo_qr;
+    }
+
+    /**
+     * Quien lleva ese codigo, o null.
+     *
+     * Solo ESTUDIANTES. El carne existe para pasar lista, y en una lista de
+     * clase no hay profesores; acotarlo aqui es lo que impide que el codigo de
+     * un profesor —que hoy no se imprime en ningun sitio, pero la columna es de
+     * todos los perfiles— sirva de nada si algun dia se filtrara.
+     *
+     * Un codigo vacio NO busca: sin este corte, `where('codigo_qr', '')`
+     * encontraria a cualquiera de los que todavia no han pedido su carne.
+     */
+    public static function porCodigoQr(string $codigo): ?self
+    {
+        if (trim($codigo) === '') {
+            return null;
+        }
+
+        return static::query()
+            ->where('codigo_qr', $codigo)
+            ->where('rol', 'estudiante')
+            ->first();
     }
 
     /**

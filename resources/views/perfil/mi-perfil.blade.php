@@ -253,6 +253,36 @@
 </details>
 
 {{--
+  EL CARNÉ CON CÓDIGO QR. Solo estudiantes: es con lo que el profesor les marca
+  la asistencia en clase, y en una lista de clase no hay profesores.
+
+  Va ANTES del certificado y de los papeles a propósito: es lo único de esta
+  pantalla que hay que llevar encima, y quien entra buscándolo lo hace de pie en
+  la puerta del salón.
+--}}
+@if ($perfil->rol === 'estudiante')
+<div class="perfil-seccion">
+  <div class="perfil-seccion-cabecera">
+    <span class="perfil-seccion-icono icono-documento" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/>
+        <path d="M14 14h3v3h-3zM19 19h2M14 19v2"/>
+      </svg>
+    </span>
+    <h3>Mi carné</h3>
+  </div>
+  <p class="campo-info" style="margin-top:0;">
+    Un código para que tu profesor te marque la asistencia con la cámara.
+    Guárdalo en las fotos de tu celular o imprímelo: <strong>sirve aunque no
+    puedas entrar al sistema</strong>.
+  </p>
+  <a class="btn" href="{{ route('mi-carne') }}">Ver mi carné</a>
+</div>
+@endif
+
+{{--
   El certificado de matrícula. Solo para quien tiene algo que certificar ahora
   mismo: sin matrículas activas en el periodo en curso la sección no aparece,
   porque el documento saldría afirmando que esta persona cursa algo que no cursa.

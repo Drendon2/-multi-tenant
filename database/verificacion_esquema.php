@@ -210,6 +210,31 @@ rechaza($db, 'estado de asistencia inventado', function ($d) {
               VALUES (1,$mid,'tarde',NOW(),NOW(),NOW())");
 }, 'estado_asistencia_valido');
 
+/*
+ * EL CODIGO DEL CARNE QR TIENE QUE SER UNICO, y esa unicidad no es un adorno:
+ * es lo que convierte «coincide con este codigo» en «es esta persona». Con dos
+ * perfiles compartiendolo, leer un carne en clase marcaria a uno de los dos al
+ * azar, sin que nada fallara.
+ *
+ * Y NULO TIENE QUE PODER REPETIRSE, que es la otra mitad y la que se romperia
+ * sin darse cuenta: la columna nace vacia para todo el mundo y solo se llena al
+ * pedir el carne. Un indice unico que no admitiera varios nulos dejaria el
+ * sistema con UNA sola persona sin carne, y el error saldria al crear la
+ * segunda cuenta, lejos de aqui.
+ */
+echo "\n== Carne QR: el codigo identifica a una sola persona ==\n";
+rechaza($db, 'dos perfiles con el mismo codigo de carne', function ($d) {
+    $d->exec("UPDATE perfiles SET codigo_qr = 'abcdefghij012345' WHERE id = 1");
+    $d->exec("UPDATE perfiles SET codigo_qr = 'abcdefghij012345' WHERE id = 2");
+}, 'Duplicate');
+acepta($db, 'varios perfiles SIN codigo conviven (nulo se repite)', function ($d) {
+    $d->exec('UPDATE perfiles SET codigo_qr = NULL WHERE id IN (1, 2)');
+    $n = $d->query('SELECT COUNT(*) FROM perfiles WHERE codigo_qr IS NULL')->fetchColumn();
+    if ($n < 2) {
+        throw new PDOException("se esperaban al menos dos perfiles sin codigo, hay $n");
+    }
+});
+
 echo "\n== Integridad referencial ==\n";
 rechaza($db, 'borrar una promotoria con matriculas (RESTRICT)',
     fn ($d) => $d->exec('DELETE FROM promotorias WHERE id = 1'), 'foreign key');

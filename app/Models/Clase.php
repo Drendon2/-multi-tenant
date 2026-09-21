@@ -94,11 +94,19 @@ class Clase extends Model
         return $this->belongsTo(Perfil::class, 'registrada_por_id');
     }
 
+    /**
+     * Las dos van ANOTADAS por lo mismo que `grupo()`: sin el tipo, el
+     * analizador ve un `Model` generico y `->first()->estado` —o `->origen`—
+     * sale como propiedad inexistente en quien las recorra.
+     *
+     * @return HasMany<Asistencia, $this>
+     */
     public function asistencias(): HasMany
     {
         return $this->hasMany(Asistencia::class);
     }
 
+    /** @return HasMany<ConfirmacionClase, $this> */
     public function confirmaciones(): HasMany
     {
         return $this->hasMany(ConfirmacionClase::class);

@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PostLoginController;
 use App\Http\Controllers\Auth\RegistroController;
 use App\Http\Controllers\Auth\RestablecerClaveController;
+use App\Http\Controllers\CarneController;
 use App\Http\Controllers\CatalogoController;
 use App\Http\Controllers\CertificadoController;
 use App\Http\Controllers\ClaseController;
@@ -127,6 +128,16 @@ Route::middleware('guest')->group(function () {
     Route::post('/inscripcion', [InscripcionController::class, 'guardar'])
         ->middleware('throttle:10,1')
         ->name('inscripcion.guardar');
+
+    // El carne que se ensena nada mas terminar de inscribirse, cuando todavia no
+    // hay sesion. QUIEN es sale de la SESION y no del camino: una URL con el
+    // perfil dentro entregaria el carne de cualquiera a cualquiera. Por eso no
+    // llevan parametro y por eso viven aqui, en `guest`, junto al formulario
+    // del que salen.
+    Route::get('/inscripcion/carne', [CarneController::class, 'trasInscribirse'])
+        ->name('carne-recien-inscrito');
+    Route::get('/inscripcion/carne/imagen', [CarneController::class, 'imagenTrasInscribirse'])
+        ->name('carne-recien-inscrito-imagen');
 });
 
 Route::post('/salir', [LoginController::class, 'salir'])->middleware('auth')->name('logout');
@@ -178,6 +189,15 @@ Route::middleware(['auth', 'rol:estudiante'])->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('/mi-perfil', [MiPerfilController::class, 'mostrar'])->name('mi-perfil');
     Route::post('/mi-perfil', [MiPerfilController::class, 'guardar'])->name('mi-perfil.guardar');
+
+    // El carne QR propio. Va en el grupo de «Mi perfil» y no en el de
+    // estudiante aunque hoy solo un estudiante tenga carne: el corte por rol lo
+    // hace el controlador y contesta explicando —«el carne es de los
+    // estudiantes»—, mientras que el middleware daria un rebote mudo a quien
+    // llegue por un enlace viejo.
+    Route::get('/mi-carne', [CarneController::class, 'mio'])->name('mi-carne');
+    Route::get('/mi-carne/imagen', [CarneController::class, 'imagenMia'])->name('mi-carne-imagen');
+    Route::post('/mi-carne/renovar', [CarneController::class, 'renovarElMio'])->name('mi-carne-renovar');
 });
 
 // El tema es del APARATO y no de la cuenta, asi que su ruta va FUERA de `auth`:
@@ -258,6 +278,20 @@ Route::middleware(['auth', 'rol:administrador,director,profesor'])->group(functi
     // Fichas
     Route::get('/panel/usuario/{usuario}', [FichaController::class, 'usuario'])
         ->name('detalle-usuario');
+
+    // El carne de un estudiante. SOLO ADMINISTRACION, y por eso el rol se
+    // comprueba en el controlador ademas de aqui: este grupo deja entrar
+    // tambien a profesores y directores, y el carne de otra persona no es de
+    // ellos (ver la cabecera de `CarneController`).
+    Route::get('/panel/usuario/{usuario}/carne', [CarneController::class, 'deEstudiante'])
+        ->middleware('rol:administrador')
+        ->name('carne-estudiante');
+    Route::get('/panel/usuario/{usuario}/carne/imagen', [CarneController::class, 'imagenDeEstudiante'])
+        ->middleware('rol:administrador')
+        ->name('carne-estudiante-imagen');
+    Route::post('/panel/usuario/{usuario}/carne/renovar', [CarneController::class, 'renovarDeEstudiante'])
+        ->middleware('rol:administrador')
+        ->name('carne-estudiante-renovar');
     Route::get('/panel/estudiante/{usuario}/historial', [FichaController::class, 'historial'])
         ->name('historial-estudiante');
     // Corregir la promotoria de una matricula: el estudiante se inscribio en la

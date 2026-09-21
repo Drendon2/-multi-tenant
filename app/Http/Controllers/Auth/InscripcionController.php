@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Http\Controllers\CarneController;
 use App\Http\Controllers\Controller;
 use App\Models\Acudiente;
 use App\Models\DatosEstudiante;
@@ -66,8 +67,13 @@ class InscripcionController extends Controller
         $datos = $this->validar($request, $limite);
         $elegidas = $this->promotoriasElegidas($request, $limite);
 
+        // Se declara FUERA de la transaccion para poder llevarselo despues: la
+        // pantalla del carne necesita saber de quien es, y dentro del cierre
+        // ese dato se queda.
+        $estudiante = null;
+
         try {
-            DB::transaction(function () use ($datos, $elegidas, $periodo) {
+            DB::transaction(function () use ($datos, $elegidas, $periodo, &$estudiante) {
                 $user = User::create([
                     'username' => $datos['username'],
                     'password' => $datos['password'],
@@ -100,6 +106,8 @@ class InscripcionController extends Controller
                 $datosEstudiante->validar();
                 $datosEstudiante->save();
 
+                $estudiante = $perfil;
+
                 foreach ($elegidas as $promotoria) {
                     $matricula = new Matricula([
                         'estudiante_id' => $perfil->id,
@@ -118,7 +126,18 @@ class InscripcionController extends Controller
             return back()->withInput()->with('error', $this->mensajeDeConflicto($e));
         }
 
-        return redirect()->route('login')->with('success', $this->mensajeDeExito($elegidas));
+        // AL CARNE Y NO AL LOGIN. Es el unico momento en que esta persona esta
+        // mirando y todavia no tiene que recordar nada para llegar a ningun
+        // sitio; desde aqui, guardarse el carne en el telefono es un gesto. Si
+        // lo salta, lo vuelve a sacar desde Mi perfil o se lo dan en la oficina.
+        //
+        // Quien es va en la SESION y no en la URL (ver `CarneController`), y el
+        // mensaje de siempre viaja igual: la pantalla del carne lo pinta, y de
+        // ahi se sigue a entrar.
+        session()->put(CarneController::RECIEN_INSCRITO, $estudiante?->id);
+
+        return redirect()->route('carne-recien-inscrito')
+            ->with('success', $this->mensajeDeExito($elegidas));
     }
 
     /**

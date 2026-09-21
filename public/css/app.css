@@ -3147,3 +3147,115 @@
      y el `max-width` de la fila base deja de importar porque dentro ya solo hay
      un boton, que trae su ancho. Se vio comparando las dos secciones. */
   .enlace-fila-plegada { max-width: none; }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     EL CARNÉ QR Y SU LECTOR — 21/09/2026
+
+     Dos piezas de la misma función: la pantalla donde un estudiante saca su
+     carné, y el lector que el profesor abre encima de la hoja de asistencia.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* LA PANTALLA DEL CARNÉ. El cuadrito manda: es lo único que hay que mirar, y
+     por eso ocupa el ancho de la tarjeta hasta su tamaño natural y va centrado.
+     El fondo del PNG es blanco SIEMPRE —un QR en negativo lo leen bastantes
+     menos cámaras— así que en modo oscuro la imagen se queda como una hoja de
+     papel sobre la tarjeta, que es exactamente lo que es. */
+  .carne-qr { text-align: center; }
+  .carne-qr-imagen {
+    display: block;
+    width: 100%;
+    max-width: 22rem;
+    height: auto;
+    margin: 0 auto;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+  .carne-qr-acciones {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem;
+    margin-top: 1rem;
+  }
+  .carne-qr-comollega {
+    margin: 1rem auto 0; max-width: 32rem;
+    font-size: 0.85rem; color: var(--ink-soft); text-align: left;
+  }
+  .carne-qr-renovar { margin-top: 1.2rem; }
+  /* `width: fit-content` por lo mismo que en `.grupo-lista-resumen`: sin el, el
+     <summary> ocupa el ancho de la pagina y el clic cae a un palmo del texto.
+     Y `min-height` porque este renglon se toca con el pulgar — un <summary> de
+     texto suelto mide unos 20px de alto, que es justo la medida que ya se midio
+     como intocable a 390px. */
+  .carne-qr-renovar summary {
+    display: inline-flex; align-items: center; min-height: 44px;
+    width: fit-content; cursor: pointer;
+    color: var(--ink-soft); font-size: 0.9rem;
+  }
+
+  /* EL LECTOR, dentro de la hoja de asistencia y encima de los nombres. */
+  .qr-lector { margin-bottom: 1rem; }
+  /* EL `hidden` DEL HTML NO BASTA AQUI, y se vio en el navegador con la suite en
+     verde: `.btn` declara `display: inline-flex`, que gana al `[hidden] {
+     display: none }` del navegador —una clase pesa mas que un atributo— y el
+     boton de apagar la camara salia puesto con la camara apagada. El mismo apaño
+     que ya llevaba `.sesiones-rapidas li[hidden]`. Va con el contenedor delante
+     para pesar mas que `.btn` sin recurrir a `!important`. */
+  .qr-lector [hidden] { display: none; }
+  .qr-lector-camara {
+    position: relative;
+    margin: 0.8rem auto 0;
+    max-width: 24rem;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: #000;
+  }
+  .qr-lector-camara video {
+    display: block; width: 100%; height: auto;
+    /* La imagen de la cámara trasera NO se espeja: espejada, mover el papel a
+       la derecha lo mueve a la izquierda en pantalla y apuntar se vuelve un
+       juego. Solo la cámara frontal se espeja, y esta pide la de atrás. */
+    transform: none;
+  }
+  /* La mira. Es un marco y no una cruz: lo que hay que encuadrar es un cuadrado,
+     y un marco enseña el tamaño al que hay que acercarse. No captura eventos. */
+  .qr-lector-marco {
+    position: absolute; inset: 12%;
+    border: 2px solid var(--sobre-acento);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 0 0 100vmax rgba(0,0,0,0.35);
+    pointer-events: none;
+  }
+  .qr-lector-aviso {
+    margin: 0.7rem 0 0; min-height: 1.4rem;
+    font-size: 0.9rem; color: var(--ink-soft); text-align: center;
+  }
+  .qr-lector-aviso-bien { color: var(--accent-dark); font-weight: 600; }
+  .qr-lector-aviso-mal { color: var(--danger); font-weight: 600; }
+
+  /* LA FILA RECIÉN LEÍDA. El fondo dice «esta es», y NO sustituye a la marca:
+     el radio de «Asistió» queda puesto igual, que es el dato. Se queda puesto a
+     propósito y no se desvanece — con veinte escaneos seguidos, lo útil al
+     final es ver de un vistazo a quiénes se leyó y a quiénes no. */
+  .asistencia-fila-leida { background: var(--accent-soft); }
+
+  /* IMPRIMIR EL CARNÉ. Quien lo imprime es administración, desde el menú de su
+     navegador, y lo que tiene que salir es el carné y nada más: ni el menú, ni
+     las migas, ni el botón de descargar, ni las instrucciones de guardarlo en
+     el teléfono, que en papel no significan nada. */
+  @media print {
+    body:has(.carne-qr) header,
+    body:has(.carne-qr) footer,
+    body:has(.carne-qr) .nav-barra,
+    body:has(.carne-qr) .migas,
+    body:has(.carne-qr) .aviso,
+    body:has(.carne-qr) .messages,
+    body:has(.carne-qr) .carne-qr-acciones,
+    body:has(.carne-qr) .carne-qr-comollega,
+    body:has(.carne-qr) .carne-qr-renovar,
+    body:has(.carne-qr) .volver,
+    body:has(.carne-qr) h2 { display: none; }
+    /* El selector se repite ENTERO dentro de la consulta: una consulta de
+       medios no añade especificidad, así que `.card` a secas aquí no gana a la
+       regla de `.card` de arriba — compila, no falla y no hace nada. */
+    body:has(.carne-qr) .card.carne-qr {
+      box-shadow: none; border: 0; padding: 0; margin: 0;
+    }
+  }

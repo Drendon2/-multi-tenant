@@ -74,8 +74,40 @@
   --}}
   <form method="post" action="{{ route('clase-asistencia', $clase) }}" class="card asistencia-lista" id="form-asistencia">
     @csrf
+
+    @if ($puedeMarcar)
+    {{--
+      EL LECTOR DEL CARNÉ. Nace oculto y lo destapa `asistencia-qr.js` cuando el
+      aparato tiene cámara: sin JavaScript —o en un navegador que no la deja
+      usar— aquí no aparece ningún botón, porque uno que no hace nada es peor
+      que ninguno. La lista de abajo es la misma de siempre y se sigue pudiendo
+      marcar a mano: el carné es un atajo, no un reemplazo.
+
+      Va DENTRO del formulario porque lo que el lector deja no es una marca en la
+      pantalla sino los códigos leídos, y esos viajan con el resto al guardar.
+    --}}
+    <div class="qr-lector" data-qr-lector hidden>
+      <button type="button" class="btn btn-secundario" data-qr-abrir>Pasar lista con el carné</button>
+      <button type="button" class="btn btn-secundario btn-sm" data-qr-cerrar hidden>Apagar la cámara</button>
+
+      <div class="qr-lector-camara" data-qr-camara hidden>
+        <video playsinline muted></video>
+        <div class="qr-lector-marco"></div>
+      </div>
+
+      {{--
+        El renglón que dice a quién acaba de leer. `aria-live` y `role="status"`
+        porque quien escanea está mirando al estudiante y a la cámara, no a la
+        pantalla: el anuncio tiene que llegar aunque nadie esté leyendo.
+      --}}
+      <p class="qr-lector-aviso" data-qr-aviso role="status" aria-live="polite"></p>
+
+      <div data-qr-leidos hidden></div>
+    </div>
+    @endif
+
     @foreach ($estudiantes as $e)
-    <div class="asistencia-fila">
+    <div class="asistencia-fila" data-matricula="{{ $e['matricula']->id }}" @if ($e['huella']) data-qr-huella="{{ $e['huella'] }}" @endif>
       <span class="asistencia-nombre">
         @include('panel.foto', ['perfil' => $e['perfil']])
         @if (\App\Support\Permisos::puedeVerFicha($yo, $e['perfil']))
@@ -108,6 +140,16 @@
 <p style="margin-top:1.5rem;">
   <a class="volver" href="{{ route('grupo-clases', $clase->grupo) }}">← Clases de este grupo</a>
 </p>
+
+{{--
+  Los dos guiones van DENTRO de <main>: al guardar sin recargar, `acciones.js`
+  reemplaza el <main> entero y vuelve a crear los <script> que encuentra dentro
+  (uno insertado con innerHTML no se ejecuta solo). Fuera, la pantalla recién
+  guardada se quedaría sin lector y sin el atajo de «marcar todos».
+--}}
+@if ($puedeMarcar)
+<script src="@recurso('js/asistencia-qr.js')" defer></script>
+@endif
 
 <script>
   (function () {

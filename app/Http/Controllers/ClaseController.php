@@ -4,13 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Asistencia;
 use App\Models\Clase;
+use App\Models\ConfirmacionClase;
 use App\Models\Grupo;
+use App\Models\Matricula;
 use App\Models\Perfil;
 use App\Models\Periodo;
+use App\Support\CarneQr;
 use App\Support\Fragmento;
 use App\Support\PaseDeLista;
 use App\Support\Permisos;
 use App\Support\ResumenAsistencia;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -134,6 +138,15 @@ class ClaseController extends Controller
                 'matricula' => $matricula,
                 'perfil' => $matricula->estudiante,
                 'estado' => $estado,
+                // La HUELLA del carne, no el carne. Es lo que le permite al
+                // lector de QR reconocer al vuelo a quien acaba de escanear sin
+                // que la pantalla lleve encima nada que sirva para hacerse pasar
+                // por el (ver `CarneQr::huella`). Vacia si esa persona todavia
+                // no tiene codigo: NO se le crea uno aqui, porque eso escribiria
+                // en cuarenta perfiles cada vez que alguien abre una lista.
+                'huella' => ($matricula->estudiante->codigo_qr ?? '') === ''
+                    ? ''
+                    : CarneQr::huella($matricula->estudiante->codigo_qr),
                 // Quien dicta se entera de que esta de salida, igual que en el
                 // panel: la marca es informativa y no cambia que haya que
                 // pasarle lista.
@@ -197,6 +210,14 @@ class ClaseController extends Controller
             ids: $matriculas->pluck('id'),
         );
 
+        // Va DESPUES de guardar la hoja y no antes, y ese orden es la regla:
+        // confirma solo a quien acabo de quedar marcado «Asistio». Si corriera
+        // antes, confirmaria mirando lo que el formulario TRAIA en vez de lo que
+        // quedo escrito, y el profesor que escanea a alguien y luego le cambia
+        // la marca a «Falto» dejaria una confirmacion contradiciendo su propia
+        // lista.
+        $confirmadas = $this->confirmarLosCarnesLeidos($request, $clase, $matriculas);
+
         $sinMarcar = $matriculas->count() - $marcados;
 
         $mensaje = $sinMarcar
@@ -204,6 +225,17 @@ class ClaseController extends Controller
                 .($sinMarcar === 1 ? 'estudiante' : 'estudiantes')
                 .' sin marcar: puedes volver a esta clase y completarlos.'
             : 'Asistencia guardada.';
+
+        if ($confirmadas > 0) {
+            // El VERBO concuerda tambien, no solo el sustantivo: «se verificaron
+            // 1 asistencia» es lo que salia, y se vio en el navegador con la
+            // suite en verde. Es el mismo descuido que ya se corrigio una vez en
+            // una de las dos verticales de asistencia y se repitio dos horas
+            // despues en la otra.
+            $mensaje .= $confirmadas === 1
+                ? ' Con el carné se verificó 1 asistencia.'
+                : " Con el carné se verificaron {$confirmadas} asistencias.";
+        }
 
         // Sin JavaScript, la redireccion de siempre. Es la rama por defecto, no
         // el remiendo: la otra solo existe si alguien pidio el fragmento.
@@ -219,6 +251,94 @@ class ClaseController extends Controller
         session()->now('success', $mensaje);
 
         return Fragmento::responder('panel.asistencia', $this->datosDeLaHoja($clase, $perfil));
+    }
+
+    /**
+     * Los carnes que la camara leyo en esta hoja: marca y confirma.
+     *
+     * POR QUE LOS CODIGOS VIAJAN Y NO SOLO LA CASILLA. El navegador ya sabe a
+     * quien escaneo —coteja huellas, ver `CarneQr::huella`— y podria mandar la
+     * lista de matriculas y ya. No lo hace: en esa version, para dar por buenas
+     * quince clases bastaria con escribir quince numeros en el formulario, y
+     * quien tiene la pantalla abierta es justamente a quien estas confirmaciones
+     * vigilan. Mandando el CODIGO, escribirlo a mano exige tener el carne
+     * delante, que es exactamente lo que la funcion dice que paso: el estudiante
+     * estuvo ahi y lo enseno.
+     *
+     * LO QUE ESTO NO IMPIDE, escrito aqui para quien venga a moverlo: un
+     * profesor que se quede con los carnes de sus estudiantes —fotografiandolos
+     * mientras los escanea, por ejemplo— puede confirmar sus propias clases.
+     * Por eso el carne de otra persona solo lo saca administracion (ver
+     * `CarneController`) y por eso existe renovarlo. Es el mismo riesgo del
+     * carne de cartulina de toda la vida, asumido a sabiendas el 21/09/2026: la
+     * alternativa era dejar fuera de la verificacion a quien no sabe entrar al
+     * sistema, que es a quien esto viene a servir.
+     *
+     * @param  Collection<int, Matricula>  $matriculas
+     */
+    private function confirmarLosCarnesLeidos(Request $request, Clase $clase, Collection $matriculas): int
+    {
+        $leidos = $request->input('qr');
+
+        if (! is_array($leidos) || $leidos === []) {
+            return 0;
+        }
+
+        // Se limpia ANTES de consultar: lo que no tiene forma de carne no llega
+        // a ser una consulta. `array_unique` porque una camara encendida lee el
+        // mismo cuadrito veinte veces por segundo.
+        $codigos = [];
+
+        foreach ($leidos as $leido) {
+            $codigo = is_string($leido) ? CarneQr::codigoLeido($leido) : null;
+
+            if ($codigo !== null) {
+                $codigos[$codigo] = true;
+            }
+        }
+
+        if ($codigos === []) {
+            return 0;
+        }
+
+        // Una consulta para los dos mapas, no una por carne.
+        $perfiles = Perfil::query()
+            ->whereIn('codigo_qr', array_keys($codigos))
+            ->where('rol', 'estudiante')
+            ->pluck('id');
+
+        // SOLO LOS DE ESTA HOJA. Un carne de otro grupo se lee igual de bien, y
+        // sin este cruce quedaria confirmando una clase a la que esa persona ni
+        // pertenece. `matriculasAPasar()` es quien decide quien esta en la lista,
+        // y aqui no se vuelve a decidir: se pregunta.
+        $deLaHoja = $matriculas->whereIn('estudiante_id', $perfiles);
+
+        if ($deLaHoja->isEmpty()) {
+            return 0;
+        }
+
+        // El estado TAL COMO QUEDO ESCRITO, releido de la base: es lo que decide
+        // si esa persona puede dar fe (ver `ConfirmacionClase::registrar`).
+        $estados = $clase->asistencias()
+            ->whereIn('matricula_id', $deLaHoja->pluck('id'))
+            ->pluck('estado', 'matricula_id');
+
+        $confirmadas = 0;
+
+        foreach ($deLaHoja as $matricula) {
+            $confirmacion = ConfirmacionClase::registrar(
+                $clase,
+                $matricula,
+                $estados[$matricula->id] ?? null,
+                ConfirmacionClase::CARNE,
+            );
+
+            if ($confirmacion?->wasRecentlyCreated) {
+                $confirmadas++;
+            }
+        }
+
+        return $confirmadas;
     }
 
     /**

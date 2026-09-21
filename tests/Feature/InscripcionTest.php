@@ -68,10 +68,19 @@ class InscripcionTest extends TestCase
         ];
     }
 
+    /**
+     * DESDE EL 21/09/2026 LA INSCRIPCION TERMINA EN EL CARNE, no en la pantalla
+     * de entrar.
+     *
+     * Es el unico momento en que esta persona esta mirando y todavia no tiene
+     * que recordar nada para llegar a ningun sitio, asi que ahi es donde se le
+     * ofrece guardarse el carne QR en el telefono. El mensaje de siempre viaja
+     * igual y de esa pantalla se sigue a entrar.
+     */
     public function test_crea_cuenta_perfil_datos_y_matricula(): void
     {
         $this->post(route('inscripcion.guardar'), $this->datos())
-            ->assertRedirect(route('login'))
+            ->assertRedirect(route('carne-recien-inscrito'))
             ->assertSessionHas('success');
 
         $user = User::where('username', 'ana.nueva')->first();
@@ -85,6 +94,35 @@ class InscripcionTest extends TestCase
         $this->assertSame(Matricula::PENDIENTE, $matricula->estado);
         $this->assertSame(0, $matricula->grupos()->count());
         $this->assertSame($this->violin->id, $matricula->promotoria_id);
+    }
+
+    /**
+     * Y esa pantalla se abre de verdad, con el carne dentro y la puerta a
+     * entrar.
+     *
+     * VA EN LA MISMA PETICION ENCADENADA a proposito: quien es sale de la
+     * SESION y no de la URL —una URL con el perfil dentro entregaria el carne
+     * de cualquiera— asi que esta prueba solo vale si conserva la sesion que
+     * dejo la inscripcion.
+     */
+    public function test_la_pantalla_final_ensena_el_carne_y_lleva_a_entrar(): void
+    {
+        $this->post(route('inscripcion.guardar'), $this->datos());
+
+        $respuesta = $this->get(route('carne-recien-inscrito'));
+
+        $respuesta->assertOk();
+        $respuesta->assertSee('data:image/png;base64,', false);
+        $respuesta->assertSee(route('login'), false);
+
+        // Y el codigo quedo creado, que es lo que hace que el papel sirva.
+        $this->assertNotNull(User::where('username', 'ana.nueva')->first()->perfil->codigo_qr);
+    }
+
+    /** Sin haberse inscrito, esa pantalla no ensena el carne de nadie. */
+    public function test_sin_inscripcion_reciente_la_pantalla_del_carne_manda_a_entrar(): void
+    {
+        $this->get(route('carne-recien-inscrito'))->assertRedirect(route('login'));
     }
 
     public function test_puede_inscribirse_en_dos_promotorias(): void
