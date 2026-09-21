@@ -17,6 +17,16 @@
   eso necesita el codigo entero; de lo contrario bastaria escribir numeros de
   matricula en el formulario.
 
+  EL COTEJO LOCAL ES UN ATAJO, NO LA ULTIMA PALABRA. Se aprendio en produccion
+  el 21/09/2026: las huellas son las de quien YA tenia codigo cuando se pinto la
+  pagina, y el codigo se crea al sacar el carne por primera vez. Un carne
+  impreso cinco minutos despues de abrir la lista no estaba en el mapa, y el
+  lector contestaba «ese carne no es de ningun estudiante de esta lista» —o sea
+  acusaba al estudiante de un desfase de la pantalla, sin que nada fallara—.
+  Ahora, cuando el atajo no encuentra a nadie, se le pregunta al servidor
+  (`data-qr-comprobar`), que es quien sabe; y lo que vuelve se guarda en el mapa
+  para que el segundo escaneo del mismo carne no viaje.
+
   SIN JAVASCRIPT NO HAY BOTON. El panel nace con `hidden` puesto en la plantilla
   y es este guion el que lo destapa, y solo si el aparato tiene camara y
   `crypto.subtle`. Un boton de «leer el carne» que no puede leer nada es
@@ -209,16 +219,75 @@
     huellaDe(codigo).then(function (huella) {
       var fila = porHuella[huella];
 
-      if (!fila) {
-        // Es un carne de verdad, pero de alguien que no esta en esta lista.
-        // Decirlo asi y no «no existe»: manda a mirar el grupo, que es donde
-        // casi siempre esta el enredo.
-        decir("Ese carné no es de ningún estudiante de esta lista.", "mal");
+      if (fila) {
+        marcar(fila, codigo);
         return;
       }
 
-      marcar(fila, codigo);
+      // NO SE DA POR PERDIDO AQUI, y esa es la leccion del 21/09/2026: las
+      // huellas de esta pagina son las de quien YA tenia codigo cuando se
+      // pinto, y el codigo se crea al sacar el carne. Un carne impreso despues
+      // de abrir esta lista no esta en el mapa, y dar eso por «no es de esta
+      // clase» es acusar al estudiante de un desfase de la pantalla. Se le
+      // pregunta al servidor, que es quien sabe.
+      preguntarAlServidor(codigo, huella);
     });
+  }
+
+  /** La segunda opinion: el servidor resuelve el carne contra la clase. */
+  function preguntarAlServidor(codigo, huella) {
+    decir("Comprobando el carné…");
+
+    var testigo = form.querySelector('input[name="_token"]');
+
+    fetch(panel.getAttribute("data-qr-comprobar"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-CSRF-TOKEN": testigo ? testigo.value : ""
+      },
+      body: JSON.stringify({ codigo: PREFIJO + codigo })
+    }).then(function (respuesta) {
+      return respuesta.json();
+    }).then(function (dato) {
+      if (dato.encontrado) {
+        var fila = form.querySelector('[data-matricula="' + dato.matricula + '"]');
+
+        if (!fila) {
+          // La persona es de esta clase pero su renglon no esta en la pantalla:
+          // la lista cambio desde que se abrio. Recargar es lo unico honesto.
+          decir(dato.nombre + " entró a esta clase después de que abrieras la lista. Recarga la página.", "mal");
+          return;
+        }
+
+        // Se guarda la huella: el segundo escaneo del mismo carne ya no viaja.
+        if (dato.huella) { porHuella[dato.huella] = fila; }
+
+        marcar(fila, codigo);
+        return;
+      }
+
+      decir(porQueNoVale(dato), "mal");
+    }).catch(function () {
+      // Sin red no se puede afirmar nada, y decir «no está en la lista» seria
+      // mentir con seguridad. Se dice lo que pasa y se ofrece la salida.
+      decir("No se pudo comprobar el carné (sin conexión). Márcalo a mano en la lista.", "mal");
+    });
+  }
+
+  function porQueNoVale(dato) {
+    if (dato.motivo === "otra_lista") {
+      return "Ese carné es de " + (dato.nombre || "otra persona") + ", que no está en esta clase.";
+    }
+    if (dato.motivo === "desconocido") {
+      return "Ese carné ya no sirve: seguramente lo reemplazaron por uno nuevo.";
+    }
+    if (dato.motivo === "sin_permiso") {
+      return "Pasar lista es de quien dicta la promotoría.";
+    }
+
+    return "Ese código no es un carné del sistema.";
   }
 
   function marcar(fila, codigo) {

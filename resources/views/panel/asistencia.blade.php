@@ -85,8 +85,14 @@
 
       Va DENTRO del formulario porque lo que el lector deja no es una marca en la
       pantalla sino los códigos leídos, y esos viajan con el resto al guardar.
+
+      `data-qr-comprobar` es la red de seguridad: cuando el carné leído no está
+      entre las huellas de ESTA página —porque se imprimió después de abrirla—,
+      el lector le pregunta al servidor en vez de dar por sentado que la persona
+      no es de esta clase. Ver `ClaseController::comprobarCarne`.
     --}}
-    <div class="qr-lector" data-qr-lector hidden>
+    <div class="qr-lector" data-qr-lector
+         data-qr-comprobar="{{ route('clase-comprobar-carne', $clase) }}" hidden>
       <button type="button" class="btn btn-secundario" data-qr-abrir>Pasar lista con el carné</button>
       <button type="button" class="btn btn-secundario btn-sm" data-qr-cerrar hidden>Apagar la cámara</button>
 

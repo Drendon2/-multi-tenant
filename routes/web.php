@@ -275,6 +275,12 @@ Route::middleware(['auth', 'rol:administrador,director,profesor'])->group(functi
         ->name('clase-asistencia');
     Route::post('/panel/clases/{clase}/asistencia', [ClaseController::class, 'guardarAsistencia']);
 
+    // A quien pertenece un carne leido, cuando la pantalla no lo reconoce. Va
+    // por POST y no por GET aunque solo lea: el codigo iria en la URL, y una URL
+    // se queda escrita en los registros del servidor y del CDN.
+    Route::post('/panel/clases/{clase}/carne', [ClaseController::class, 'comprobarCarne'])
+        ->name('clase-comprobar-carne');
+
     // Fichas
     Route::get('/panel/usuario/{usuario}', [FichaController::class, 'usuario'])
         ->name('detalle-usuario');

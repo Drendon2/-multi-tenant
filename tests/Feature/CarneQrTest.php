@@ -465,6 +465,140 @@ class CarneQrTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // La red de seguridad: preguntarle al servidor de quien es el carne
+    // ------------------------------------------------------------------
+
+    /**
+     * EL FALLO DE PRODUCCION DEL 21/09/2026, y por eso existe esta seccion.
+     *
+     * El profesor escaneo el carne de alguien que SI estaba en su lista y le
+     * salio «ese carne no es de ningun estudiante de esta lista». La pantalla
+     * lleva las huellas de quien YA tenia codigo cuando se pinto, y el codigo se
+     * crea al sacar el carne: abrir la hoja y sacar el carne despues dejaba una
+     * pagina que no sabia de ese codigo.
+     *
+     * Esta prueba reproduce ese orden EXACTO —hoja primero, carne despues— y es
+     * la que se queda roja si alguien vuelve a hacer del cotejo local la ultima
+     * palabra.
+     */
+    public function test_un_carne_sacado_despues_de_abrir_la_hoja_se_reconoce_igual(): void
+    {
+        $matricula = $this->inscribir();
+        $clase = $this->clase();
+
+        // 1. El profesor abre la lista. Ana todavia no tiene codigo, asi que su
+        //    renglon sale SIN huella: es el estado que causaba el fallo.
+        $hoja = $this->actingAs($this->profesor->user)->get(route('clase-asistencia', $clase));
+        $hoja->assertOk();
+        $hoja->assertDontSee('data-qr-huella', false);
+
+        // 2. Administracion le imprime el carne. AHORA nace el codigo.
+        $codigo = $this->ana->codigoQr();
+
+        // 3. Se escanea contra la pagina de antes. El servidor lo resuelve.
+        $respuesta = $this->actingAs($this->profesor->user)->postJson(
+            route('clase-comprobar-carne', $clase),
+            ['codigo' => CarneQr::PREFIJO.$codigo]
+        );
+
+        $respuesta->assertOk();
+        $respuesta->assertJson([
+            'encontrado' => true,
+            'matricula' => $matricula->id,
+            'nombre' => $this->ana->nombre_completo,
+        ]);
+        $respuesta->assertJsonPath('huella', CarneQr::huella($codigo));
+    }
+
+    /**
+     * Un carne de otra clase dice DE QUIEN es.
+     *
+     * El nombre viaja a proposito: quien pregunta tiene el carne en la mano y el
+     * nombre va impreso en el. «Ese carné es de Ana Ruiz, que no está en esta
+     * clase» se resuelve ahi mismo; «no está en la lista» manda a buscar a
+     * ciegas, que es lo que paso en produccion.
+     */
+    public function test_el_carne_de_otra_clase_dice_de_quien_es(): void
+    {
+        $this->inscribir();
+        $clase = $this->clase();
+        $ajeno = $this->perfil('otro', 'estudiante');
+        $this->inscribirEnOtraPromotoria($ajeno);
+
+        $this->actingAs($this->profesor->user)->postJson(
+            route('clase-comprobar-carne', $clase),
+            ['codigo' => CarneQr::PREFIJO.$ajeno->codigoQr()]
+        )->assertOk()->assertJson([
+            'encontrado' => false,
+            'motivo' => 'otra_lista',
+            'nombre' => $ajeno->nombre_completo,
+        ]);
+    }
+
+    /**
+     * Un carne renovado se distingue de uno que no es de esta clase.
+     *
+     * Son dos arreglos distintos —uno se resuelve imprimiendo el carne nuevo y
+     * el otro mirando el grupo— y decir lo mismo en los dos casos manda a la
+     * mitad de la gente por donde no es.
+     */
+    public function test_un_carne_que_ya_no_vale_se_distingue_del_de_otra_clase(): void
+    {
+        $this->inscribir();
+        $clase = $this->clase();
+        $viejo = $this->ana->codigoQr();
+        $this->ana->renovarCodigoQr();
+
+        $this->actingAs($this->profesor->user)->postJson(
+            route('clase-comprobar-carne', $clase),
+            ['codigo' => CarneQr::PREFIJO.$viejo]
+        )->assertOk()->assertJson(['encontrado' => false, 'motivo' => 'desconocido']);
+    }
+
+    /** Y basura no llega a ser una consulta. */
+    public function test_lo_que_no_tiene_forma_de_carne_no_se_consulta(): void
+    {
+        $this->inscribir();
+        $clase = $this->clase();
+
+        $this->actingAs($this->profesor->user)->postJson(
+            route('clase-comprobar-carne', $clase),
+            ['codigo' => 'https://ejemplo.com/loquesea']
+        )->assertOk()->assertJson(['encontrado' => false, 'motivo' => 'no_es_carne']);
+    }
+
+    /**
+     * QUIEN NO DICTA NO CONVIERTE UN CODIGO EN UN NOMBRE.
+     *
+     * Es la puerta que importa de esta ruta: sin ella seria el resquicio por el
+     * que cualquiera del panel —o un director mirando la hoja— resuelve carnes
+     * ajenos. Es la misma barrera que la de escribir la lista, no una mas suelta.
+     */
+    public function test_quien_no_dicta_no_puede_resolver_un_carne(): void
+    {
+        $this->inscribir();
+        $clase = $this->clase();
+        $otro = $this->perfil('otraprofe', 'profesor');
+
+        $this->actingAs($otro->user)->postJson(
+            route('clase-comprobar-carne', $clase),
+            ['codigo' => CarneQr::PREFIJO.$this->ana->codigoQr()]
+        )->assertForbidden();
+    }
+
+    /** Y el administrador tampoco, que es quien mas cerca esta de poder. */
+    public function test_el_administrador_tampoco_resuelve_carnes_de_una_clase(): void
+    {
+        $this->inscribir();
+        $clase = $this->clase();
+
+        $this->actingAs($this->administrador->user)->postJson(
+            route('clase-comprobar-carne', $clase),
+            ['codigo' => CarneQr::PREFIJO.$this->ana->codigoQr()]
+        )->assertForbidden();
+    }
+
+    // ------------------------------------------------------------------
     // Lo que se lee del cuadrito
     // ------------------------------------------------------------------
 

@@ -15,6 +15,7 @@ use App\Support\PaseDeLista;
 use App\Support\Permisos;
 use App\Support\ResumenAsistencia;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -251,6 +252,86 @@ class ClaseController extends Controller
         session()->now('success', $mensaje);
 
         return Fragmento::responder('panel.asistencia', $this->datosDeLaHoja($clase, $perfil));
+    }
+
+    /**
+     * ¿De quien es este carne, dentro de esta clase?
+     *
+     * ES LA RED DE SEGURIDAD DEL LECTOR, y existe por un fallo que se vio en
+     * produccion el 21/09/2026: el profesor escaneo el carne de alguien que SI
+     * estaba en su lista y le salio «ese carne no es de ningun estudiante de
+     * esta lista».
+     *
+     * LA CAUSA: la pantalla lleva las huellas de quien YA tenia codigo cuando
+     * se pinto, y el codigo se crea al sacar el carne por primera vez. Abrir la
+     * hoja a las 10:00 y sacarle el carne a alguien a las 10:05 dejaba una
+     * pagina que no sabia de la existencia de ese codigo. Nada fallaba: el
+     * cotejo local decia que no, y el aviso lo contaba como si el problema
+     * fuera del estudiante.
+     *
+     * Cotejar SOLO contra la pagina era el error de fondo: una lista congelada
+     * en el momento de pintar, decidiendo sobre algo que cambia despues. El
+     * cotejo local se queda porque es lo que da el nombre al instante sin un
+     * viaje —y en este hosting un viaje son casi dos segundos, de pie en el
+     * salon—, pero ahora es un ATAJO y no la ultima palabra: cuando no encuentra
+     * a nadie, pregunta aqui.
+     *
+     * DEVUELVE JSON, que es la unica cosa de este proyecto que lo hace. No
+     * contradice a `App\Support\Fragmento` —aquello dice que una PANTALLA no se
+     * sirve como API— porque esto no es una pantalla: es una pregunta de un dato
+     * («¿de quien es este codigo?») que no tiene forma de pagina.
+     *
+     * EL NOMBRE VIAJA TAMBIEN CUANDO LA PERSONA NO ES DE ESTA LISTA, y no es un
+     * descuido: quien pregunta tiene el carne EN LA MANO y el nombre va impreso
+     * en el. Decir «ese carne es de Ana Ruiz, que no esta en este grupo» es lo
+     * unico que convierte un rechazo en algo que se puede resolver ahi mismo.
+     */
+    public function comprobarCarne(Request $request, Clase $clase): JsonResponse
+    {
+        /** @var Perfil $perfil */
+        $perfil = $request->attributes->get('perfil');
+
+        // La misma puerta que la de escribir la hoja, y no una mas suelta: el
+        // lector solo se le pinta a quien dicta, asi que esto no puede ser el
+        // resquicio por el que otro convierta un codigo en un nombre.
+        if (! Permisos::dictaLaPromotoria($perfil, $clase->grupo->promotoria)) {
+            return response()->json(['encontrado' => false, 'motivo' => 'sin_permiso'], 403);
+        }
+
+        $codigo = CarneQr::codigoLeido((string) $request->input('codigo', ''));
+
+        if ($codigo === null) {
+            return response()->json(['encontrado' => false, 'motivo' => 'no_es_carne']);
+        }
+
+        $estudiante = Perfil::porCodigoQr($codigo);
+
+        if ($estudiante === null) {
+            // Un carne de verdad pero que ya no vale: casi siempre uno viejo de
+            // alguien que lo renovo. Se distingue a proposito de «no esta en
+            // esta lista», que manda a mirar el grupo y aqui no sirve de nada.
+            return response()->json(['encontrado' => false, 'motivo' => 'desconocido']);
+        }
+
+        $matricula = $clase->matriculasAPasar()
+            ->firstWhere('estudiante_id', $estudiante->id);
+
+        if ($matricula === null) {
+            return response()->json([
+                'encontrado' => false,
+                'motivo' => 'otra_lista',
+                'nombre' => $estudiante->nombre_completo,
+            ]);
+        }
+
+        return response()->json([
+            'encontrado' => true,
+            'matricula' => $matricula->id,
+            'nombre' => $estudiante->nombre_completo,
+            // La huella vuelve para que el navegador se la guarde: el segundo
+            // escaneo del mismo carne ya no pregunta.
+            'huella' => CarneQr::huella($codigo),
+        ]);
     }
 
     /**
