@@ -70,6 +70,7 @@
   var video = panel.querySelector("video");
   var aviso = panel.querySelector("[data-qr-aviso]");
   var leidos = panel.querySelector("[data-qr-leidos]");
+  var pendientes = panel.querySelector("[data-qr-pendientes]");
 
   // `crypto.subtle` y la camara piden los dos un origen seguro (https, o
   // localhost). Si falta alguno no hay nada que ensenar: el panel se queda
@@ -313,7 +314,32 @@
 
     if (navigator.vibrate) { navigator.vibrate(60); }
 
-    decir(nombre + " — marcado y verificado.", "bien");
+    // «MARCADO», NO «VERIFICADO». Escanear no escribe nada: pone la marca en
+    // esta pantalla y guarda el codigo para que viaje al guardar. La cifra de
+    // verificacion la pinta el SERVIDOR, asi que no se mueve hasta entonces.
+    // Decir «verificado» aqui prometia algo que todavia no habia pasado, y el
+    // usuario lo leyo como un fallo el 21/09/2026: marcaba pero el conteo no
+    // subia. Lo que falta hacer va aparte, en un renglon que se queda puesto.
+    decir(nombre + " — marcado.", "bien");
+    contar();
+  }
+
+  /**
+   * Cuantos carnes llevas leidos y que falta para que cuenten.
+   *
+   * Va en su propio renglon y no dentro del aviso de cada escaneo: el aviso lo
+   * pisa el siguiente carne a los dos segundos, y esto es justamente lo que
+   * tiene que seguir ahi cuando se acabe de escanear a los veinte.
+   */
+  function contar() {
+    var cuantos = Object.keys(yaLeidos).length;
+
+    if (!pendientes || cuantos === 0) { return; }
+
+    pendientes.hidden = false;
+    pendientes.textContent = cuantos === 1
+      ? "1 carné leído. Pulsa «Guardar asistencia» para que la verificación cuente."
+      : cuantos + " carnés leídos. Pulsa «Guardar asistencia» para que las verificaciones cuenten.";
   }
 
   /** SHA-256 en hexadecimal, que es como viene la huella en la plantilla. */

@@ -3228,6 +3228,17 @@
     font-size: 0.9rem; color: var(--ink-soft); text-align: center;
   }
   .qr-lector-aviso-bien { color: var(--accent-dark); font-weight: 600; }
+  /* El renglón que se queda puesto: cuántos carnés llevas y que falta guardar.
+     Va en monoespaciada como toda cifra del sistema, y con el punteado de
+     «todavía no» —el mismo vocabulario de `.aviso` y `.estado-pendiente`—
+     porque eso es exactamente lo que dice: leído, pero sin contar aún. */
+  .qr-lector-pendientes {
+    margin: 0.6rem auto 0; max-width: 24rem;
+    padding: 0.5rem 0.8rem;
+    border: 1px dashed var(--border-strong); border-radius: var(--radius-sm);
+    background: var(--surface-alt); color: var(--ink-soft);
+    font-family: var(--font-mono); font-size: 0.75rem; text-align: center;
+  }
   .qr-lector-aviso-mal { color: var(--danger); font-weight: 600; }
 
   /* LA FILA RECIÉN LEÍDA. El fondo dice «esta es», y NO sustituye a la marca:

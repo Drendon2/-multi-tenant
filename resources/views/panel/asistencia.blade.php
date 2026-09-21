@@ -122,6 +122,14 @@
       --}}
       <p class="qr-lector-aviso" data-qr-aviso role="status" aria-live="polite"></p>
 
+      {{--
+        Lo que falta hacer, en un renglón que NO se borra. El aviso de arriba lo
+        pisa el siguiente escaneo a los dos segundos, y esto es lo que tiene que
+        seguir ahí cuando se acabe de escanear: escanear no verifica nada por sí
+        solo, lo hace el servidor al guardar.
+      --}}
+      <p class="qr-lector-pendientes" data-qr-pendientes hidden></p>
+
       <div data-qr-leidos hidden></div>
     </div>
     @endif
