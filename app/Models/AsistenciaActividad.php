@@ -63,4 +63,41 @@ class AsistenciaActividad extends Model
     {
         return $this->belongsTo(InscritoActividad::class, 'inscrito_id');
     }
+
+    /**
+     * A quien de esta actividad se le ha marcado algo alguna vez.
+     *
+     * NO ES LO MISMO QUE «cuantas sesiones tienen lista tomada», y confundirlas
+     * ya costo una vez al escribir la pantalla de programas externos.
+     * `AsistenciaDeActividad` devuelve un DENOMINADOR comun —las sesiones con
+     * lista— que es el mismo numero para todos; esto es una pregunta POR
+     * PERSONA. Con aquel, en cuanto se pasa una sola lista nadie parece
+     * quitable, ni siquiera quien se anadio despues y no tiene una sola marca.
+     *
+     * De ahi que la pregunta viva aqui y en una sola forma: quien la haga desde
+     * una plantilla y quien la haga desde un controlador tienen que estar
+     * preguntando lo mismo, o el boton se pinta con una regla y se comprueba
+     * con otra.
+     *
+     * Devuelve las claves para poder consultar con `isset` dentro de un bucle
+     * sin una consulta por fila.
+     *
+     * @return array<int, bool>
+     */
+    public static function conMarcasEn(int $actividadId): array
+    {
+        return static::query()
+            ->join('sesiones_actividad', 'sesiones_actividad.id', '=', 'asistencias_actividad.sesion_id')
+            ->where('sesiones_actividad.actividad_id', $actividadId)
+            ->distinct()
+            ->pluck('asistencias_actividad.inscrito_id')
+            ->mapWithKeys(fn (int $id) => [$id => true])
+            ->all();
+    }
+
+    /** La misma pregunta para UNA persona, que es la que corta al borrar. */
+    public static function tieneMarcas(int $inscritoId): bool
+    {
+        return static::where('inscrito_id', $inscritoId)->exists();
+    }
 }

@@ -86,6 +86,17 @@ class UsuarioController extends Controller
         // de vista.
         $consulta = Perfil::query()
             ->with(['user', 'promotoriasDictadas.area'])
+            // FUERA LAS CUENTAS DE INSTITUCIONES EXTERNAS. Esta pantalla es la
+            // gente de la casa: quien da clase, quien dirige y quien estudia.
+            // Una escuela rural que recibe un programa no es ninguna de las
+            // tres, y su cuenta no se puede editar desde aqui (ver
+            // `Permisos::puedeEditarUsuario`), asi que listarla seria ofrecer
+            // filas cuyos tres botones estan apagados. Viven en «Programas
+            // formativos», al lado de su institucion, que es donde significan
+            // algo. NO es esconder una puerta: la puerta esta cerrada en
+            // `Permisos`, esto solo deja de ensenar lo que no lleva a ningun
+            // sitio.
+            ->where('rol', '!=', Perfil::INSTITUCION_EXTERNA)
             // Solo para el administrador, que es el unico que ve «Eliminar»: son
             // tres subconsultas correlacionadas mas y no hay por que cobrarselas
             // a un director que nunca va a usar el dato. Van DENTRO de la

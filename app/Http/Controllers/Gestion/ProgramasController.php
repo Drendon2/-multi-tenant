@@ -36,11 +36,25 @@ class ProgramasController extends Controller
         AreaController $areas,
         CursoTallerController $cursos,
         ProyeccionController $proyeccion,
+        ProgramaExternoController $externos,
+        InstitucionExternaController $instituciones,
     ): View {
         return view('gestion.programas', [
             'departamentos' => $areas->seccion($request),
             'cursos' => $cursos->seccion($request),
             'proyeccion' => $proyeccion->seccion($request),
+            // LOS PROGRAMAS EXTERNOS Y SUS INSTITUCIONES VAN JUNTOS Y AL FINAL,
+            // en ese orden y por una razon de uso: no se puede abrir un
+            // programa externo sin tener registrada la institucion donde se va
+            // a dictar —su funcionario es quien verifica— asi que las dos
+            // listas se leen seguidas y la segunda explica a la primera.
+            //
+            // Son DOS secciones y no una tabla anidada: una institucion
+            // sobrevive a sus programas, se le cambia el funcionario y se le
+            // apaga la cuenta sin tocar ninguno. Meterla dentro la haria
+            // parecer una propiedad del programa, que es justo lo que no es.
+            'externos' => $externos->seccion($request),
+            'instituciones' => $instituciones->seccion($request),
         ]);
     }
 }

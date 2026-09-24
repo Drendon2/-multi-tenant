@@ -33,7 +33,15 @@
   </form>
   <div class="perfil-nombre">{{ $perfil->nombre_completo }}</div>
   @if ($perfil->rol)<div class="perfil-rol-sub">{{ $perfil->rol_display }}</div>@endif
-  <p class="campo-info" style="margin:0.4rem 0 0;">Edad: {{ $perfil->edad }} años</p>
+  {{--
+    SOLO SI SE SABE. «Mi perfil» es de TODOS los roles, incluida la cuenta de
+    una institución externa, a la que no se le pide la fecha de nacimiento —es
+    un contacto de otra entidad y ese dato no lo usa nada aquí—. Sin este
+    `@if`, ahí salía «Edad: años», que se lee como un fallo del sistema.
+  --}}
+  @if ($perfil->edad !== null)
+    <p class="campo-info" style="margin:0.4rem 0 0;">Edad: {{ $perfil->edad }} años</p>
+  @endif
   <div class="perfil-tel-fila perfil-tel-texto">
     <span class="campo-info" style="margin:0;">Teléfono: {{ $perfil->telefono }}</span>
     <button type="button" class="perfil-editar-btn perfil-tel-toggle" aria-label="Editar teléfono">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\InstitucionExterna;
 use App\Models\Perfil;
 use App\Support\CarneQr;
 use Illuminate\Http\RedirectResponse;
@@ -31,6 +32,15 @@ use Illuminate\View\View;
  * NO HAY RUTA PUBLICA POR CODIGO. Nada de `/carne/{codigo}`: seria una URL que
  * cualquiera que fotografie un carne ajeno puede abrir, y ahi el codigo dejaria
  * de ser un dato que solo vale dentro de una lista de clase.
+ *
+ * DESDE EL 23/09/2026 ESTA CLASE ENTREGA DOS CARTONES DISTINTOS. Las tres
+ * puertas de arriba son las del CARNE DE UN ESTUDIANTE y siguen siendo esas
+ * tres. El segundo es el QR DE UNA INSTITUCION EXTERNA, que no dice quien se
+ * presenta sino donde se dio una clase, y tiene sus propias dos puertas
+ * —administracion y la propia institucion— explicadas abajo, junto a sus
+ * metodos. Comparten el trazado y la columna `codigo_qr`; no comparten ni el
+ * significado ni quien los puede sacar, y mezclarlos es como se le acaba dando
+ * a un profesor la llave con la que se verifica su propio trabajo.
  */
 class CarneController extends Controller
 {
@@ -199,6 +209,128 @@ class CarneController extends Controller
         return $solicitante !== null
             && $solicitante->rol === 'administrador'
             && $usuario->rol === 'estudiante';
+    }
+
+    // -----------------------------------------------------------------------
+    // El QR de una institucion externa (23/09/2026)
+    // -----------------------------------------------------------------------
+    //
+    // OTRO CARTON, NO OTRO CARNE, y conviene no confundirlos aunque compartan
+    // el trazado y la columna: el de un estudiante dice QUIEN se presenta a una
+    // lista, y este dice DONDE se dio una clase. De ahi que sus puertas no sean
+    // las mismas.
+    //
+    // DOS PUERTAS, decididas con el usuario el 23/09/2026:
+    //
+    // 1. ADMINISTRACION, que es quien lo imprime y lo entrega la primera vez.
+    // 2. LA PROPIA INSTITUCION desde su cuenta, igual que cualquiera saca su
+    //    «Mi carné», para cuando se pierde el papel.
+    //
+    // Y EL PROFESOR NO, ni siquiera el responsable del programa. Es la misma
+    // regla que ya rige el carne de un estudiante y aqui pesa todavia mas: este
+    // carton es la llave con la que se verifica SU PROPIO TRABAJO. Quien puede
+    // imprimirlo se verifica solo, y entonces la verificacion no verifica nada.
+    // El director tampoco, por lo mismo: puede ser el responsable.
+
+    /** El QR de una institucion, para administracion. */
+    public function deInstitucion(Request $request, InstitucionExterna $institucion): View
+    {
+        $this->exigirAdministrador($request);
+
+        return view('externa.qr', [
+            'institucion' => $institucion,
+            'propio' => false,
+        ]);
+    }
+
+    public function imagenDeInstitucion(Request $request, InstitucionExterna $institucion): Response
+    {
+        $this->exigirAdministrador($request);
+
+        return $this->entregarDeInstitucion($institucion);
+    }
+
+    /**
+     * Cambia el codigo: el carton anterior deja de servir en el acto.
+     *
+     * Existe por lo mismo que el del estudiante —un carton se pierde y se
+     * fotografia— y aqui ademas es EL CONTRAPESO del camino del QR: si un
+     * profesor se quedo con una foto del codigo, esto es lo que la inutiliza.
+     * Por eso lo puede hacer tambien la institucion desde su cuenta, sin tener
+     * que pedirle nada a nadie.
+     */
+    public function renovarDeInstitucion(Request $request, InstitucionExterna $institucion): RedirectResponse
+    {
+        $this->exigirAdministrador($request);
+
+        $institucion->perfil->renovarCodigoQr();
+
+        return redirect()->route('institucion-externa-qr', $institucion)->with(
+            'success',
+            "El QR anterior de «{$institucion->nombre}» ya no sirve. Este es el nuevo: imprímelo y entrégalo."
+        );
+    }
+
+    /** La imagen del QR propio, para la cuenta de la institucion. */
+    public function imagenPropia(Request $request): Response
+    {
+        return $this->entregarDeInstitucion($this->laSuya($request));
+    }
+
+    public function renovarPropio(Request $request): RedirectResponse
+    {
+        $institucion = $this->laSuya($request);
+        $institucion->perfil->renovarCodigoQr();
+
+        return redirect()->route('externa-qr')->with(
+            'success',
+            'Listo: el QR anterior ya no sirve. Imprime este y ponlo donde se dan las clases.'
+        );
+    }
+
+    /**
+     * La institucion de quien mira, si es una cuenta de institucion externa.
+     *
+     * 404 y no un aviso: para cualquier otro rol estas rutas no existen. El
+     * grupo de rutas ya lo comprueba; esto es la convencion de la casa para lo
+     * que ENTREGA algo —una ruta se edita en un renglon y el descuido no se ve,
+     * y aqui, al lado de lo que entrega, si.
+     */
+    private function laSuya(Request $request): InstitucionExterna
+    {
+        $perfil = $request->user()?->perfil;
+
+        abort_if($perfil === null || $perfil->rol !== Perfil::INSTITUCION_EXTERNA, 404);
+
+        $institucion = $perfil->institucionExterna;
+
+        abort_if($institucion === null, 404);
+
+        return $institucion;
+    }
+
+    private function exigirAdministrador(Request $request): void
+    {
+        abort_unless($request->user()?->perfil?->rol === 'administrador', 404);
+    }
+
+    /**
+     * El PNG del carton de una institucion.
+     *
+     * Mismas cabeceras que el del estudiante y por lo mismo: `private,
+     * no-store` para que no se quede en la cache de un aparato prestado ni en
+     * la del CDN, que es compartida.
+     */
+    private function entregarDeInstitucion(InstitucionExterna $institucion): Response
+    {
+        $png = CarneQr::carneDeInstitucion($institucion->perfil, $institucion->nombre);
+
+        return response($png, 200, [
+            'Content-Type' => 'image/png',
+            'Content-Disposition' => 'attachment; filename="'
+                .CarneQr::nombreDeArchivo($institucion->perfil, $institucion->nombre).'"',
+            'Cache-Control' => 'private, no-store',
+        ]);
     }
 
     /**

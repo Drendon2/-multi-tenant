@@ -34,6 +34,17 @@ class PostLoginController extends Controller
             return redirect()->route('promotorias-disponibles');
         }
 
+        // LA INSTITUCION EXTERNA ATERRIZA EN LO UNICO QUE TIENE. Va ANTES del
+        // rebote final a `panel`, y ese orden es lo que importa: esta cuenta no
+        // es personal de la casa, asi que `rol:administrador,director,profesor`
+        // la rechaza y el rebote la devolveria aqui — un bucle entre esta
+        // pantalla y el Panel, o en el mejor caso un aviso de «no tienes acceso»
+        // nada mas entrar. Ver tambien la barra del menu, que por la misma
+        // razon no le puede pintar el botón de Panel.
+        if ($perfil->rol === 'institucion_externa') {
+            return redirect()->route('externa-clases');
+        }
+
         // EL ADMINISTRADOR ATERRIZA EN GESTION desde el 04/09/2026, a peticion
         // del usuario. Su trabajo no es el Panel —confirmar matriculas y pasar
         // lista son tareas de quien dicta— sino el catalogo, los periodos, los

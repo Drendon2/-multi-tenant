@@ -197,6 +197,36 @@ class Permisos
     }
 
     /**
+     * ¿Es esta cuenta la institucion que recibe este programa externo?
+     *
+     * La tercera relacion con una actividad, y NO se parece a las otras dos: no
+     * mira el rol de direccion ni quien la dirige, sino a quien se le esta
+     * dictando. Quien pasa por aqui puede firmar una clase y no puede tocar
+     * nada mas — ni iniciarla, ni pasar lista, ni ver a nadie.
+     *
+     * LAS TRES CONDICIONES IMPORTAN y ninguna sobra:
+     *
+     * - EL ROL, porque el resto de la casa no da fe de nada aqui; sin el, el
+     *   administrador —que es `institucion_id` de nadie pero pasa por todas
+     *   partes— acabaria firmando el trabajo de sus propios profesores.
+     * - EL TIPO, porque `institucion_id` es NULL en los otros tres y en SQL
+     *   dos NULL no son iguales pero en PHP `null === null` SI: sin esta
+     *   linea, un funcionario cuya ficha se borrara mal pasaria a poder firmar
+     *   cualquier taller de la casa.
+     * - LA FICHA, que es la unica que dice cual es SU institucion.
+     */
+    public static function verificaLaActividad(Perfil $perfil, Actividad $actividad): bool
+    {
+        if ($perfil->rol !== Perfil::INSTITUCION_EXTERNA || ! $actividad->esExterno()) {
+            return false;
+        }
+
+        $suya = $perfil->institucionExterna;
+
+        return $suya !== null && $suya->id === $actividad->institucion_id;
+    }
+
+    /**
      * ¿Puede descargar el certificado de ESTA matricula?
      *
      * El propio estudiante siempre; direccion sobre cualquiera; quien dicta la
@@ -265,7 +295,13 @@ class Permisos
      */
     public static function rolesAsignablesPor(Perfil $solicitante): array
     {
-        $todos = array_keys(Perfil::ROLES);
+        // LA LISTA SALE DE `ROLES_REPARTIBLES` Y NO DE `ROLES`, y la diferencia
+        // es `institucion_externa`: NO LO REPARTE NADIE, ni siquiera el
+        // administrador. No es una restriccion de confianza sino de forma —esa
+        // cuenta solo significa algo colgada de una ficha de institucion, y este
+        // formulario no sabe crear una—. Se crean, se editan y se desactivan
+        // desde «Programas formativos», junto a la institucion de la que son.
+        $todos = Perfil::ROLES_REPARTIBLES;
 
         if ($solicitante->rol === 'administrador') {
             return $todos;
@@ -292,6 +328,25 @@ class Permisos
      */
     public static function puedeEditarUsuario(Perfil $solicitante, Perfil $objetivo): bool
     {
+        // LA CUENTA DE UNA INSTITUCION EXTERNA NO SE TOCA DESDE AQUI, ni el
+        // administrador, y el motivo no es de permisos sino de que ESTE
+        // formulario le hace dano. Su rol no esta entre los repartibles (ver
+        // `rolesAsignablesPor`), asi que el desplegable de rol se pinta SIN el
+        // suyo y ninguna opcion sale marcada: guardar la ficha sin bajar ese
+        // desplegable le cambia el rol a otra cosa —y con el se va la unica
+        // cuenta que podia dar fe de las clases de esa escuela—, sin fallar y
+        // sin avisar. Es exactamente el fallo que el propio formulario ya
+        // documenta para las cuentas sin rol.
+        //
+        // Se edita, se le cambia la clave y se desactiva desde su institucion,
+        // en «Programas formativos». Esta linea cierra de una vez los CINCO
+        // caminos del controlador de usuarios —editar, actualizar, activar,
+        // confirmar el borrado y borrar—, porque los cinco pasan por
+        // `exigirAccesoA()`, que es quien la lee.
+        if ($objetivo->rol === Perfil::INSTITUCION_EXTERNA) {
+            return false;
+        }
+
         if ($solicitante->rol === 'administrador') {
             return true;
         }

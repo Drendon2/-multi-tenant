@@ -11,6 +11,7 @@ use App\Http\Controllers\CatalogoController;
 use App\Http\Controllers\CertificadoController;
 use App\Http\Controllers\ClaseController;
 use App\Http\Controllers\ConsentimientoController;
+use App\Http\Controllers\ExternaController;
 use App\Http\Controllers\FichaController;
 use App\Http\Controllers\Gestion;
 use App\Http\Controllers\InformeController;
@@ -257,6 +258,22 @@ Route::middleware(['auth', 'rol:administrador,director,profesor'])->group(functi
     Route::post('/panel/sesiones/{sesion}/anadir', [PanelActividadController::class, 'anadirEnSesion'])
         ->name('panel-actividad-anadir');
 
+    // PROGRAMAS EXTERNOS, del lado del profesor que va.
+    //
+    // La lista se ESCRIBE aqui y no se inscribe por ningun enlace: es lo que
+    // separa un programa externo de los otros tres tipos de actividad. Ver la
+    // cabecera de `Actividad`.
+    Route::post('/panel/actividades/{actividad}/lista', [PanelActividadController::class, 'anadirALista'])
+        ->name('panel-externo-anadir');
+    Route::post('/panel/inscritos/{inscrito}/quitar', [PanelActividadController::class, 'quitarDeLista'])
+        ->name('panel-externo-quitar');
+    // Verificar leyendo el QR de la institucion. Por POST y no por GET aunque
+    // parezca una consulta, por lo mismo que `clase-comprobar-carne`: el codigo
+    // iria en la URL, y una URL se queda escrita en los registros del servidor
+    // y del CDN.
+    Route::post('/panel/sesiones/{sesion}/verificar-qr', [PanelActividadController::class, 'verificarConQr'])
+        ->name('panel-externo-verificar-qr');
+
     Route::get('/panel/promotoria/{promotoria}/grupos/nuevo', [PanelGrupoController::class, 'crear'])
         ->name('panel-grupo-nuevo');
     Route::post('/panel/promotoria/{promotoria}/grupos/nuevo', [PanelGrupoController::class, 'guardar']);
@@ -314,6 +331,39 @@ Route::middleware(['auth', 'rol:administrador,director,profesor'])->group(functi
     Route::post('/panel/matriculas/{matricula}/deshacer-rechazo',
         [FichaController::class, 'deshacerRechazo'])
         ->name('deshacer-rechazo');
+});
+
+// ---------------------------------------------------------------------------
+// La institucion externa: todo lo que ve una cuenta de otra entidad
+// ---------------------------------------------------------------------------
+//
+// SU PROPIO GRUPO Y SU PROPIO ROL, y no un rincon del Panel. Esta cuenta no es
+// personal de la casa: es un funcionario de la escuela rural o del colegio
+// donde un profesor va a dictar, y lo unico que hace aqui es dar fe de que
+// fue. Dos pantallas y ninguna mas — sus clases y su QR—, que es exactamente
+// lo que el menu le pinta.
+//
+// Que este grupo sea el UNICO con `rol:institucion_externa` es lo que hace que
+// el resto del sistema le quede cerrado sin tener que acordarse de nada: los
+// demas grupos nombran los roles que dejan entrar, y este no esta en ninguno.
+
+Route::middleware(['auth', 'rol:institucion_externa'])->prefix('institucion')->group(function () {
+    Route::get('/clases', [ExternaController::class, 'index'])->name('externa-clases');
+    Route::post('/clases/{sesion}/verificar', [ExternaController::class, 'verificar'])
+        ->name('externa-verificar');
+    // Retirar una firma. Existe por lo mismo que se puede retirar una
+    // confirmacion de clase, y aqui pesa mas: el otro camino —el QR— lo recorre
+    // el profesor, asi que esto es lo unico que tiene la institucion para
+    // desconocer una firma que ella no dio.
+    Route::post('/clases/{sesion}/retirar', [ExternaController::class, 'retirar'])
+        ->name('externa-retirar');
+
+    // Su QR. Lo saca ella misma, como cualquiera saca su «Mi carné»; el
+    // profesor NO, ni siquiera el responsable del programa (ver
+    // `CarneController`).
+    Route::get('/qr', [ExternaController::class, 'qr'])->name('externa-qr');
+    Route::get('/qr/imagen', [CarneController::class, 'imagenPropia'])->name('externa-qr-imagen');
+    Route::post('/qr/renovar', [CarneController::class, 'renovarPropio'])->name('externa-qr-renovar');
 });
 
 // La ficha con encuesta y documento es solo del administrador: va en su propio
@@ -508,6 +558,23 @@ Route::middleware(['auth', 'rol:administrador,director'])->prefix('gestion')->gr
         ->name('actividad-curso-fechas');
     Route::post('/cursos/{objeto}/fechas', [Gestion\CursoTallerController::class, 'guardarFechas']);
 
+    // Programas externos
+    //
+    // Un DIRECTOR gestiona los que le asignen —los edita y los borra— igual que
+    // hace con los cursos y los grupos de proyeccion; lo que no hace es
+    // crearlos, por la misma razon escrita mas abajo. Las instituciones son
+    // otra cosa y viven enteras en el grupo del administrador: registrar una
+    // entidad con la que la casa tiene convenio no es acotable a un
+    // departamento.
+    Route::get('/externos', [Gestion\ProgramaExternoController::class, 'index'])
+        ->name('programa-externo-lista');
+    Route::get('/externos/{objeto}/editar', [Gestion\ProgramaExternoController::class, 'editar'])
+        ->name('programa-externo-editar');
+    Route::post('/externos/{objeto}/editar', [Gestion\ProgramaExternoController::class, 'actualizar']);
+    Route::get('/externos/{objeto}/eliminar', [Gestion\ProgramaExternoController::class, 'confirmarBorrado'])
+        ->name('programa-externo-eliminar');
+    Route::post('/externos/{objeto}/eliminar', [Gestion\ProgramaExternoController::class, 'eliminar']);
+
     // Grupos de proyeccion
     Route::get('/proyeccion', [Gestion\ProyeccionController::class, 'index'])
         ->name('actividad-proyeccion-lista');
@@ -574,6 +641,45 @@ Route::middleware(['auth', 'rol:administrador'])->prefix('gestion')->group(funct
     Route::get('/proyeccion/nuevo', [Gestion\ProyeccionController::class, 'crear'])
         ->name('actividad-proyeccion-nueva');
     Route::post('/proyeccion/nuevo', [Gestion\ProyeccionController::class, 'guardar']);
+
+    // Crear un programa externo es del ADMINISTRADOR, por lo mismo que las
+    // otras actividades: un director que lo creara poniendo de responsable a
+    // otro lo perderia de vista en el mismo gesto, porque el recorte de una
+    // actividad va por responsable y no por departamento.
+    Route::get('/externos/nuevo', [Gestion\ProgramaExternoController::class, 'crear'])
+        ->name('programa-externo-nuevo');
+    Route::post('/externos/nuevo', [Gestion\ProgramaExternoController::class, 'guardar']);
+
+    // ── LAS INSTITUCIONES EXTERNAS, ENTERAS ─────────────────────────────
+    //
+    // Registrar una entidad con la que la casa tiene convenio —y crearle la
+    // cuenta con la que va a dar fe del trabajo de sus profesores— es una
+    // decision de toda la casa, como abrir un departamento o una promotoria.
+    // No se acota a un departamento, asi que no es de un director.
+    //
+    // NO HAY RUTA DE BORRADO, y es la decision y no un olvido: una institucion
+    // con programas la bloquea `Dependencias`, y lo que se hace con una que ya
+    // no recibe clases es apagarle la cuenta. Ver `InstitucionExternaController`.
+    Route::get('/instituciones', [Gestion\InstitucionExternaController::class, 'index'])
+        ->name('institucion-externa-lista');
+    Route::get('/instituciones/nueva', [Gestion\InstitucionExternaController::class, 'crear'])
+        ->name('institucion-externa-nueva');
+    Route::post('/instituciones/nueva', [Gestion\InstitucionExternaController::class, 'guardar']);
+    Route::get('/instituciones/{objeto}/editar', [Gestion\InstitucionExternaController::class, 'editar'])
+        ->name('institucion-externa-editar');
+    Route::post('/instituciones/{objeto}/editar', [Gestion\InstitucionExternaController::class, 'actualizar']);
+    Route::post('/instituciones/{objeto}/alternar-activo', [Gestion\InstitucionExternaController::class, 'alternarActivo'])
+        ->name('institucion-externa-alternar-activo');
+
+    // El QR que administracion imprime y entrega. Va con `{institucion}` —enlace
+    // implicito— y no con `{objeto}`: aqui no manda `RecursoController` sino
+    // `CarneController`, que resuelve el modelo por su tipo.
+    Route::get('/instituciones/{institucion}/qr', [CarneController::class, 'deInstitucion'])
+        ->name('institucion-externa-qr');
+    Route::get('/instituciones/{institucion}/qr/imagen', [CarneController::class, 'imagenDeInstitucion'])
+        ->name('institucion-externa-qr-imagen');
+    Route::post('/instituciones/{institucion}/qr/renovar', [CarneController::class, 'renovarDeInstitucion'])
+        ->name('institucion-externa-qr-renovar');
 
     // ── SOLO EL ADMINISTRADOR, desde el 12/09/2026 ──────────────────────
     //

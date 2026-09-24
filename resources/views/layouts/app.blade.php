@@ -94,6 +94,27 @@
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
             <span class="nav-texto">Compañeros</span>
           </a>
+        @elseif ($yo?->rol === 'institucion_externa')
+          {{--
+            LA CUENTA DE OTRA ENTIDAD, y va en su propia rama ANTES del
+            `@elseif ($yo?->rol)` de abajo. Ese comodín significaba «cualquiera
+            que no sea estudiante es personal de la casa», que dejó de ser cierto
+            el 23/09/2026: por ahí, esta cuenta recibía el botón de Panel, y el
+            Panel pide `rol:administrador,director,profesor`. Un botón que
+            rebota, en la única barra que esta persona ve.
+
+            Dos destinos y nada más. Aquí no hay Panel, ni Gestión, ni fichas:
+            esta cuenta entra a firmar que el profesor vino, y a imprimir el
+            cartón con el que el profesor lo deja firmado allá mismo.
+          --}}
+          <a href="{{ route('externa-clases') }}">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span class="nav-texto">Clases</span>
+          </a>
+          <a href="{{ route('externa-qr') }}">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM18 18h3v3h-3z"/></svg>
+            <span class="nav-texto">Su QR</span>
+          </a>
         @elseif ($yo?->rol)
           <a href="{{ route('panel') }}">
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>

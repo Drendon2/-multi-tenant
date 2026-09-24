@@ -65,6 +65,25 @@
     @elseif ($spec['tipo'] === 'number')
       <input type="number" name="{{ $campo }}" id="{{ $campo }}" @required($obligatorio)
              min="{{ $spec['min'] ?? 0 }}" step="1" value="{{ $valor }}">
+    @elseif ($spec['tipo'] === 'password')
+      {{--
+        NUNCA SE DEVUELVE EL VALOR, ni con `old()`. Los demás campos vuelven
+        rellenos cuando el formulario rebota, y aquí eso significaría escribir
+        una contraseña en el HTML de una página — que se queda en la caché del
+        aparato y en el historial. Se vuelve a teclear, que es lo que hace
+        cualquier formulario de este tipo.
+
+        `autocomplete="new-password"` y no `current-password`: esto crea o
+        cambia una clave ajena, así que el gestor del navegador no tiene que
+        ofrecer la del administrador que está escribiendo.
+
+        EL OJO PARA VERLA NO SE PINTA AQUÍ: lo crea `ver-clave.js`, que carga en
+        `layouts.app` y alcanza a todo `input[type=password]` se llame como se
+        llame. Ponerlo en la plantilla sería un botón que no hace nada para
+        quien no tenga JavaScript, y ese error este proyecto ya lo pagó.
+      --}}
+      <input type="password" name="{{ $campo }}" id="{{ $campo }}" @required($obligatorio)
+             autocomplete="new-password">
     @else
       <input type="text" name="{{ $campo }}" id="{{ $campo }}" @required($obligatorio)
              maxlength="{{ $spec['max'] ?? 255 }}" value="{{ $valor }}">

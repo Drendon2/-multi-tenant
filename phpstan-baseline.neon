@@ -37,36 +37,6 @@ parameters:
 			path: app/Http/Controllers/Gestion/AreaController.php
 
 		-
-			message: '#^Cannot call method format\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Http/Controllers/Gestion/CursoTallerController.php
-
-		-
-			message: '#^Cannot call method toDateString\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 2
-			path: app/Http/Controllers/Gestion/CursoTallerController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: mixed, Closure\(App\\Models\\SesionActividad\)\: mixed given\.$#'
-			identifier: argument.type
-			count: 2
-			path: app/Http/Controllers/Gestion/CursoTallerController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|null, Closure\(App\\Models\\SesionActividad\)\: bool given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Gestion/CursoTallerController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:reject\(\) expects bool\|\(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|Illuminate\\Database\\Eloquent\\Model, Closure\(App\\Models\\SesionActividad\)\: bool given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Gestion/CursoTallerController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Asistencia\:\:\$asistio\.$#'
 			identifier: property.notFound
 			count: 1
@@ -319,54 +289,6 @@ parameters:
 			path: app/Http/Controllers/MiPerfilController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$iniciada_en\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/PanelActividadController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$iniciada_por_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/PanelActividadController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:etiquetaSesionConArticulo\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/PanelActividadController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:inscritos\(\)\.$#'
-			identifier: method.notFound
-			count: 4
-			path: app/Http/Controllers/PanelActividadController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:yaEmpezo\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/PanelActividadController.php
-
-		-
-			message: '#^Parameter \#1 \$actividad of method App\\Http\\Controllers\\PanelActividadController\:\:volver\(\) expects App\\Models\\Actividad, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 5
-			path: app/Http/Controllers/PanelActividadController.php
-
-		-
-			message: '#^Parameter \#2 \$actividad of static method App\\Support\\Permisos\:\:dirigeLaActividad\(\) expects App\\Models\\Actividad, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 4
-			path: app/Http/Controllers/PanelActividadController.php
-
-		-
-			message: '#^Parameter \#2 \$actividad of static method App\\Support\\Permisos\:\:puedeVerActividad\(\) expects App\\Models\\Actividad, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 4
-			path: app/Http/Controllers/PanelActividadController.php
-
-		-
 			message: '#^Dead catch \- Illuminate\\Database\\QueryException is never thrown in the try block\.$#'
 			identifier: catch.neverThrown
 			count: 1
@@ -553,68 +475,8 @@ parameters:
 			path: database/migrations/2026_08_20_160100_convertir_horarios_a_sesiones.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$correo\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/ActividadTest.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$estado\.$#'
 			identifier: property.notFound
-			count: 1
-			path: tests/Feature/ActividadTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$fecha\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Feature/ActividadTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Feature/ActividadTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$iniciada_en\.$#'
-			identifier: property.notFound
-			count: 5
-			path: tests/Feature/ActividadTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$iniciada_por_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/ActividadTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nombre_completo\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/ActividadTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$origen\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/ActividadTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$perfil_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/ActividadTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:inscritos\(\)\.$#'
-			identifier: method.notFound
-			count: 10
-			path: tests/Feature/ActividadTest.php
-
-		-
-			message: '#^Method Tests\\Feature\\ActividadTest\:\:sesionEnMarcha\(\) should return App\\Models\\SesionActividad but returns Illuminate\\Database\\Eloquent\\Model\.$#'
-			identifier: return.type
 			count: 1
 			path: tests/Feature/ActividadTest.php
 

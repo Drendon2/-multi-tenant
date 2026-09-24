@@ -145,8 +145,50 @@ class CarneQr
      */
     public static function carne(Perfil $estudiante): string
     {
+        return self::tarjeta(
+            $estudiante,
+            $estudiante->nombre_completo,
+            'Muéstralo para que te marquen la asistencia'
+        );
+    }
+
+    /**
+     * El QR de una institucion externa, del 23/09/2026.
+     *
+     * LA MISMA TARJETA Y EL MISMO CODIGO, con dos textos cambiados, y no un
+     * segundo dibujante: el carne y esto son el mismo objeto —un carton con un
+     * cuadrito que alguien lee con una camara— y dos copias del mismo trazado
+     * se separan en cuanto una de las dos crezca un renglon.
+     *
+     * LO GRANDE ES EL NOMBRE DE LA INSTITUCION, no el del funcionario. Este
+     * carton vive EN LA ESCUELA y lo que hay que poder leer de un vistazo es de
+     * que escuela es: la persona que firma puede cambiar de trabajo mañana y el
+     * carton sigue siendo el mismo. El codigo, eso si, es el de SU perfil —es
+     * ahi donde vive `codigo_qr`— asi que renovarlo es renovar el de la cuenta.
+     *
+     * Y EL PIE DICE OTRA COSA. «Muéstralo para que te marquen la asistencia» es
+     * la instruccion de un estudiante; aqui quien lee es el profesor y lo que
+     * hay que decir es cuando. El del plazo —solo el mismo dia— NO va impreso:
+     * un carton no se reimprime cuando una regla cambia, y una instruccion
+     * desfasada en papel es peor que ninguna. Eso lo dice la pantalla, que si
+     * se actualiza.
+     */
+    public static function carneDeInstitucion(Perfil $perfil, string $institucion): string
+    {
+        return self::tarjeta($perfil, $institucion, 'El profesor lo lee al terminar la clase');
+    }
+
+    /**
+     * El trazado que comparten los dos cartones.
+     *
+     * `$duenio` es de quien sale el CODIGO; `$nombre`, lo que se imprime en
+     * grande. En el carne de un estudiante son la misma persona; en el de una
+     * institucion no, y por eso son dos parametros y no uno.
+     */
+    private static function tarjeta(Perfil $duenio, string $nombre, string $pie): string
+    {
         $institucion = ConfiguracionInstitucion::actual()->nombre_institucion;
-        $qr = self::imagenDesdePng(self::qr(self::contenido($estudiante)));
+        $qr = self::imagenDesdePng(self::qr(self::contenido($duenio)));
 
         $anchoQr = imagesx($qr);
         $altoQr = imagesy($qr);
@@ -154,13 +196,13 @@ class CarneQr
         // El alto se calcula, no se fija: un nombre largo parte en dos renglones
         // y el carne crece con el. Fijarlo dejaba el nombre pisando el borde
         // justo en los nombres largos, que son los de siempre aqui.
-        $renglones = self::partirEnRenglones($estudiante->nombre_completo, 34, self::ANCHO - 2 * self::MARGEN);
+        $renglones = self::partirEnRenglones($nombre, 34, self::ANCHO - 2 * self::MARGEN);
 
         // El alto sale de RECORRER la misma lista de pasos que despues se
         // dibuja, y no de una suma escrita aparte: escrita aparte, cambiar un
         // renglon de sitio deja el carne cortado por abajo, y eso no falla —
         // sale una imagen con el nombre a medias.
-        $pasos = self::pasos($institucion, $altoQr, $renglones);
+        $pasos = self::pasos($institucion, $altoQr, $renglones, $pie);
         $alto = self::MARGEN;
 
         foreach ($pasos as $paso) {
@@ -213,7 +255,7 @@ class CarneQr
      * @param  list<string>  $renglones
      * @return list<array{tipo: string, texto: string, tamano: int, color: string, antes: int, alto: int}>
      */
-    private static function pasos(string $institucion, int $altoQr, array $renglones): array
+    private static function pasos(string $institucion, int $altoQr, array $renglones, string $pie): array
     {
         $texto = fn (string $t, int $tamano, string $color, int $antes) => [
             'tipo' => 'texto',
@@ -232,15 +274,22 @@ class CarneQr
             $pasos[] = $texto($renglon, 30, 'negro', $indice === 0 ? 22 : 6);
         }
 
-        $pasos[] = $texto('Muéstralo para que te marquen la asistencia', 16, 'gris', 20);
+        $pasos[] = $texto($pie, 16, 'gris', 20);
 
         return $pasos;
     }
 
-    /** El nombre del archivo que baja: que se distinga en la galeria. */
-    public static function nombreDeArchivo(Perfil $estudiante): string
+    /**
+     * El nombre del archivo que baja: que se distinga en la galeria.
+     *
+     * `$nombre` lo sobreescribe para el QR de una institucion externa, donde lo
+     * que distingue el archivo es la ESCUELA y no el funcionario: dos cartones
+     * llamados «carne-maria-lopez» en la carpeta de descargas de quien los
+     * imprime no se distinguen, y son de dos veredas distintas.
+     */
+    public static function nombreDeArchivo(Perfil $estudiante, ?string $nombre = null): string
     {
-        $nombre = preg_replace('/[^A-Za-z0-9]+/', '-', self::sinTildes($estudiante->nombre_completo));
+        $nombre = preg_replace('/[^A-Za-z0-9]+/', '-', self::sinTildes($nombre ?? $estudiante->nombre_completo));
 
         return 'carne-'.trim((string) $nombre, '-').'.png';
     }

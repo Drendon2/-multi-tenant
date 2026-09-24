@@ -63,19 +63,62 @@ use Illuminate\Support\Str;
  */
 class Perfil extends Model
 {
+    /**
+     * Los roles que existen, con su nombre de pantalla.
+     *
+     * `institucion_externa` NO ES PERSONAL DE LA CASA y no se parece a los
+     * otros cuatro: es la cuenta de un funcionario de OTRA entidad —una escuela
+     * rural, un colegio— cuyo unico trabajo aqui es dar fe de que el profesor
+     * fue a dictar alla. No entra al Panel, no entra a Gestion y no ve a nadie.
+     *
+     * ESTA EN ESTA LISTA SOLO PARA PODER PINTAR SU NOMBRE, y no para poder
+     * repartirlo: `Permisos::rolesAsignablesPor()` lo saca del desplegable de
+     * Gestion → Usuarios a proposito. Una cuenta con este rol solo tiene
+     * sentido colgada de una `InstitucionExterna`, y el formulario de usuarios
+     * no sabe crear esa ficha: por ahi solo saldrian cuentas sueltas que no
+     * pueden verificar nada y que nadie entiende de donde salieron. Se crean
+     * desde «Programas formativos», que es donde vive la institucion.
+     */
     public const ROLES = [
         'administrador' => 'Administrador',
         'director' => 'Director de escuela',
         'profesor' => 'Profesor',
         'estudiante' => 'Estudiante',
+        'institucion_externa' => 'Institución externa',
     ];
 
+    /** El rol de la cuenta que da fe desde otra entidad. */
+    public const INSTITUCION_EXTERNA = 'institucion_externa';
+
     /**
-     * El personal de la institucion: todos los roles menos "estudiante".
+     * Los roles que el formulario de Gestion → Usuarios puede repartir.
+     *
+     * Son los de `ROLES` menos `institucion_externa`, y SE ESCRIBEN ENTEROS en
+     * vez de restarse, por lo mismo que `ROLES_PERSONAL` de aqui abajo: una
+     * resta es una regla que cambia sola el dia que alguien anada un sexto rol,
+     * y lo que cambiaria es a quien se le puede dar. Quien anada uno tiene que
+     * decidir aqui, a proposito, si se reparte desde esa pantalla.
+     *
+     * Por que `institucion_externa` no esta: esa cuenta solo significa algo
+     * colgada de una ficha de institucion, y ese formulario no sabe crear una.
+     * Suelta seria un usuario que entra, no ve nada y no puede verificar nada.
+     * Ver `Permisos::rolesAsignablesPor()`.
+     */
+    public const ROLES_REPARTIBLES = ['administrador', 'director', 'profesor', 'estudiante'];
+
+    /**
+     * El personal de la casa de la cultura: administrador, director y profesor.
      *
      * Es quien puede quedar a cargo de una promotoria —un director que tambien
      * dicta es un caso real— y quien entra al Panel. Las dos listas salen de
      * aqui para que no se separen con el tiempo.
+     *
+     * SE ESCRIBE ENTERA Y NO SE DEDUCE DE `ROLES`. Hasta el 23/09/2026 esto
+     * era «todos los roles menos estudiante» y se podia leer como una resta;
+     * ya no lo es, porque `institucion_externa` tampoco esta. Quien la
+     * reconstruya con un `array_diff` contra «estudiante» le da a una cuenta de
+     * otra entidad el Panel entero y la posibilidad de quedar a cargo de una
+     * promotoria de esta casa — y no fallaria nada al hacerlo.
      */
     public const ROLES_PERSONAL = ['administrador', 'director', 'profesor'];
 
@@ -251,6 +294,49 @@ class Perfil extends Model
     }
 
     /**
+     * La institucion externa que lleva ese codigo, o null.
+     *
+     * ES UN METODO APARTE Y NO UN PARAMETRO DE `porCodigoQr()`, a proposito.
+     * Los dos QR del sistema viven en la misma columna y empiezan por el mismo
+     * `MTR:`, asi que lo unico que los separa es el ROL de quien lo lleva. Si
+     * una sola funcion resolviera los dos, el lector de una hoja de asistencia
+     * de promotoria aceptaria el QR de una escuela —y el de un programa externo
+     * aceptaria el carne de un estudiante— sin que nada fallara: cada uno
+     * seguiria su camino con el perfil equivocado en la mano.
+     *
+     * Por eso cada lector llama al suyo, y por eso ninguno de los dos admite
+     * «cualquier rol». El dia que haya un tercer QR, sera un tercer metodo.
+     *
+     * Devuelve el PERFIL y no la institucion: quien pregunta ya sabe que hacer
+     * con el, y `perfil->institucionExterna` esta a un paso.
+     */
+    public static function porCodigoQrDeInstitucion(string $codigo): ?self
+    {
+        if (trim($codigo) === '') {
+            return null;
+        }
+
+        return static::query()
+            ->where('codigo_qr', $codigo)
+            ->where('rol', self::INSTITUCION_EXTERNA)
+            ->first();
+    }
+
+    /**
+     * La institucion externa de la que esta cuenta es el funcionario.
+     *
+     * NULL para los otros cuatro roles, que es lo normal. Un perfil con rol
+     * `institucion_externa` y sin esto es una cuenta que no puede verificar
+     * nada: no deberia existir —solo se crean junto a su ficha— y si aparece
+     * una, es que alguien abrio un segundo camino.
+     */
+    /** @return HasOne<InstitucionExterna, $this> */
+    public function institucionExterna(): HasOne
+    {
+        return $this->hasOne(InstitucionExterna::class, 'perfil_id');
+    }
+
+    /**
      * Anos cumplidos a partir de una fecha de nacimiento.
      *
      * Se escribe a mano en vez de usar `diffInYears` porque en Carbon 3 ese
@@ -276,17 +362,40 @@ class Perfil extends Model
     }
 
     /**
-     * Anos cumplidos. Se calcula, no se guarda: una edad almacenada estaria mal
-     * todos los dias menos el del cumpleanos.
+     * Anos cumplidos, o `null` si no se sabe.
+     *
+     * Se calcula, no se guarda: una edad almacenada estaria mal todos los dias
+     * menos el del cumpleanos.
+     *
+     * `null` ES UN ESTADO REAL DESDE EL 23/09/2026 y no un hueco a medias: la
+     * cuenta de una institucion externa es un contacto de OTRA entidad, y su
+     * fecha de nacimiento no se pide porque no la usa nada —de ese dato cuelgan
+     * la minoria de edad, el acudiente y el nivel, que son cosas de un
+     * estudiante—. Para todos los demas roles sigue siendo obligatoria en el
+     * formulario, asi que en la practica esto solo es null ahi.
+     *
+     * Quien pinte esto tiene que decidir QUE ENSENA cuando no hay dato. No vale
+     * imprimirlo a secas: saldria «años» a secas, que se lee como un fallo.
      */
-    public function getEdadAttribute(): int
+    public function getEdadAttribute(): ?int
     {
-        return self::edadDe($this->fecha_nacimiento);
+        return $this->fecha_nacimiento === null
+            ? null
+            : self::edadDe($this->fecha_nacimiento);
     }
 
+    /**
+     * Si es menor de edad. SIN FECHA, `false`.
+     *
+     * No es «se asume que es mayor»: es que de `es_menor` cuelgan cosas que
+     * solo le pasan a un estudiante —exigirle acudiente, elegirle el formato de
+     * consentimiento— y un estudiante SIEMPRE tiene fecha. Contestar `true`
+     * ante la duda le exigiria acudiente a la cuenta de una escuela rural, que
+     * no tiene ningun sentido y bloquearia su ficha.
+     */
     public function getEsMenorAttribute(): bool
     {
-        return $this->edad < 18;
+        return $this->edad !== null && $this->edad < 18;
     }
 
     /**

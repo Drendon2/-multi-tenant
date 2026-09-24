@@ -841,7 +841,12 @@ class ActividadTest extends TestCase
 
         $this->actingAs($this->profesor->user)
             ->post(route('panel-actividad-iniciar-hoy', $banda))
-            ->assertRedirect(route('panel-actividad', $banda));
+            // ATERRIZA EN LA HOJA DE ASISTENCIA desde el 23/09/2026, no en la
+            // ficha. El aviso decia «ya puedes pasar lista» y dejaba a la
+            // persona donde estaba, con «Pasar lista» en un boton blanco dentro
+            // de la tabla y dos botones verdes al lado que no eran ese. El
+            // gesto es uno —llego, inicio, marco— y se hace de pie.
+            ->assertRedirect(route('panel-actividad-lista', $banda->sesiones()->first()));
 
         $sesion = $banda->sesiones()->first();
 
@@ -860,9 +865,14 @@ class ActividadTest extends TestCase
         // pantalla y no un error del motor. Sin `firstOrCreate` esta linea es
         // un 500 —se comprobo— y la de abajo pasa igual, porque un 500 tampoco
         // crea nada.
+        // Y el segundo toque TAMBIÉN lleva a la hoja, no a la ficha en
+        // silencio. Antes devolvía sin decir nada, así que el botón más visible
+        // de la pantalla era una acción agotada: se oprimía y no pasaba nada.
+        // La hora NO se reescribe —eso borraría la de verdad—, que es lo que
+        // comprueba la última línea.
         $this->actingAs($this->profesor->user)
             ->post(route('panel-actividad-iniciar-hoy', $banda))
-            ->assertRedirect(route('panel-actividad', $banda));
+            ->assertRedirect(route('panel-actividad-lista', $banda->sesiones()->first()));
 
         $this->assertSame(1, $banda->sesiones()->count());
     }

@@ -92,6 +92,77 @@
 
   @include('partials.tabla-actividades', $proyeccion + ['vacio_texto' => 'Todavía no hay grupos de proyección.'])
 </section>
+
+{{--
+  PROGRAMAS EXTERNOS Y SUS INSTITUCIONES, en ese orden y al final. Lo de arriba
+  es lo que la casa ofrece EN la casa; esto es lo que la casa lleva AFUERA, y
+  por eso va después y no intercalado entre los cursos y la proyección.
+
+  Las dos secciones se leen seguidas porque una explica a la otra: no se puede
+  abrir un programa externo sin tener registrada la institución donde se dicta,
+  ya que su funcionario es quien verifica cada clase.
+--}}
+<section class="programa-seccion" aria-labelledby="seccion-externos">
+  <div class="programa-cabecera">
+    <h3 id="seccion-externos">Programas externos</h3>
+    {{--
+      EL BOTÓN SOLO SI HAY DÓNDE DICTAR. El formulario de un programa externo
+      tiene un desplegable obligatorio —la institución— y sin ninguna registrada
+      sale vacío: un formulario que no se puede enviar. Este proyecto ya pagó
+      una vez el precio de pintar un botón que no hace nada, así que aquí lo que
+      se ofrece en su lugar es el paso que de verdad toca, abajo.
+
+      Y solo el administrador, como en las otras dos secciones: un director
+      gestiona los que le asignen, pero crearlos poniendo de responsable a otro
+      lo haría perderlos de vista en el mismo gesto.
+    --}}
+    @if ($yo->rol === 'administrador' && $externos['hay_instituciones'])
+      <a class="btn btn-blanco btn-sm" href="{{ route('programa-externo-nuevo') }}" data-modal
+         aria-label="Nuevo programa externo">+ Nuevo</a>
+    @endif
+  </div>
+  <p class="campo-ayuda">
+    Lo que un profesor de la casa va a dictar en otra institución. La lista de
+    asistentes la escribe él allá —nombre y edad— y cada clase la verifica un
+    funcionario de esa institución.
+  </p>
+
+  @include('partials.tabla-programas-externos', $externos + [
+      'vacio_texto' => $externos['hay_instituciones']
+          ? 'Todavía no hay programas externos.'
+          : 'Todavía no hay programas externos. Registra abajo la institución donde se va a dictar y luego ábrele el programa.',
+  ])
+</section>
+
+{{--
+  Registrar una institución es del ADMINISTRADOR y de nadie más: es una entidad
+  con la que la casa tiene convenio, no algo acotable a un departamento. Un
+  director no ve esta sección — y no se la esconde nada más: sus rutas están
+  todas en el grupo del administrador.
+--}}
+@if ($yo->rol === 'administrador')
+<section class="programa-seccion" aria-labelledby="seccion-instituciones">
+  <div class="programa-cabecera">
+    <h3 id="seccion-instituciones">Instituciones externas</h3>
+    {{--
+      El nombre accesible CONTIENE el texto visible y empieza por él —«Nueva
+      institución externa», no «Registrar institución externa»—. Es el criterio
+      2.5.3 de WCAG: quien dicta por voz dice lo que LEE, y con la palabra fuera
+      del nombre el control deja de responderle. Lo cazó `MenuDeFilaTest`, que
+      recorre todos los controles de la pantalla comprobando justo esto.
+    --}}
+    <a class="btn btn-blanco btn-sm" href="{{ route('institucion-externa-nueva') }}" data-modal
+       aria-label="Nueva institución externa">+ Nueva</a>
+  </div>
+  <p class="campo-ayuda">
+    La escuela, el colegio o la fundación donde se dicta, con la cuenta de quien
+    da fe allá de que el profesor fue. Su QR se imprime y se le entrega: con él,
+    el profesor deja la clase verificada el mismo día, allá mismo.
+  </p>
+
+  @include('partials.tabla-instituciones-externas', $instituciones)
+</section>
+@endif
 @endsection
 
 @push('scripts')

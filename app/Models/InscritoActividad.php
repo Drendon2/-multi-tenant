@@ -8,9 +8,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Una persona apuntada a una actividad.
  *
- * Sin cuenta y sin matricula: lo que la trajo fue el enlace. Si ademas resulta
- * ser un estudiante del sistema, `perfil` lo dice; para casi todos sera null y
- * eso no es un dato incompleto, es lo normal.
+ * Sin cuenta y sin matricula. Si ademas resulta ser un estudiante del sistema,
+ * `perfil` lo dice; para casi todos sera null y eso no es un dato incompleto,
+ * es lo normal.
+ *
+ * TRES ORIGENES Y DOS JUEGOS DE DATOS DISTINTOS. A quien llega por el enlace se
+ * le piden documento, telefono, correo y fecha de nacimiento, porque los
+ * escribe el mismo con calma. A quien escribe el responsable —el que aparece el
+ * dia de la clase, y la lista entera de un PROGRAMA EXTERNO— solo se le pide el
+ * nombre y, en el externo, la EDAD: eso se pregunta de pie en un salon ajeno.
+ * Por eso casi todas las columnas admiten NULL, y por eso `edad` y
+ * `fecha_nacimiento` conviven en vez de deducirse una de otra — no son el mismo
+ * dato preguntado de dos formas, son dos datos con precio distinto.
  */
 class InscritoActividad extends Model
 {
@@ -19,6 +28,17 @@ class InscritoActividad extends Model
 
     /** Aparecio el dia de la clase y lo anadio el responsable. */
     public const EN_SESION = 'en_sesion';
+
+    /**
+     * Lo escribio quien dirige, armando la lista.
+     *
+     * Es como se puebla un PROGRAMA EXTERNO entero: alli no hay enlace que
+     * compartir, asi que el profesor escribe la lista del salon —nombre y
+     * edad— de pie y en el sitio. Se distingue de `EN_SESION` porque aquel
+     * significa algo mas estrecho y util: «esta persona no estaba y aparecio
+     * el dia de la clase». Colapsarlos perderia esa segunda cosa.
+     */
+    public const LISTA = 'lista';
 
     protected $table = 'inscritos_actividad';
 
@@ -29,6 +49,7 @@ class InscritoActividad extends Model
         'telefono',
         'correo',
         'fecha_nacimiento',
+        'edad',
         'perfil_id',
         'origen',
     ];
@@ -37,9 +58,11 @@ class InscritoActividad extends Model
     {
         return [
             'fecha_nacimiento' => 'date',
+            'edad' => 'integer',
         ];
     }
 
+    /** @return BelongsTo<Actividad, $this> */
     public function actividad(): BelongsTo
     {
         return $this->belongsTo(Actividad::class);

@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Actividad;
 use App\Models\Area;
 use App\Models\Grupo;
+use App\Models\InstitucionExterna;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
@@ -92,6 +93,11 @@ class Dependencias
                 'matriculas' => ['matrícula', 'matrículas'],
                 'promotoriasDictadas' => ['promotoría a su cargo', 'promotorías a su cargo'],
                 'actividadesACargo' => ['actividad a su cargo', 'actividades a su cargo'],
+                // RESTRICT de verdad, como las dos de arriba: borrar la cuenta
+                // dejaria a esa escuela sin nadie que pueda dar fe de sus
+                // clases. Se cuenta aqui solo para poder decirlo antes de
+                // preguntar, en vez de negarse despues con un error del motor.
+                'institucionExterna' => ['institución externa', 'instituciones externas'],
             ],
             'arrastran' => [
                 'datosEstudiante' => ['ficha de estudiante', 'fichas de estudiante'],
@@ -109,6 +115,23 @@ class Dependencias
                 'sesiones' => ['sesión', 'sesiones'],
                 'inscritos' => ['inscrito', 'inscritos'],
             ],
+        ],
+        /*
+         * La institucion externa. Sus programas la BLOQUEAN, al reves que las
+         * sesiones de una actividad, y la diferencia no es de esquema sino de
+         * lo que se pierde: con la ficha se va la cuenta que firmo las clases,
+         * y esas firmas son la evidencia de que un profesor de esta casa fue a
+         * dictar a una vereda. No se borra una institucion con historial; se
+         * desactiva su cuenta, que es la misma politica de siempre.
+         *
+         * Su CUENTA no se arrastra: `perfil_id` apunta hacia `perfiles`, no al
+         * reves, asi que borrar la ficha deja el perfil en pie. Es lo que hay
+         * que saber al escribir el borrado — quien quiera irse del todo tiene
+         * que llevarse las dos cosas, en ese orden.
+         */
+        InstitucionExterna::class => [
+            'bloquean' => ['programas' => ['programa externo', 'programas externos']],
+            'arrastran' => [],
         ],
     ];
 

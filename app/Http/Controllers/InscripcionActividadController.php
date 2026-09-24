@@ -132,15 +132,31 @@ class InscripcionActividadController extends Controller
     }
 
     /**
-     * La actividad de ese token, o un 404.
+     * La actividad de ese token, si es de las que tienen puerta publica.
      *
      * Un token que no existe y uno que existe se distinguen solo por lo que
      * pasa despues: aqui los dos responden lo mismo mientras el token no sea
      * valido, que es lo que impide usar esta ruta para adivinar tokens.
+     *
+     * EL CORTE POR TIPO VA AQUI Y NO EN CADA METODO, que es lo que hace que
+     * valga: por este metodo pasan el GET y el POST, y una de las dos sin el
+     * corte es la que deja entrar.
+     *
+     * Un PROGRAMA EXTERNO tiene token —la columna es obligatoria para los
+     * cuatro tipos— y ese token NO abre nada. Su lista la escribe el profesor
+     * en la otra institucion, con nombres de menores que no son de esta casa;
+     * una URL publica que anada gente a esa lista, o peor, que la ensene, es
+     * exactamente lo que no puede existir. Y NO BASTA con que nazca
+     * `abierta = false`: eso solo lo deja «cerrado», que esta pantalla cuenta
+     * —con el nombre del programa— a quien llegue con el enlace.
+     *
+     * 404 y no un aviso: para quien llega por ahi, esa URL no existe.
      */
     private function buscar(string $token): Actividad
     {
-        return Actividad::where('token', $token)->firstOrFail();
+        return Actividad::where('token', $token)
+            ->whereIn('tipo', Actividad::TIPOS_CON_ENLACE)
+            ->firstOrFail();
     }
 
     /** Por que esta cerrada, dicho para quien acaba de llegar por el enlace. */

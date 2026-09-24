@@ -3190,7 +3190,60 @@
     color: var(--ink-soft); font-size: 0.9rem;
   }
 
-  /* EL LECTOR, dentro de la hoja de asistencia y encima de los nombres. */
+  /* UN NOMBRE DE USUARIO EN UNA LISTA.
+
+     Monoespaciada porque es un dato que se TECLEA, y —esto es lo que importa—
+     SIN `text-transform`. Se vio en el navegador con la suite en verde: estaba
+     puesto con `.clase-mia`, que además de mono lleva versalitas, y el usuario
+     `elcarmen` se pintaba «ELCARMEN». Es una credencial que alguien copia de la
+     pantalla para entregarla, así que pintarla en otra caja de la que tiene es
+     dictarla mal. Las versalitas valen para un rótulo; nunca para un dato que
+     se vuelve a escribir. */
+  .dato-usuario {
+    display: block;
+    font-family: var(--font-mono); font-size: 0.78rem;
+    color: var(--ink-soft); letter-spacing: 0;
+  }
+
+  /* AÑADIR A LA LISTA DE UN PROGRAMA EXTERNO.
+
+     Dos campos y un botón, y se usa EN TANDA: el profesor escribe la lista
+     entera de un salón ajeno, uno por uno, de pie y en el teléfono. Por eso
+     vale la pena que quepa en un renglón donde quepa — cada fila de más es un
+     desplazamiento más, treinta veces seguidas.
+
+     `grid` y NO `flex`: en un contenedor en COLUMNA, que es lo que es una
+     tarjeta, `flex-basis` mide ALTO y no ancho. Es la trampa que este proyecto
+     ya pagó, y con grid el reparto se declara donde de verdad está el ancho.
+
+     La edad se lleva una columna FIJA y estrecha: es un número de dos cifras y
+     darle la mitad del renglón le quita sitio al nombre, que es lo largo. Se
+     pone `width` en el propio control además del ancho de la celda porque un
+     `input[type=number]` reclama su ancho por defecto aunque se dibuje
+     estrecho.
+
+     El botón se alinea con `end` para que quede sobre la línea de los campos y
+     no flotando a media altura de sus etiquetas. */
+  .lista-externa-forma .field { margin-bottom: 0.7rem; }
+
+  @media not all and (max-width: 640px) {
+    .lista-externa-forma {
+      display: grid;
+      grid-template-columns: 1fr 6rem auto;
+      gap: 0 0.9rem;
+      align-items: end;
+    }
+    .lista-externa-forma .field { margin-bottom: 0; }
+    .lista-externa-forma input[type="number"] { width: 100%; }
+    /* 44px para que el botón case con el alto de los controles de al lado, que
+       es también el mínimo táctil del sistema. */
+    .lista-externa-forma .btn { min-height: 44px; }
+  }
+
+  /* EL LECTOR, dentro de la hoja de asistencia y encima de los nombres. Desde el
+     23/09/2026 también en la ficha de un programa externo, donde lo que se lee
+     es el QR de la institución y lo que queda es la clase verificada; el guion
+     es otro (`verificacion-qr.js`) y el aspecto es este mismo, a propósito. */
   .qr-lector { margin-bottom: 1rem; }
   /* EL `hidden` DEL HTML NO BASTA AQUI, y se vio en el navegador con la suite en
      verde: `.btn` declara `display: inline-flex`, que gana al `[hidden] {

@@ -52,6 +52,18 @@ abstract class RecursoController extends Controller
     /**
      * Textos y rutas de esta pantalla.
      *
+     * `ruta_eliminar` ES OPCIONAL desde el 23/09/2026, y su ausencia significa
+     * QUE AQUI NO SE BORRA. La estreno la ficha de una institucion externa: lo
+     * que se hace con una entidad que ya no recibe clases es apagarle la
+     * cuenta, no quitarla —sus firmas son la evidencia de que un profesor fue a
+     * dictar a una vereda—. Poner una ruta falsa «para que la clave exista» es
+     * como se acaba con un modal que cierra sobre una pantalla distinta de la
+     * que lo abrio, sin que nada falle.
+     *
+     * `confirmarBorrado()` y `eliminar()` cortan con 404 cuando falta, asi que
+     * la ausencia cierra la puerta ademas de esconderla — aunque alguien
+     * registre las rutas por descuido.
+     *
      * @return array{
      *     titulo: string,
      *     titulo_nuevo: string,
@@ -59,7 +71,7 @@ abstract class RecursoController extends Controller
      *     ruta_lista: string,
      *     ruta_nuevo: string,
      *     ruta_editar: string,
-     *     ruta_eliminar: string,
+     *     ruta_eliminar?: string,
      *     creado: string,
      *     actualizado: string,
      * }
@@ -285,12 +297,19 @@ abstract class RecursoController extends Controller
      */
     public function confirmarBorrado(Request $request, string $id): View
     {
+        $textos = $this->textos();
+        // Sin `ruta_eliminar`, este catalogo NO SE BORRA y esta pantalla no
+        // existe. Se corta aqui y en `eliminar()` porque son dos puertas: la
+        // que pregunta y la que ejecuta, y cerrar solo la primera deja el POST
+        // abierto a quien lo componga a mano.
+        abort_unless(isset($textos['ruta_eliminar']), 404);
+
         $objeto = $this->buscar($id);
 
         return view('gestion.confirma-borrado', [
             'objeto' => $objeto,
-            'ruta_lista' => $this->textos()['ruta_lista'],
-            'accion' => route($this->textos()['ruta_eliminar'], $objeto),
+            'ruta_lista' => $textos['ruta_lista'],
+            'accion' => route($textos['ruta_eliminar'], $objeto),
             // Los filtros con los que se estaba mirando la lista, para
             // devolverlos puestos. Se leen AQUI porque este es el ultimo momento
             // en que la pagina anterior sigue siendo esa lista.
@@ -301,6 +320,10 @@ abstract class RecursoController extends Controller
 
     public function eliminar(Request $request, string $id): RedirectResponse
     {
+        // La otra mitad del corte de `confirmarBorrado()`: sin `ruta_eliminar`,
+        // aqui no se borra nada por ningun camino.
+        abort_unless(isset($this->textos()['ruta_eliminar']), 404);
+
         $objeto = $this->buscar($id);
 
         // El destino se calcula ANTES de borrar: despues, `$objeto->area_id` y

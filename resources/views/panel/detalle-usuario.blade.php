@@ -51,7 +51,13 @@
     Se aparta del Django a propósito: `detalle_usuario.html` la pinta para
     cualquier rol.
   --}}
-  @if (! $objetivo->esPersonal())
+  {{--
+    `edad !== null` además del corte por rol: una cuenta de institución externa
+    no es «personal» —no lo es— así que pasaría el primer filtro, y su fecha de
+    nacimiento no se pide. Sin esto saldría «años» a secas, que se lee como un
+    fallo. Las dos condiciones dicen cosas distintas y hacen falta las dos.
+  --}}
+  @if (! $objetivo->esPersonal() && $objetivo->edad !== null)
   <tr><th>Edad</th><td>{{ $objetivo->edad }} años</td></tr>
   @endif
   <tr><th>Teléfono</th><td>{{ $objetivo->telefono }}</td></tr>
