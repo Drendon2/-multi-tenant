@@ -262,6 +262,8 @@ class ResumenActividadesTest extends TestCase
         $this->assertSame('Programa externo', $fila['Tipo']);
         $this->assertSame('I. E. Rural El Carmen', $fila['Institución']);
         $this->assertSame('604 546 1234 ext. 12', $fila['Teléfono de la institución']);
+        // El nombre de la cuenta que da fe: `perfil('carmen', ...)` la llama «Carmen».
+        $this->assertSame('Carmen', $fila['Funcionario de la institución']);
         $this->assertSame('Lista del programa', $fila['Cómo entró']);
         $this->assertSame('9', $fila['Edad declarada']);
         $this->assertSame('', $fila['Fecha de nacimiento']);

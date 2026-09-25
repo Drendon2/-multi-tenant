@@ -380,12 +380,13 @@ class InformeController extends Controller
             ->join('actividades as a', 'a.id', '=', 'i.actividad_id')
             ->leftJoin('perfiles as r', 'r.id', '=', 'a.responsable_id')
             ->leftJoin('instituciones_externas as e', 'e.id', '=', 'a.institucion_id')
+            ->leftJoin('perfiles as fu', 'fu.id', '=', 'e.perfil_id')
             ->leftJoin('periodos as p', 'p.id', '=', 'a.periodo_id')
             ->select([
                 'i.id', 'i.actividad_id', 'i.nombre_completo', 'i.documento', 'i.telefono',
                 'i.correo', 'i.fecha_nacimiento', 'i.edad', 'i.perfil_id', 'i.origen', 'i.created_at',
                 'a.tipo', 'a.nombre as actividad', 'r.nombre_completo as responsable',
-                'e.nombre as institucion', 'e.telefono as telefono_institucion', 'p.nombre as periodo',
+                'e.nombre as institucion', 'e.telefono as telefono_institucion', 'fu.nombre_completo as funcionario', 'p.nombre as periodo',
             ])
             ->orderBy('a.tipo')
             ->orderBy('a.nombre')
@@ -411,6 +412,8 @@ class InformeController extends Controller
                     // El de la ENTIDAD, no el del funcionario: es el contacto que
                     // sigue sirviendo cuando esa persona cambia de trabajo.
                     $f->telefono_institucion,
+                    // Quien da fe de las clases desde la cuenta de la institucion.
+                    $f->funcionario,
                     $f->periodo ?? 'Sin periodo',
                     $f->nombre_completo,
                     $origen[$f->origen] ?? $f->origen,
@@ -437,6 +440,7 @@ class InformeController extends Controller
             'Responsable',
             'Institución',
             'Teléfono de la institución',
+            'Funcionario de la institución',
             'Periodo',
             'Nombre completo',
             'Cómo entró',
