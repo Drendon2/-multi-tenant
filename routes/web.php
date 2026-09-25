@@ -390,6 +390,12 @@ Route::get('/informes/institucion', [InformeController::class, 'institucion'])
     ->middleware(['auth', 'rol:administrador'])
     ->name('informe-institucion');
 
+// La gente SIN matricula (25/09/2026). Tambien solo del administrador: lleva
+// nombres de menores, y los de un programa externo son de otra institucion.
+Route::get('/informes/actividades', [InformeController::class, 'actividades'])
+    ->middleware(['auth', 'rol:administrador'])
+    ->name('informe-actividades');
+
 // ---------------------------------------------------------------------------
 // Certificados de matricula
 // ---------------------------------------------------------------------------

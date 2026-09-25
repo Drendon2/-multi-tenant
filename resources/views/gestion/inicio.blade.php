@@ -263,6 +263,19 @@
       confidencial.
     </span>
   </a>
+  {{--
+    La gente SIN matrícula va en su propio archivo y no dentro del de arriba:
+    hay hojas de cálculo armadas sobre aquel. Solo del administrador por lo
+    mismo que el de arriba, y el aviso dice por qué antes de pulsar.
+  --}}
+  <a class="tarjeta-enlace" href="{{ route('informe-actividades') }}">
+    Cursos y actividades sin matrícula
+    <span class="tarjeta-nota">
+      Cursos, talleres, grupos de proyección y programas externos, con su
+      asistencia. Lleva <strong>datos de menores, algunos de otra
+      institución</strong>. Trátalo como confidencial.
+    </span>
+  </a>
   @endif
 </div>
 @endsection

@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Actividad;
 use App\Models\Area;
+use App\Models\AsistenciaActividad;
 use App\Models\DocumentoEstudiante;
 use App\Models\DocumentoRequerido;
 use App\Models\EncuestaDemografica;
 use App\Models\Grupo;
+use App\Models\InscritoActividad;
 use App\Models\Matricula;
 use App\Models\Perfil;
 use App\Models\Periodo;
@@ -16,6 +19,7 @@ use App\Support\Permisos;
 use Generator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -330,6 +334,119 @@ class InformeController extends Controller
             // cabeceras iguales rompen cualquier tabla dinamica.
             ...$papeles->map(fn (DocumentoRequerido $p) => 'Entregó: '.$p->nombre)->all(),
         ], $this->filasDeInstitucion($papeles));
+    }
+
+    /**
+     * La gente SIN matricula: cursos, talleres, grupos de proyeccion y
+     * programas externos (25/09/2026). Una fila por persona y actividad, con
+     * TODO el historico.
+     *
+     * APARTE DE LOS OTROS DOS, por decision del usuario: hay hojas de calculo
+     * armadas sobre aquellos, y meter aqui estas filas las llenaria de columnas
+     * vacias que sus tablas dinamicas empezarian a contar.
+     *
+     * SOLO EL ADMINISTRADOR (la ruta lo dice): lleva nombres de menores, y los
+     * de un programa externo son de OTRA institucion. Se ofrecio que cada
+     * responsable bajara lo suyo y se eligio lo cerrado.
+     *
+     * LA EDAD NO SE CALCULA. Van la fecha de nacimiento (quien entro por el
+     * enlace), la edad declarada (programa externo) y el dia del registro, cada
+     * una en su columna: la edad escrita a mano ENVEJECE, y solo junto a
+     * «Registrado el» se puede corregir. Deducir una de otra aqui seria
+     * inventar un dato que nadie dio.
+     *
+     * El porcentaje sigue la regla del certificado (`AsistenciaDeActividad`):
+     * sobre las sesiones CON LISTA TOMADA de la actividad, y truncado. Quien
+     * entro a mitad de camino arrastra las sesiones de antes; es lo mismo que
+     * pasa con el certificado y por la misma razon.
+     *
+     * Consultas fijas: dos agregados y la lista recorrida con `lazy()`.
+     */
+    public function actividades(): StreamedResponse
+    {
+        $sesionesConLista = DB::table('asistencias_actividad as x')
+            ->join('sesiones_actividad as s', 's.id', '=', 'x.sesion_id')
+            ->groupBy('s.actividad_id')
+            ->selectRaw('s.actividad_id, COUNT(DISTINCT s.id) as total')
+            ->pluck('total', 'actividad_id');
+
+        $asistio = DB::table('asistencias_actividad')
+            ->where('estado', AsistenciaActividad::ASISTIO)
+            ->groupBy('inscrito_id')
+            ->selectRaw('inscrito_id, COUNT(*) as total')
+            ->pluck('total', 'inscrito_id');
+
+        $filas = DB::table('inscritos_actividad as i')
+            ->join('actividades as a', 'a.id', '=', 'i.actividad_id')
+            ->leftJoin('perfiles as r', 'r.id', '=', 'a.responsable_id')
+            ->leftJoin('instituciones_externas as e', 'e.id', '=', 'a.institucion_id')
+            ->leftJoin('periodos as p', 'p.id', '=', 'a.periodo_id')
+            ->select([
+                'i.id', 'i.actividad_id', 'i.nombre_completo', 'i.documento', 'i.telefono',
+                'i.correo', 'i.fecha_nacimiento', 'i.edad', 'i.perfil_id', 'i.origen', 'i.created_at',
+                'a.tipo', 'a.nombre as actividad', 'r.nombre_completo as responsable',
+                'e.nombre as institucion', 'p.nombre as periodo',
+            ])
+            ->orderBy('a.tipo')
+            ->orderBy('a.nombre')
+            ->orderBy('i.nombre_completo')
+            ->orderBy('i.id');
+
+        $origen = [
+            InscritoActividad::ENLACE => 'Por el enlace',
+            InscritoActividad::EN_SESION => 'Añadido en clase',
+            InscritoActividad::LISTA => 'Lista del programa',
+        ];
+
+        $recorrer = function () use ($filas, $sesionesConLista, $asistio, $origen): Generator {
+            foreach ($filas->lazy(self::POR_TANDA) as $f) {
+                $sesiones = (int) ($sesionesConLista[$f->actividad_id] ?? 0);
+                $fue = (int) ($asistio[$f->id] ?? 0);
+
+                yield [
+                    Actividad::ETIQUETA_TIPO[$f->tipo] ?? $f->tipo,
+                    $f->actividad,
+                    $f->responsable,
+                    $f->institucion,
+                    $f->periodo ?? 'Sin periodo',
+                    $f->nombre_completo,
+                    $origen[$f->origen] ?? $f->origen,
+                    $f->documento,
+                    $f->telefono,
+                    $f->correo,
+                    $f->fecha_nacimiento ? substr((string) $f->fecha_nacimiento, 0, 10) : null,
+                    $f->edad,
+                    substr((string) $f->created_at, 0, 10),
+                    // Solo se reconoce por el documento: quien no lo dio sale
+                    // «No» aunque este matriculado. Por eso la cabecera dice
+                    // «reconocido» y no «matriculado».
+                    $f->perfil_id ? 'Sí' : 'No',
+                    $sesiones,
+                    $fue,
+                    $sesiones > 0 ? ((int) floor($fue * 100 / $sesiones)).'%' : null,
+                ];
+            }
+        };
+
+        return Csv::descargar('actividades-sin-matricula', [
+            'Tipo',
+            'Actividad',
+            'Responsable',
+            'Institución',
+            'Periodo',
+            'Nombre completo',
+            'Cómo entró',
+            'Documento',
+            'Teléfono',
+            'Correo',
+            'Fecha de nacimiento',
+            'Edad declarada',
+            'Registrado el',
+            'Reconocido como estudiante',
+            'Sesiones con lista',
+            'Asistió',
+            'Asistencia',
+        ], $recorrer());
     }
 
     /**

@@ -37,7 +37,7 @@
   más probable de esta pantalla: que TODO el tablero se mueve con la flecha.
 --}}
 <p class="campo-info" style="margin:-0.6rem 0 1.4rem;">
-  El periodo mueve las matrículas, el mapa de actividad y los dos rankings. El
+  El periodo mueve las matrículas, el mapa de actividad, los cursos y actividades y los dos rankings. El
   catálogo y la encuesta demográfica son de toda la institución y no cambian.
 </p>
 @endif
@@ -201,6 +201,67 @@
   )])
   @endif
 </div>
+@endif
+
+{{--
+  LA GENTE SIN MATRÍCULA: cursos, talleres, grupos de proyección y programas
+  externos (25/09/2026). Va APARTE y no se suma a ninguna cifra de arriba, por
+  decisión del usuario: un estudiante de semestre y quien fue a un taller de un
+  día no responden a la misma pregunta. Lo único que cruza las dos mitades es
+  la línea de «también matriculados». Las cuentas y a qué periodo pertenece
+  una actividad sin periodo viven en `ResumenActividades`.
+--}}
+@if ($actividades)
+<h3 style="margin-top:2rem;">
+  Cursos y actividades sin matrícula
+  <span class="h4-nota">— {{ $periodoActual->nombre }}</span>
+</h3>
+<p class="campo-ayuda" style="margin:-0.4rem 0 1rem;">
+  No se suman a las matrículas de arriba. Quien va a dos actividades cuenta en
+  las dos, y una sesión cuenta solo si se tomó lista.
+</p>
+@foreach ($actividades['tipos'] as $tipo => $t)
+<h4 style="margin:1.2rem 0 0.5rem;">{{ $t['etiqueta'] }}</h4>
+<div class="cifras-banda" data-tipo-actividad="{{ $tipo }}">
+  <div class="cifras-celda">
+    <span class="cifras-num">{{ $t['actividades'] }}</span>
+    <span class="cifras-label">{{ $t['actividades'] === 1 ? 'Actividad' : 'Actividades' }}</span>
+  </div>
+  <div class="cifras-celda">
+    <span class="cifras-num">{{ $t['inscritos'] }}</span>
+    <span class="cifras-label">{{ $t['inscritos'] === 1 ? 'Inscrito' : 'Inscritos' }}</span>
+  </div>
+  <div class="cifras-celda">
+    <span class="cifras-num">{{ $t['sesiones'] }}</span>
+    <span class="cifras-label">{{ $t['sesiones'] === 1 ? 'Sesión con lista' : 'Sesiones con lista' }}</span>
+  </div>
+  <div class="cifras-celda">
+    <span class="cifras-num">{{ $t['asistencias'] }}</span>
+    <span class="cifras-label">{{ $t['asistencias'] === 1 ? 'Asistencia' : 'Asistencias' }}</span>
+  </div>
+</div>
+@if ($tipo === \App\Models\Actividad::EXTERNO && $actividades['verificacion'])
+{{--
+  Las dos vías de verificación van SEPARADAS a propósito: la firma desde la
+  cuenta de la institución y el QR que escanea el propio profesor no dan la
+  misma garantía, y una suma de las dos no se puede auditar.
+--}}
+<p class="campo-ayuda" data-verificacion-externa>
+  De {{ $actividades['verificacion']['iniciadas'] }} {{ $actividades['verificacion']['iniciadas'] === 1 ? 'clase iniciada' : 'clases iniciadas' }},
+  la institución verificó <strong>{{ $actividades['verificacion']['propia'] }}</strong> desde su cuenta
+  y <strong>{{ $actividades['verificacion']['qr'] }}</strong> con el QR.
+</p>
+@endif
+@endforeach
+<p class="campo-ayuda" data-tambien-matriculados style="margin-bottom:2rem;">
+  @if ($actividades['tambienMatriculados'] === 0)
+    Ninguna de estas personas está matriculada en {{ $periodoActual->nombre }}.
+  @else
+    <strong>{{ $actividades['tambienMatriculados'] }}</strong>
+    {{ $actividades['tambienMatriculados'] === 1 ? 'de estas personas también está matriculada' : 'de estas personas también están matriculadas' }}
+    en {{ $periodoActual->nombre }}. Solo se reconoce a quien se inscribió con su documento.
+  @endif
+</p>
 @endif
 
 {{--

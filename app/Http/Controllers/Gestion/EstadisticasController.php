@@ -14,6 +14,7 @@ use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
 use App\Support\Grafica;
+use App\Support\ResumenActividades;
 use App\Support\ResumenAsistencia;
 use App\Support\ResumenInstitucion;
 use Illuminate\Http\Request;
@@ -109,6 +110,9 @@ class EstadisticasController extends Controller
             'haciaAdelante' => $indice === false || $indice === 0 ? null : $periodos->get($indice - 1),
             'esElEnCurso' => $periodoActual !== null && $periodoActual->activo,
             'mapaInstitucion' => ResumenAsistencia::deInstitucion($periodoActual),
+            // La gente SIN matricula, aparte y sin sumarse a nada de lo de
+            // arriba. Ver la cabecera de `ResumenActividades`.
+            'actividades' => ResumenActividades::delPeriodo($periodoActual),
             'profesoresActivos' => $this->profesoresMasActivos($periodoActual),
             'estudiantesConstantes' => $this->estudiantesMasConstantes($periodoActual),
             'minimoConstancia' => self::MINIMO_CLASES_CONSTANCIA,
