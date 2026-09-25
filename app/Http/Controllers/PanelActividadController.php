@@ -78,6 +78,15 @@ class PanelActividadController extends Controller
      */
     public const INSCRITOS_POR_PAGINA = 50;
 
+    /**
+     * La edad de quien esta en la lista de un programa externo. La piden los
+     * DOS caminos que anaden gente —armar la lista y «llego alguien» en plena
+     * clase— y escrita en cada uno se separarian sin que nada fallara. El techo
+     * es el del CHECK de la base, repetido para que el rechazo sea un mensaje
+     * de campo y no un error del motor.
+     */
+    private const REGLA_EDAD = ['required', 'integer', 'min:1', 'max:119'];
+
     public function ver(Request $request, Actividad $actividad): View
     {
         /** @var Perfil $perfil */
@@ -349,6 +358,13 @@ class PanelActividadController extends Controller
      * NO respeta el cupo, a proposito. El cupo gobierna el ENLACE, que es el
      * que hay que cerrar cuando ya no caben mas; a quien esta de pie en el
      * salon no lo echa un numero.
+     *
+     * EN UN PROGRAMA EXTERNO PIDE TAMBIEN LA EDAD, y obligatoria (decision del
+     * usuario, 25/09/2026). Alli la edad es el UNICO dato aparte del nombre, y
+     * este camino la dejaba vacia: quien llegaba en la clase 3 entraba con un
+     * «—» y el motivo de preguntarla se caia en cuanto faltara en media lista.
+     * Es la misma regla que `anadirALista()`; el origen sigue siendo
+     * `en_sesion`, porque dice COMO entro y no que datos trae.
      */
     public function anadirEnSesion(Request $request, SesionActividad $sesion): RedirectResponse
     {
@@ -362,11 +378,13 @@ class PanelActividadController extends Controller
             return $this->volverALista($sesion, 'Solo quien dirige la actividad puede pasar lista.');
         }
 
-        $datos = $request->validate(
-            ['nombre_completo' => Reglas::nombreDePersona(90)],
-            Reglas::mensajes(),
-            ['nombre_completo' => 'nombre']
-        );
+        $reglas = ['nombre_completo' => Reglas::nombreDePersona(90)];
+
+        if ($actividad->esExterno()) {
+            $reglas['edad'] = self::REGLA_EDAD;
+        }
+
+        $datos = $request->validate($reglas, Reglas::mensajes(), ['nombre_completo' => 'nombre']);
 
         // Un nombre que ya esta en la lista casi siempre es la misma persona
         // apuntada dos veces: el boton se pulsa con la clase empezando y no hay
@@ -389,6 +407,7 @@ class PanelActividadController extends Controller
         DB::transaction(function () use ($actividad, $sesion, $datos) {
             $inscrito = $actividad->inscritos()->create([
                 'nombre_completo' => $datos['nombre_completo'],
+                'edad' => $datos['edad'] ?? null,
                 'origen' => InscritoActividad::EN_SESION,
             ]);
 
@@ -465,9 +484,7 @@ class PanelActividadController extends Controller
 
         $datos = $request->validate([
             'nombre_completo' => Reglas::nombreDePersona(90),
-            // El techo del CHECK de la base, repetido aqui para que el rechazo
-            // sea un mensaje de campo y no un error del motor.
-            'edad' => ['required', 'integer', 'min:1', 'max:119'],
+            'edad' => self::REGLA_EDAD,
         ], Reglas::mensajes(), ['nombre_completo' => 'nombre']);
 
         // Mismo criterio que al anadir en una sesion: se AVISA y no se bloquea.

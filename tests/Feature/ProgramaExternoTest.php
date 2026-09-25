@@ -159,6 +159,55 @@ class ProgramaExternoTest extends TestCase
     }
 
     /**
+     * EL OTRO CAMINO TAMBIEN PIDE LA EDAD (25/09/2026). «Llego alguien sin
+     * inscribirse», dentro de la hoja de asistencia, solo pedia el nombre y
+     * dejaba la fila con un «—»: en un programa externo la edad es el unico
+     * otro dato, y se cae entero si falta en media lista.
+     */
+    public function test_anadir_en_clase_a_un_programa_externo_exige_la_edad(): void
+    {
+        $programa = $this->programa();
+        $sesion = $this->sesion($programa, iniciada: true);
+
+        $this->actingAs($this->profesor->user)
+            ->post(route('panel-actividad-anadir', $sesion), ['nombre_completo' => 'Pepe Perez'])
+            ->assertSessionHasErrors('edad');
+
+        $this->assertSame(0, $programa->inscritos()->count());
+    }
+
+    public function test_anadir_en_clase_a_un_programa_externo_guarda_la_edad(): void
+    {
+        $programa = $this->programa();
+        $sesion = $this->sesion($programa, iniciada: true);
+
+        $this->actingAs($this->profesor->user)
+            ->post(route('panel-actividad-anadir', $sesion), [
+                'nombre_completo' => 'Pepe Perez',
+                'edad' => 11,
+            ])->assertSessionHas('success');
+
+        $inscrito = $programa->inscritos()->firstOrFail();
+
+        $this->assertSame(11, $inscrito->edad);
+        // El origen dice COMO entro, no que datos trae: aparecio en una clase.
+        $this->assertSame(InscritoActividad::EN_SESION, $inscrito->origen);
+        $this->assertSame('asistio', $sesion->asistencias()->where('inscrito_id', $inscrito->id)->value('estado'));
+    }
+
+    /** Y la hoja lo pregunta: el campo esta en el formulario de ese camino. */
+    public function test_la_hoja_de_un_programa_externo_pregunta_la_edad(): void
+    {
+        $programa = $this->programa();
+        $sesion = $this->sesion($programa, iniciada: true);
+
+        $this->actingAs($this->profesor->user)
+            ->get(route('panel-actividad-lista', $sesion))
+            ->assertOk()
+            ->assertSee('name="edad"', false);
+    }
+
+    /**
      * QUITAR SOLO MIENTRAS NO TENGA MARCAS.
      *
      * El corte no es un permiso: la clave foranea es CASCADE, asi que borrar la

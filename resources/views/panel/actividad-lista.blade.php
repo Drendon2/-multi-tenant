@@ -85,6 +85,34 @@
 @if ($dirige)
 <div class="card">
   <h3>Llegó alguien sin inscribirse</h3>
+  {{--
+    En un programa externo la edad es el UNICO dato aparte del nombre, y aqui
+    se pide igual que al armar la lista de la ficha (obligatoria, 25/09/2026):
+    por este camino entraba con la edad vacia. Misma forma que aquel
+    formulario, para que los dos se lean como el mismo gesto.
+  --}}
+  @if ($actividad->esExterno())
+  <p class="campo-ayuda" style="margin-top:0;margin-bottom:0.9rem;">
+    Nombre y edad. Queda en la lista de {{ $actividad->nombre }} y marcado como que asistió hoy.
+  </p>
+  <form method="post" action="{{ route('panel-actividad-anadir', $sesion) }}" class="lista-externa-forma">
+    @csrf
+    <div class="field">
+      <label for="nombre_completo">Nombre</label>
+      <input type="text" name="nombre_completo" id="nombre_completo" required maxlength="90"
+             pattern="[\p{L}\p{M}][\p{L}\p{M} .'-]*" title="Solo letras, espacios, apóstrofo y guion. Sin números"
+             autocomplete="off" value="{{ old('nombre_completo') }}">
+      @error('nombre_completo')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
+    </div>
+    <div class="field">
+      <label for="edad">Edad</label>
+      <input type="number" name="edad" id="edad" required min="1" max="119" step="1"
+             inputmode="numeric" value="{{ old('edad') }}">
+      @error('edad')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
+    </div>
+    <button type="submit" class="btn">Añadir a la lista</button>
+  </form>
+  @else
   <p class="campo-info" style="margin-top:0;">
     Solo el nombre: nadie le va a pedir el documento con la clase empezando.
     Queda inscrito en {{ $actividad->nombre }} y marcado como que asistió hoy.
@@ -97,6 +125,7 @@
     <button type="submit" class="btn btn-sm">Añadir a la lista</button>
   </form>
   @error('nombre_completo')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
+  @endif
 </div>
 @endif
 
