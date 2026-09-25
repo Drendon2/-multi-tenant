@@ -6,7 +6,9 @@ use App\Models\ConfiguracionInstitucion;
 use App\Models\DocumentoEstudiante;
 use App\Models\Perfil;
 use App\Support\Companeros;
+use App\Support\LogoInstitucion;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -32,13 +34,20 @@ class ArchivoController extends Controller
      * sesion. Se sirve sin restriccion, pero por su propia ruta en vez de abrir
      * la carpeta.
      */
-    public function logo(): StreamedResponse
+    public function logo(): Response
     {
-        $configuracion = ConfiguracionInstitucion::actual();
+        // Siempre hay logo: el propio o las iniciales (`LogoInstitucion`). Antes
+        // era un 404 sin logo propio y cada plantilla se buscaba el respaldo por
+        // su cuenta, que era el logo de El Santuario para cualquier entidad.
+        $binario = LogoInstitucion::binario();
+        $tipo = (new \finfo(FILEINFO_MIME_TYPE))->buffer($binario) ?: 'image/png';
 
-        abort_if($configuracion->logo === '', 404, 'La institución no tiene un logo propio cargado.');
-
-        return $this->entregar($configuracion->logo);
+        return response($binario, 200, [
+            'Content-Type' => $tipo,
+            // Publica: es la misma imagen para todo el mundo, y las plantillas
+            // la piden con `?v=`, que cambia con el logo, el nombre y el color.
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
     }
 
     /**

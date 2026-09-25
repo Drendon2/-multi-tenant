@@ -35,10 +35,10 @@
       <label class="config-etiqueta" for="logo">Logo</label>
       <div class="config-logo">
         <img class="config-logo-vista"
-             src="{{ $institucion->logo ? route('logo-institucion') : asset('img/logo.webp') }}"
+             src="{{ route('logo-institucion') }}?v={{ \App\Support\LogoInstitucion::version() }}"
              alt="Logo actual" width="64" height="64">
         <p class="config-ayuda">
-          {{ $institucion->logo ? 'Logo propio cargado.' : 'Se está usando el logo por defecto del proyecto.' }}
+          {{ \App\Support\LogoInstitucion::esPropio() ? 'Logo propio cargado.' : 'Sin logo propio: se muestran las iniciales de la institución sobre su color. Sube el logo para reemplazarlas.' }}
         </p>
       </div>
       <input class="config-logo-file" type="file" name="logo" id="logo" accept="image/*">

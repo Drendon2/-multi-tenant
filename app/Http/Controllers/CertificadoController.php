@@ -10,6 +10,7 @@ use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Support\AsistenciaDeActividad;
 use App\Support\Imagen;
+use App\Support\LogoInstitucion;
 use App\Support\Permisos;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -275,32 +276,20 @@ class CertificadoController extends Controller
      * El logo que encabeza el certificado.
      *
      * Con dos origenes y ese es el punto: el propio de la institucion si lo
-     * cargaron, y si no el que trae el proyecto —el mismo que ya se ve en la
-     * cabecera y en las pantallas publicas—. Mirar solo la fila de
+     * cargaron, y si no sus iniciales generadas (`LogoInstitucion`) —lo mismo
+     * que ya se ve en la cabecera y en las pantallas publicas—. Mirar solo la fila de
      * configuracion dejaba sin logo justo a la institucion que todavia no ha
      * subido el suyo, que es la que acaba de instalar el sistema.
      *
-     * El del proyecto se lee del disco y no por su URL: dompdf no sale a la red
-     * a buscar nada, y aunque saliera, esto corre en el servidor y pedirse una
-     * pagina a si mismo es una forma cara de leer un archivo.
+     * Se lee en el servidor y no por su URL: dompdf no sale a la red a buscar
+     * nada, y pedirse una pagina a si mismo es una forma cara de leer un
+     * archivo.
      */
     private function logo(ConfiguracionInstitucion $institucion): ?string
     {
-        $propio = $this->incrustar($institucion->logo);
-
-        if ($propio !== null) {
-            return $propio;
-        }
-
-        $porDefecto = public_path('img/logo.webp');
-
-        if (! is_file($porDefecto)) {
-            return null;
-        }
-
-        // WebP: lo lee GD y lo convierte, que es justo lo que hace falta —dompdf
-        // por su cuenta no entiende WebP y lo dejaria como un hueco.
-        return Imagen::aDataUriPng((string) file_get_contents($porDefecto), Imagen::LADO_LOGO_IMPRESO);
+        // El propio o las iniciales generadas: la regla vive en
+        // `LogoInstitucion`. WebP incluido, que dompdf no entiende y GD si.
+        return Imagen::aDataUriPng(LogoInstitucion::binario(), Imagen::LADO_LOGO_IMPRESO);
     }
 
     /**

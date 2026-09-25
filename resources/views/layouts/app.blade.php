@@ -50,7 +50,7 @@
 <body>
 <header>
   <div class="marca-header">
-    <img src="{{ $configuracion->logo ? route('logo-institucion') : asset('img/logo.webp') }}"
+    <img src="{{ route('logo-institucion') }}?v={{ \App\Support\LogoInstitucion::version() }}"
          alt="" width="30" height="30">
     <h1>{{ $configuracion->nombre_institucion }}</h1>
   </div>

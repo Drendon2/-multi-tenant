@@ -4,7 +4,6 @@ namespace App\Support;
 
 use App\Models\ConfiguracionInstitucion;
 use GdImage;
-use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
@@ -19,8 +18,8 @@ use RuntimeException;
  * se acaban quedando sin poner; asi, subir el logo en Gestion → Institucion
  * basta para que todo cambie a la vez. Nada de la entidad se quema aqui.
  *
- * EL LOGO DE RESPALDO ES EL MISMO DE LA CABECERA (`public/img/logo.webp`), y
- * con la misma regla: el propio si lo hay, y si no, ese. Dos reglas distintas
+ * EL LOGO SALE DE `LogoInstitucion`, la misma casa que la cabecera y los PDF:
+ * el propio si lo hay, y si no las iniciales generadas. Dos reglas distintas
  * dejarian una pantalla con un logo y el icono con otro.
  *
  * FONDO BLANCO Y OPACO, a proposito: el iPhone pinta en NEGRO lo transparente
@@ -105,46 +104,22 @@ class IconoInstitucion
         return self::aPng($lienzo);
     }
 
-    /**
-     * Una huella corta de lo que cambia estas imagenes, para la URL.
-     *
-     * Los telefonos y el CDN guardan un icono mucho tiempo: sin algo en la URL
-     * que cambie con el logo, quien cambia el logo seguiria viendo el viejo
-     * durante dias y creeria que no funciono.
-     */
+    /** La huella para la URL: la del logo, porque de el sale todo lo de aqui. */
     public static function version(): string
     {
-        $configuracion = ConfiguracionInstitucion::actual();
-
-        return substr(md5($configuracion->logo.'|'.$configuracion->nombre_institucion), 0, 8);
+        return LogoInstitucion::version();
     }
 
-    /**
-     * El logo de la entidad, o el de respaldo.
-     *
-     * Si el propio no se puede leer se cae al de respaldo en vez de fallar:
-     * un icono equivocado se corrige subiendo el logo otra vez, y un error aqui
-     * seria un 500 en una URL que piden los telefonos sin que nadie mire.
-     */
+    /** El logo de la entidad o sus iniciales, como imagen de GD. */
     private static function logo(): GdImage
     {
-        $ruta = ConfiguracionInstitucion::actual()->logo;
+        $logo = @imagecreatefromstring(LogoInstitucion::binario());
 
-        if ($ruta !== '' && Storage::disk('local')->exists($ruta)) {
-            $propio = @imagecreatefromstring((string) Storage::disk('local')->get($ruta));
-
-            if ($propio !== false) {
-                return $propio;
-            }
-        }
-
-        $respaldo = @imagecreatefromstring((string) @file_get_contents(public_path('img/logo.webp')));
-
-        if ($respaldo === false) {
+        if ($logo === false) {
             throw new RuntimeException('No hay ningún logo que se pueda leer para el icono.');
         }
 
-        return $respaldo;
+        return $logo;
     }
 
     private static function lienzoBlanco(int $ancho, int $alto): GdImage

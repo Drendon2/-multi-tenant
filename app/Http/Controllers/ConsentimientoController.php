@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ConfiguracionInstitucion;
 use App\Models\Perfil;
 use App\Support\Imagen;
+use App\Support\LogoInstitucion;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -184,13 +185,13 @@ class ConsentimientoController extends Controller
      * El logo que encabeza el formato.
      *
      * Misma regla que el certificado y por la misma razon: el propio de la
-     * institucion si lo cargaron, y si no el que trae el proyecto. Mirar solo
+     * institucion si lo cargaron, y si no sus iniciales (`LogoInstitucion`). Mirar solo
      * la fila de configuracion dejaba sin logo justo a la entidad que acaba de
      * instalar el sistema, que es la que mas lo necesita — este papel sale de
      * casa firmado.
      *
-     * El del proyecto se lee del disco y no por su URL: dompdf no sale a la red
-     * a buscar nada.
+     * Se lee en el servidor y no por su URL: dompdf no sale a la red a buscar
+     * nada.
      *
      * Va ACOTADO a `LADO_LOGO_IMPRESO`, y eso es la mitad de por que este papel
      * dejo de pesar un megabyte. La otra mitad es el recorte de la fuente, que
@@ -198,22 +199,7 @@ class ConsentimientoController extends Controller
      */
     private function logo(ConfiguracionInstitucion $institucion): ?string
     {
-        if ($institucion->logo !== '') {
-            $disco = Storage::disk('local');
-
-            if ($disco->exists($institucion->logo)) {
-                return Imagen::aDataUriPng((string) $disco->get($institucion->logo), Imagen::LADO_LOGO_IMPRESO);
-            }
-        }
-
-        $porDefecto = public_path('img/logo.webp');
-
-        if (! is_file($porDefecto)) {
-            return null;
-        }
-
-        // WebP: lo lee GD y lo convierte. dompdf por su cuenta no lo entiende y
-        // lo dejaria como un hueco.
-        return Imagen::aDataUriPng((string) file_get_contents($porDefecto), Imagen::LADO_LOGO_IMPRESO);
+        // El propio o las iniciales generadas: la regla vive en `LogoInstitucion`.
+        return Imagen::aDataUriPng(LogoInstitucion::binario(), Imagen::LADO_LOGO_IMPRESO);
     }
 }

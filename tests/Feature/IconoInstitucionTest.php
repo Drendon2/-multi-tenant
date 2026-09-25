@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ConfiguracionInstitucion;
 use App\Support\IconoInstitucion;
+use App\Support\LogoInstitucion;
 use GdImage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -59,17 +60,18 @@ class IconoInstitucionTest extends TestCase
         $this->assertTrue($this->esAzul(imagecolorat($icono, 96, 96)), 'El centro del icono no es el logo propio.');
     }
 
-    /** Sin logo propio, el de la cabecera: nunca un icono en blanco. */
-    public function test_sin_logo_propio_usa_el_de_respaldo(): void
+    /** Sin logo propio, las iniciales: el mismo respaldo que la cabecera. */
+    public function test_sin_logo_propio_usa_las_iniciales(): void
     {
         $sinLogo = (string) $this->get(route('icono-institucion', 512))->getContent();
 
         $this->assertFalse($this->todoBlanco($this->imagen($sinLogo)));
 
-        // Identico al que sale subiendo ESE MISMO archivo como logo propio: es
-        // el de la cabecera y no otro.
-        Storage::disk('local')->put('institucion/copia.webp', (string) file_get_contents(public_path('img/logo.webp')));
-        $this->logo('institucion/copia.webp');
+        // Identico al que sale subiendo ESE MISMO logo generado como propio:
+        // es el de `LogoInstitucion` y no otro.
+        $configuracion = ConfiguracionInstitucion::actual();
+        Storage::disk('local')->put('institucion/generado.png', LogoInstitucion::generado($configuracion->nombre_institucion, $configuracion->color_acento));
+        $this->logo('institucion/generado.png');
 
         $this->assertSame($sinLogo, (string) $this->get(route('icono-institucion', 512))->getContent());
     }
@@ -154,9 +156,10 @@ class IconoInstitucionTest extends TestCase
     }
 
     /**
-     * AZUL y no rojo a proposito: el logo de respaldo tiene rojo justo en el
-     * centro, y con un logo de prueba rojo la prueba pasaba aunque se ignorara
-     * el logo propio. El respaldo no tiene nada azul.
+     * AZUL y no rojo a proposito: el logo de respaldo de entonces tenia rojo
+     * justo en el centro, y con un logo de prueba rojo la prueba pasaba aunque
+     * se ignorara el logo propio. Las iniciales son blancas sobre el verde de
+     * fabrica: tampoco tienen nada azul.
      */
     private function esAzul(int $color): bool
     {

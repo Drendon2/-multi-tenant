@@ -111,7 +111,10 @@ class PdfQueNoPesaTest extends TestCase
      */
     public function test_el_logo_se_incrusta_acotado(): void
     {
-        $original = (string) file_get_contents(public_path('img/logo.webp'));
+        // Una imagen REAL (un logo de 240 px en WebP), no una generada: la que
+        // traia el proyecto como logo por defecto hasta el 25/09/2026, que desde
+        // entonces vive aqui y no en `public/`.
+        $original = (string) file_get_contents(base_path('tests/fixtures/imagen-real.webp'));
         $medidasOriginales = getimagesizefromstring($original);
 
         // Sin esto la prueba pasaria sola el dia que alguien cambie el logo del
@@ -119,7 +122,7 @@ class PdfQueNoPesaTest extends TestCase
         $this->assertGreaterThan(
             Imagen::LADO_LOGO_IMPRESO,
             max($medidasOriginales[0], $medidasOriginales[1]),
-            'El logo del proyecto ya es mas pequeno que el tope, asi que esta prueba no mide nada.'
+            'La imagen de prueba ya es mas pequena que el tope, asi que esta prueba no mide nada.'
         );
 
         $incrustado = Imagen::aDataUriPng($original, Imagen::LADO_LOGO_IMPRESO);

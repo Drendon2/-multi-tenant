@@ -40,7 +40,7 @@
   <div class="envoltorio">
     <div class="marca">
       <img class="escudo"
-           src="{{ $configuracion->logo ? route('logo-institucion') : asset('img/logo.webp') }}"
+           src="{{ route('logo-institucion') }}?v={{ \App\Support\LogoInstitucion::version() }}"
            alt="{{ $configuracion->nombre_institucion }}" width="60" height="60">
       <span>{{ $configuracion->nombre_institucion }}</span>
     </div>
