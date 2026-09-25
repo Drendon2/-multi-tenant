@@ -8,6 +8,7 @@ use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\Writer\PngWriter;
 use GdImage;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
@@ -19,8 +20,9 @@ use RuntimeException;
  * confirmar su clase. Un papel con un codigo impreso —o una foto en la
  * galeria— lo devuelve a la lista sin pedirle que recuerde nada.
  *
- * LO QUE LLEVA IMPRESO Y LO QUE NO. Lleva el nombre de la institucion, el
- * nombre de la persona y el codigo. NO lleva el documento de identidad: un
+ * LO QUE LLEVA IMPRESO Y LO QUE NO. Lleva el logo de la entidad si lo subio
+ * (desde el 25/09/2026), el nombre de la institucion, el nombre de la persona
+ * y el codigo. NO lleva el documento de identidad: un
  * carne se fotografia, se deja sobre una mesa y se pega en una pared, y la
  * cedula de un menor es el dato mas protegido que guarda este sistema (ver la
  * puerta del administrador en `ArchivoController`). El nombre si va, porque sin
@@ -65,6 +67,20 @@ class CarneQr
     private const ANCHO = 720;
 
     private const MARGEN = 40;
+
+    /** El tamano del nombre de la institucion, arriba. */
+    private const TAMANO_INSTITUCION = 22;
+
+    /**
+     * La caja en la que se encaja el logo, en pixeles.
+     *
+     * Se encaja sin deformar: un logo apaisado llega al ancho y uno cuadrado al
+     * alto. 110 de alto es lo que deja al QR seguir siendo lo mas grande del
+     * carne, que es lo que tiene que leer una camara.
+     */
+    private const LOGO_ANCHO = 360;
+
+    private const LOGO_ALTO = 110;
 
     /**
      * Lo que queda codificado dentro del cuadrito.
@@ -187,8 +203,9 @@ class CarneQr
      */
     private static function tarjeta(Perfil $duenio, string $nombre, string $pie): string
     {
-        $institucion = ConfiguracionInstitucion::actual()->nombre_institucion;
+        $configuracion = ConfiguracionInstitucion::actual();
         $qr = self::imagenDesdePng(self::qr(self::contenido($duenio)));
+        $logo = self::logo($configuracion->logo);
 
         $anchoQr = imagesx($qr);
         $altoQr = imagesy($qr);
@@ -196,13 +213,25 @@ class CarneQr
         // El alto se calcula, no se fija: un nombre largo parte en dos renglones
         // y el carne crece con el. Fijarlo dejaba el nombre pisando el borde
         // justo en los nombres largos, que son los de siempre aqui.
-        $renglones = self::partirEnRenglones($nombre, 34, self::ANCHO - 2 * self::MARGEN);
+        $renglones = self::partirEnRenglones($nombre, 34, self::ANCHO - 2 * self::MARGEN, 30);
+
+        // EL NOMBRE DE LA INSTITUCION TAMBIEN SE PARTE (25/09/2026). Iba en un
+        // solo renglon, y el de produccion no cabe en 720 pixeles a este
+        // tamano: `imagettftext` no avisa, dibuja fuera del lienzo y el carne
+        // sale con el nombre cortado por los dos lados. El tope de letras es
+        // mas alto que el del nombre de la persona porque la letra es menor.
+        $renglonesInstitucion = self::partirEnRenglones(
+            $configuracion->nombre_institucion,
+            60,
+            self::ANCHO - 2 * self::MARGEN,
+            self::TAMANO_INSTITUCION
+        );
 
         // El alto sale de RECORRER la misma lista de pasos que despues se
         // dibuja, y no de una suma escrita aparte: escrita aparte, cambiar un
         // renglon de sitio deja el carne cortado por abajo, y eso no falla —
         // sale una imagen con el nombre a medias.
-        $pasos = self::pasos($institucion, $altoQr, $renglones, $pie);
+        $pasos = self::pasos($logo, $renglonesInstitucion, $altoQr, $renglones, $pie);
         $alto = self::MARGEN;
 
         foreach ($pasos as $paso) {
@@ -230,6 +259,17 @@ class CarneQr
 
             if ($paso['tipo'] === 'qr') {
                 imagecopy($lienzo, $qr, (int) ((self::ANCHO - $anchoQr) / 2), $y, 0, 0, $anchoQr, $altoQr);
+            } elseif ($paso['tipo'] === 'logo' && $logo !== null) {
+                // Remuestreado y no copiado: el logo se guarda a 320 de lado y
+                // aqui se encaja en su caja. Con la mezcla alfa del lienzo
+                // encendida —la de fabrica en color verdadero— un logo con
+                // fondo transparente se posa sobre el blanco en vez de salir
+                // con un recuadro negro.
+                imagecopyresampled(
+                    $lienzo, $logo,
+                    (int) ((self::ANCHO - $paso['ancho']) / 2), $y, 0, 0,
+                    $paso['ancho'], $paso['alto'], imagesx($logo), imagesy($logo)
+                );
             } else {
                 // `imagettftext` toma la LINEA BASE, no el borde de arriba: el
                 // texto se dibuja a la altura del paso mas su ascendente, o
@@ -242,6 +282,10 @@ class CarneQr
 
         imagedestroy($qr);
 
+        if ($logo !== null) {
+            imagedestroy($logo);
+        }
+
         return self::aPng($lienzo);
     }
 
@@ -252,10 +296,11 @@ class CarneQr
      * como tamano + un tercio, que es lo que baja una «g» por debajo de la linea
      * base: sin ese margen el ultimo renglon queda pegado al borde.
      *
+     * @param  list<string>  $renglonesInstitucion
      * @param  list<string>  $renglones
-     * @return list<array{tipo: string, texto: string, tamano: int, color: string, antes: int, alto: int}>
+     * @return list<array{tipo: string, texto: string, tamano: int, color: string, antes: int, alto: int, ancho: int}>
      */
-    private static function pasos(string $institucion, int $altoQr, array $renglones, string $pie): array
+    private static function pasos(?GdImage $logo, array $renglonesInstitucion, int $altoQr, array $renglones, string $pie): array
     {
         $texto = fn (string $t, int $tamano, string $color, int $antes) => [
             'tipo' => 'texto',
@@ -264,11 +309,33 @@ class CarneQr
             'color' => $color,
             'antes' => $antes,
             'alto' => (int) round($tamano * 1.34),
+            'ancho' => 0,
         ];
 
-        $pasos = [$texto($institucion, 22, 'gris', 0)];
+        $pasos = [];
 
-        $pasos[] = ['tipo' => 'qr', 'texto' => '', 'tamano' => 0, 'color' => '', 'antes' => 18, 'alto' => $altoQr];
+        // El logo arriba del todo, y solo si la entidad subio uno: sin logo el
+        // carne queda como era, sin un hueco donde iba a ir.
+        if ($logo !== null) {
+            $escala = min(self::LOGO_ANCHO / imagesx($logo), self::LOGO_ALTO / imagesy($logo));
+
+            $pasos[] = [
+                'tipo' => 'logo',
+                'texto' => '',
+                'tamano' => 0,
+                'color' => '',
+                'antes' => 0,
+                'alto' => max(1, (int) round(imagesy($logo) * $escala)),
+                'ancho' => max(1, (int) round(imagesx($logo) * $escala)),
+            ];
+        }
+
+        foreach ($renglonesInstitucion as $indice => $renglon) {
+            $antes = $indice === 0 ? ($logo !== null ? 14 : 0) : 2;
+            $pasos[] = $texto($renglon, self::TAMANO_INSTITUCION, 'gris', $antes);
+        }
+
+        $pasos[] = ['tipo' => 'qr', 'texto' => '', 'tamano' => 0, 'color' => '', 'antes' => 18, 'alto' => $altoQr, 'ancho' => 0];
 
         foreach ($renglones as $indice => $renglon) {
             $pasos[] = $texto($renglon, 30, 'negro', $indice === 0 ? 22 : 6);
@@ -277,6 +344,32 @@ class CarneQr
         $pasos[] = $texto($pie, 16, 'gris', 20);
 
         return $pasos;
+    }
+
+    /**
+     * El mismo carne en JPEG, para la hoja de imprimir.
+     *
+     * MEDIDO el 25/09/2026: dompdf decodifica y vuelve a comprimir cada PNG
+     * —unos 160 ms por imagen distinta, en paleta o no— y un JPEG lo incrusta
+     * tal cual. Sesenta carnes pasaban de 20 s, que con el CDN de Hostinger
+     * cortando hacia los 60 dejaba fuera a cualquier promotoria grande; en JPEG
+     * dompdf tarda 1,2 s. Calidad alta a proposito: el carne es blanco, negro y
+     * gris, y con la correccion de errores alta del QR unos pocos pixeles de
+     * ruido junto a los bordes no le quitan lectura.
+     *
+     * Solo para la hoja. La descarga suelta sigue en PNG, que es la que se
+     * guarda en la galeria del telefono y se reimprime.
+     */
+    public static function comoJpeg(string $png): string
+    {
+        $imagen = self::imagenDesdePng($png);
+
+        ob_start();
+        imagejpeg($imagen, null, 92);
+        $jpeg = (string) ob_get_clean();
+        imagedestroy($imagen);
+
+        return $jpeg;
     }
 
     /**
@@ -305,7 +398,7 @@ class CarneQr
      *
      * @return list<string>
      */
-    private static function partirEnRenglones(string $texto, int $maximo, int $ancho): array
+    private static function partirEnRenglones(string $texto, int $maximo, int $ancho, int $tamano): array
     {
         $palabras = preg_split('/\s+/u', trim($texto)) ?: [];
         $renglones = [];
@@ -314,7 +407,7 @@ class CarneQr
         foreach ($palabras as $palabra) {
             $prueba = $actual === '' ? $palabra : "{$actual} {$palabra}";
 
-            if ($actual !== '' && (self::anchoDe($prueba, 30) > $ancho || mb_strlen($prueba) > $maximo)) {
+            if ($actual !== '' && (self::anchoDe($prueba, $tamano) > $ancho || mb_strlen($prueba) > $maximo)) {
                 $renglones[] = $actual;
                 $actual = $palabra;
 
@@ -370,6 +463,32 @@ class CarneQr
         }
 
         return $ruta;
+    }
+
+    /**
+     * El logo de la entidad como imagen de GD, o null.
+     *
+     * NULL Y NO UNA EXCEPCION cuando falta o no se puede leer: un carne sin
+     * logo sigue sirviendo para pasar lista, y un error aqui dejaria sin carne
+     * a todo el mundo —tambien al que lo saca recien inscrito— por un adorno.
+     * Es la misma caida que el consentimiento propio de la entidad, que vuelve
+     * al formato impreso si su archivo no esta.
+     */
+    private static function logo(string $ruta): ?GdImage
+    {
+        if ($ruta === '') {
+            return null;
+        }
+
+        $disco = Storage::disk('local');
+
+        if (! $disco->exists($ruta)) {
+            return null;
+        }
+
+        $imagen = @imagecreatefromstring((string) $disco->get($ruta));
+
+        return $imagen === false ? null : $imagen;
     }
 
     private static function imagenDesdePng(string $png): GdImage

@@ -2,12 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Grupo;
 use App\Models\InstitucionExterna;
+use App\Models\Matricula;
 use App\Models\Perfil;
+use App\Models\Periodo;
+use App\Models\Promotoria;
 use App\Support\CarneQr;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -18,7 +25,8 @@ use Illuminate\View\View;
  * 1. El propio estudiante, desde Mi perfil.
  * 2. El administrador, desde la ficha de esa persona — que es como llega el
  *    carne a quien no sabe entrar al sistema, que es justo el publico para el
- *    que se construyo esto.
+ *    que se construyo esto. Desde el 25/09/2026 tambien en HOJA, nueve por
+ *    carta, de un grupo o de una promotoria: es la misma puerta.
  * 3. La pantalla que sale al terminar de inscribirse, antes de tener sesion.
  *
  * EL PROFESOR NO ENTRA AQUI, aunque tenga al estudiante delante en su lista. Se
@@ -209,6 +217,158 @@ class CarneController extends Controller
         return $solicitante !== null
             && $solicitante->rol === 'administrador'
             && $usuario->rol === 'estudiante';
+    }
+
+    // -----------------------------------------------------------------------
+    // La hoja de carnes para imprimir (25/09/2026)
+    // -----------------------------------------------------------------------
+    //
+    // NUEVE CARNES POR HOJA CARTA, de un grupo o de una promotoria entera.
+    // Pedido por el usuario: el carne se construyo para quien no sabe entrar al
+    // sistema, y a esa persona no le llega bajandolo uno a uno desde su ficha;
+    // le llega impreso, repartido en clase.
+    //
+    // ES LA MISMA PUERTA 2 DE ARRIBA —administracion— y ninguna mas. El
+    // profesor no entra ni a la hoja de su propio grupo: son los carnes de sus
+    // cuarenta estudiantes de una vez, que es justo lo que la cabecera de esta
+    // clase le niega de uno en uno.
+    //
+    // SOLO QUIEN ESTA INSCRITO EN EL PERIODO EN CURSO. Un grupo no pertenece a
+    // un periodo —las matriculas si— y sin ese corte la hoja traeria a quien
+    // curso el grupo hace dos semestres. Es el mismo corte que el informe de
+    // estudiantes, con los mismos estados (la cancelacion en tramite sigue
+    // yendo a clase, asi que sigue necesitando su carne).
+    //
+    // Sacar la hoja CREA el codigo de quien no tenia (`Perfil::codigoQr`), igual
+    // que verlo en la ficha. No renueva el de nadie: imprimir dos veces la misma
+    // hoja da los mismos carnes.
+
+    /** Nueve por hoja: 3 x 3. */
+    private const POR_FILA = 3;
+
+    private const FILAS_POR_HOJA = 3;
+
+    /** Carta es 612 x 792 pt. El margen deja sitio a la pinza de la impresora. */
+    private const MARGEN_HOJA = 22;
+
+    /** El aire entre la linea de corte y el carne, para que la tijera no lo muerda. */
+    private const AIRE_CELDA = 6;
+
+    /**
+     * Lo que se le quita al alto de cada fila para que las tres quepan.
+     *
+     * MEDIDO POR BISECCION el 25/09/2026, no estimado: con las filas al alto
+     * exacto de la hoja, los bordes y el redondeo de dompdf empujaban la
+     * tercera fila medio punto y saltaba sola a otra pagina (9 carnes en dos
+     * hojas). Con 0,5 pt sigue saltando; con 1 pt cabe. Se deja 4, cuatro veces
+     * el umbral, que en papel es menos de milimetro y medio por fila. Lo vigila
+     * `CarneImpresoTest::test_nueve_carnes_caben_en_una_hoja_carta`.
+     */
+    private const HOLGURA_FILA = 4;
+
+    public function hojaDeGrupo(Request $request, Grupo $grupo): Response
+    {
+        $this->exigirAdministrador($request);
+
+        $grupo->load('promotoria');
+
+        return $this->hoja(
+            $this->inscritosEnCurso()
+                ->whereHas('grupos', fn ($g) => $g->where('grupos.id', $grupo->id)),
+            "Carnés — {$grupo->promotoria->nombre} — {$grupo->nombre}",
+            "carnes-{$grupo->promotoria->nombre}-{$grupo->nombre}"
+        );
+    }
+
+    /**
+     * Todos los de una promotoria, ORDENADOS POR GRUPO: la hoja se reparte
+     * salon por salon, y un orden alfabetico corrido obligaria a separar los
+     * carnes de cada horario a mano. Quien esta en dos grupos de la misma
+     * promotoria sale UNA vez, en el primero: es UNA matricula repartida por la
+     * tabla puente, y por eso se filtra con `whereHas` y no con un join, que la
+     * duplicaria. Quien aun no tiene grupo sale al final.
+     */
+    public function hojaDePromotoria(Request $request, Promotoria $promotoria): Response
+    {
+        $this->exigirAdministrador($request);
+
+        return $this->hoja(
+            $this->inscritosEnCurso()->where('matriculas.promotoria_id', $promotoria->id),
+            "Carnés — {$promotoria->nombre}",
+            "carnes-{$promotoria->nombre}"
+        );
+    }
+
+    /** @return Builder<Matricula> */
+    private function inscritosEnCurso(): Builder
+    {
+        $periodo = Periodo::enCurso();
+
+        return Matricula::query()
+            ->whereIn('matriculas.estado', Matricula::ESTADOS_INSCRITO)
+            // Sin periodo en curso no hay a quien repartir carnes: una hoja
+            // vacia y no el historico entero.
+            ->when($periodo === null, fn ($q) => $q->whereRaw('1 = 0'))
+            ->when($periodo, fn ($q) => $q->where('matriculas.periodo_id', $periodo->id));
+    }
+
+    /** @param  Builder<Matricula>  $consulta */
+    private function hoja(Builder $consulta, string $titulo, string $archivo): Response
+    {
+        $matriculas = $consulta
+            ->with(['estudiante', 'grupos'])
+            ->get()
+            ->sortBy(fn (Matricula $m) => [
+                // Sin grupo, al final: «~» va detras de cualquier letra.
+                $m->grupos->sortBy('nombre')->first()->nombre ?? '~',
+                Str::lower($m->estudiante->nombre_completo),
+            ])
+            ->values();
+
+        $anchoCelda = (612 - 2 * self::MARGEN_HOJA) / self::POR_FILA;
+        $altoCelda = (792 - 2 * self::MARGEN_HOJA) / self::FILAS_POR_HOJA - self::HOLGURA_FILA;
+
+        $carnes = $matriculas->map(function (Matricula $m) use ($anchoCelda, $altoCelda) {
+            $png = CarneQr::carne($m->estudiante);
+            [$ancho, $alto] = getimagesizefromstring($png) ?: [1, 1];
+
+            // Encajado SIN deformar: el carne crece con los renglones del
+            // nombre, asi que unos llegan al alto de la celda y otros al ancho.
+            // Un QR estirado en un eje deja de leerse.
+            $escala = min(
+                ($anchoCelda - 2 * self::AIRE_CELDA) / $ancho,
+                ($altoCelda - 2 * self::AIRE_CELDA) / $alto
+            );
+
+            return [
+                // JPEG y no PNG: ver `CarneQr::comoJpeg`, es lo que hace que
+                // una promotoria grande quepa en el tiempo del CDN.
+                'jpeg' => base64_encode(CarneQr::comoJpeg($png)),
+                'ancho' => round($ancho * $escala, 2),
+                'alto' => round($alto * $escala, 2),
+            ];
+        })->all();
+
+        // Se rellena la ultima hoja con celdas vacias: sin ellas la ultima fila
+        // tendria menos columnas y dompdf ensancharia las que quedan, con lo
+        // que las lineas de corte de esa hoja no casarian con las de las demas.
+        $porHoja = self::POR_FILA * self::FILAS_POR_HOJA;
+        $hojas = [];
+
+        foreach (array_chunk($carnes, $porHoja) as $deUnaHoja) {
+            $deUnaHoja = array_pad($deUnaHoja, (int) (ceil(count($deUnaHoja) / self::POR_FILA) * self::POR_FILA), null);
+            $hojas[] = array_chunk($deUnaHoja, self::POR_FILA);
+        }
+
+        $pdf = Pdf::loadView('carnes.hoja', [
+            'titulo' => $titulo,
+            'hojas' => $hojas === [] ? [[array_fill(0, self::POR_FILA, null)]] : $hojas,
+            'margen' => self::MARGEN_HOJA,
+            'anchoCelda' => round($anchoCelda, 2),
+            'altoCelda' => round($altoCelda, 2),
+        ])->setPaper('letter');
+
+        return $pdf->download(Str::slug($archivo).'.pdf');
     }
 
     // -----------------------------------------------------------------------

@@ -315,6 +315,15 @@ Route::middleware(['auth', 'rol:administrador,director,profesor'])->group(functi
     Route::post('/panel/usuario/{usuario}/carne/renovar', [CarneController::class, 'renovarDeEstudiante'])
         ->middleware('rol:administrador')
         ->name('carne-estudiante-renovar');
+    // La hoja de carnes para imprimir, nueve por carta (25/09/2026). La misma
+    // puerta que el carne de otra persona: SOLO administracion, comprobado
+    // tambien en el controlador.
+    Route::get('/panel/grupo/{grupo}/carnes', [CarneController::class, 'hojaDeGrupo'])
+        ->middleware('rol:administrador')
+        ->name('carnes-grupo');
+    Route::get('/panel/promotoria/{promotoria}/carnes', [CarneController::class, 'hojaDePromotoria'])
+        ->middleware('rol:administrador')
+        ->name('carnes-promotoria');
     Route::get('/panel/estudiante/{usuario}/historial', [FichaController::class, 'historial'])
         ->name('historial-estudiante');
     // Corregir la promotoria de una matricula: el estudiante se inscribio en la

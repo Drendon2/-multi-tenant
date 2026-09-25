@@ -47,6 +47,18 @@
 @if (! ($crear_solo_admin ?? false) || $yo->rol === 'administrador')
 <p><a class="btn" href="{{ route($ruta_nuevo).$preset }}" @if ($abreEnModal) data-modal @endif>+ Nuevo</a></p>
 @endif
+{{--
+  Enlaces propios de UN listado, opcionales: `$enlaces_extra` = [{texto, url}].
+  Hoy solo los usa la lista de grupos de una promotoría, para imprimir sus
+  carnés; quien los pasa decide también quién los ve.
+--}}
+@if ($enlaces_extra ?? [])
+<p>
+  @foreach ($enlaces_extra as $enlace)
+  <a class="btn btn-secundario btn-sm" href="{{ $enlace['url'] }}">{{ $enlace['texto'] }}</a>
+  @endforeach
+</p>
+@endif
 
 @php($losFiltros = $filtros ?? [])
 @php($hayFiltros = $hay_filtros ?? false)

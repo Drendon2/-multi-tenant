@@ -26,6 +26,15 @@
   <a class="btn btn-secundario btn-sm" href="{{ route('informe-estudiantes', ['grupo' => $grupo->id]) }}">
     Descargar lista (Excel)
   </a>
+  {{--
+    Los carnés del grupo, nueve por hoja carta. Solo administración: es la
+    misma puerta que el carné de otra persona (ver `CarneController`).
+  --}}
+  @if ($yo->rol === 'administrador')
+  <a class="btn btn-secundario btn-sm" href="{{ route('carnes-grupo', $grupo) }}" data-carnes-grupo>
+    Imprimir carnés (PDF)
+  </a>
+  @endif
 </p>
 
 @if (! $estudiantes)

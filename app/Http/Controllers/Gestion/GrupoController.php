@@ -214,6 +214,11 @@ class GrupoController extends RecursoController
             ...$this->columnas(),
             'preset_campo' => 'promotoria_id',
             'preset_valor' => $promotoria->id,
+            // Los carnes de toda la promotoria, solo para administracion: la
+            // misma puerta que el carne de otra persona (`CarneController`).
+            'enlaces_extra' => request()->attributes->get('perfil')?->rol === 'administrador'
+                ? [['texto' => 'Imprimir carnés (PDF)', 'url' => route('carnes-promotoria', $promotoria)]]
+                : [],
             'migas' => [
                 ['texto' => 'Programas formativos', 'url' => route('gestion-programas')],
                 ['texto' => $promotoria->area->nombre, 'url' => route('promotorias-por-area', $promotoria->area_id)],

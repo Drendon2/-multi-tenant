@@ -57,6 +57,10 @@
   <a href="{{ route('informe-estudiantes', ['promotoria' => $item['promotoria']->id]) }}">
     Descargar lista de estudiantes (Excel)
   </a>
+  {{-- Los carnés de toda la promotoría, ordenados por grupo. Solo administración. --}}
+  @if ($esAdministrador)
+    · <a href="{{ route('carnes-promotoria', $item['promotoria']) }}" data-carnes-promotoria>Imprimir carnés (PDF)</a>
+  @endif
 </p>
 
 @php($totalPendientes = count($item['pendientes']))
@@ -194,6 +198,9 @@
         doscientas, es la que se usa de verdad.
       --}}
       <a href="{{ route('informe-estudiantes', ['grupo' => $g['grupo']->id]) }}">lista (Excel)</a>
+      @if ($esAdministrador)
+      <a href="{{ route('carnes-grupo', $g['grupo']) }}">carnés (PDF)</a>
+      @endif
       <a href="{{ route('panel-grupo-editar', $g['grupo']) }}">editar</a>
       <form action="{{ route('panel-grupo-eliminar', $g['grupo']) }}" method="post" style="display:inline;">
         @csrf
