@@ -261,6 +261,7 @@ class ResumenActividadesTest extends TestCase
         $this->assertCount(2, $filas);
         $this->assertSame('Programa externo', $fila['Tipo']);
         $this->assertSame('I. E. Rural El Carmen', $fila['Institución']);
+        $this->assertSame('604 546 1234 ext. 12', $fila['Teléfono de la institución']);
         $this->assertSame('Lista del programa', $fila['Cómo entró']);
         $this->assertSame('9', $fila['Edad declarada']);
         $this->assertSame('', $fila['Fecha de nacimiento']);
@@ -397,6 +398,7 @@ class ResumenActividadesTest extends TestCase
         if ($tipo === Actividad::EXTERNO) {
             $datos['institucion_id'] = InstitucionExterna::create([
                 'nombre' => 'I. E. Rural El Carmen',
+                'telefono' => '604 546 1234 ext. 12',
                 'perfil_id' => $this->perfil('carmen', Perfil::INSTITUCION_EXTERNA)->id,
             ])->id;
         }

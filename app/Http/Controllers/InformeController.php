@@ -385,7 +385,7 @@ class InformeController extends Controller
                 'i.id', 'i.actividad_id', 'i.nombre_completo', 'i.documento', 'i.telefono',
                 'i.correo', 'i.fecha_nacimiento', 'i.edad', 'i.perfil_id', 'i.origen', 'i.created_at',
                 'a.tipo', 'a.nombre as actividad', 'r.nombre_completo as responsable',
-                'e.nombre as institucion', 'p.nombre as periodo',
+                'e.nombre as institucion', 'e.telefono as telefono_institucion', 'p.nombre as periodo',
             ])
             ->orderBy('a.tipo')
             ->orderBy('a.nombre')
@@ -408,6 +408,9 @@ class InformeController extends Controller
                     $f->actividad,
                     $f->responsable,
                     $f->institucion,
+                    // El de la ENTIDAD, no el del funcionario: es el contacto que
+                    // sigue sirviendo cuando esa persona cambia de trabajo.
+                    $f->telefono_institucion,
                     $f->periodo ?? 'Sin periodo',
                     $f->nombre_completo,
                     $origen[$f->origen] ?? $f->origen,
@@ -433,6 +436,7 @@ class InformeController extends Controller
             'Actividad',
             'Responsable',
             'Institución',
+            'Teléfono de la institución',
             'Periodo',
             'Nombre completo',
             'Cómo entró',
