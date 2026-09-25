@@ -20,6 +20,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>@yield('title', $configuracion->nombre_institucion)</title>
+@include('partials.marca-cabecera', ['versionMarca' => \App\Support\IconoInstitucion::version()])
 <link rel="stylesheet" href="@recurso('css/publico.css')">
 @php($oscuro = $configuracion->acento_oscuro_trio)
 <style>

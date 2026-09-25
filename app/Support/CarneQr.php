@@ -398,7 +398,7 @@ class CarneQr
      *
      * @return list<string>
      */
-    private static function partirEnRenglones(string $texto, int $maximo, int $ancho, int $tamano): array
+    public static function partirEnRenglones(string $texto, int $maximo, int $ancho, int $tamano): array
     {
         $palabras = preg_split('/\s+/u', trim($texto)) ?: [];
         $renglones = [];
@@ -427,7 +427,7 @@ class CarneQr
         return $renglones === [] ? [''] : $renglones;
     }
 
-    private static function anchoDe(string $texto, int $tamano): int
+    public static function anchoDe(string $texto, int $tamano): int
     {
         $caja = imagettfbbox($tamano, 0, self::fuente(), $texto);
 
@@ -454,7 +454,7 @@ class CarneQr
      * mapa de bits de GD, que dibujaria un nombre ilegible y sin tildes en un
      * papel que la gente tiene que reconocer como suyo.
      */
-    private static function fuente(): string
+    public static function fuente(): string
     {
         $ruta = base_path('vendor/endroid/qr-code/assets/open_sans.ttf');
 

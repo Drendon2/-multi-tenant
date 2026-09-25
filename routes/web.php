@@ -14,6 +14,7 @@ use App\Http\Controllers\ConsentimientoController;
 use App\Http\Controllers\ExternaController;
 use App\Http\Controllers\FichaController;
 use App\Http\Controllers\Gestion;
+use App\Http\Controllers\IconoController;
 use App\Http\Controllers\InformeController;
 use App\Http\Controllers\InscripcionActividadController;
 use App\Http\Controllers\MatricularController;
@@ -464,6 +465,16 @@ Route::get('/consentimiento/formato/{tipo}', [ConsentimientoController::class, '
 // ---------------------------------------------------------------------------
 
 Route::get('/logo', [ArchivoController::class, 'logo'])->name('logo-institucion');
+
+// El icono del acceso directo, la imagen de compartir y el manifiesto, todos
+// sacados del logo (25/09/2026). Abiertos como el logo: los piden el telefono y
+// el robot de WhatsApp, que no tienen sesion. `whereNumber` para que un lado
+// que no es numero sea un 404 de la ruta y no un error de tipo.
+Route::get('/icono-{lado}.png', [IconoController::class, 'icono'])
+    ->whereNumber('lado')
+    ->name('icono-institucion');
+Route::get('/compartir.png', [IconoController::class, 'compartir'])->name('imagen-compartir');
+Route::get('/manifest.webmanifest', [IconoController::class, 'manifiesto'])->name('manifiesto');
 
 // La firma NO va abierta como el logo, y esa es toda la diferencia entre las dos
 // imagenes de la institucion. Una firma escaneada colgada en una URL publica se
