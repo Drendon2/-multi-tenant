@@ -14,6 +14,7 @@ use App\Models\Promotoria;
 use App\Models\SesionActividad;
 use App\Models\User;
 use App\Support\ResumenActividades;
+use App\Support\ResumenInstitucion;
 use App\Support\VerificacionExterna;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -311,6 +312,75 @@ class ResumenActividadesTest extends TestCase
         }
 
         return $filas;
+    }
+
+    // ------------------------------------------------------------------
+    // Poblacion impactada (la cinta de arriba)
+    // ------------------------------------------------------------------
+
+    /**
+     * Personas, no participaciones: el matriculado que va a un taller cuenta
+     * una vez, el mismo documento en dos actividades cuenta una vez, y quien no
+     * dio documento cuenta una vez por fila.
+     */
+    public function test_la_poblacion_impactada_no_cuenta_dos_veces_a_nadie_reconocible(): void
+    {
+        $promotoria = Promotoria::create([
+            'nombre' => 'Violin',
+            'area_id' => Area::create(['nombre' => 'Musica'])->id,
+            'profesor_id' => $this->profesor->id,
+        ]);
+
+        $ana = $this->perfil('ana', 'estudiante');
+        $luis = $this->perfil('luis', 'estudiante');
+        foreach ([$ana, $luis] as $quien) {
+            Matricula::create([
+                'estudiante_id' => $quien->id,
+                'promotoria_id' => $promotoria->id,
+                'periodo_id' => $this->periodo->id,
+                'estado' => Matricula::ACTIVA,
+            ]);
+        }
+
+        $curso = $this->actividad(Actividad::CURSO, $this->periodo);
+        $taller = $this->actividad(Actividad::TALLER, $this->periodo);
+        $programa = $this->actividad(Actividad::EXTERNO, $this->periodo);
+
+        // Ana esta matriculada y ademas va al curso: una persona.
+        $this->inscrito($curso, 'Ana', $ana)->update(['documento' => '1000000001']);
+        // Marta va al curso y al taller con el mismo documento: una persona.
+        $this->inscrito($curso, 'Marta')->update(['documento' => '1000000002']);
+        $this->inscrito($taller, 'Marta')->update(['documento' => '1000000002']);
+        // Dos ninos de un programa externo, sin documento: dos personas.
+        $this->inscrito($programa, 'Pepe');
+        $this->inscrito($programa, 'Juana');
+
+        // Ana y Luis (2) + Marta (1) + Pepe y Juana (2).
+        $this->assertSame(5, ResumenInstitucion::cifras($this->periodo)['poblacionImpactada']);
+    }
+
+    /** Sin actividades es exactamente la cifra de estudiantes activos. */
+    public function test_sin_actividades_la_poblacion_impactada_son_los_estudiantes(): void
+    {
+        $cifras = ResumenInstitucion::cifras($this->periodo);
+
+        $this->assertSame($cifras['estudiantesActivos'], $cifras['poblacionImpactada']);
+        $this->assertSame(0, ResumenInstitucion::cifras(null)['poblacionImpactada']);
+    }
+
+    public function test_la_cinta_de_las_dos_pantallas_lleva_las_dos_cifras_nuevas(): void
+    {
+        $this->actividad(Actividad::EXTERNO, $this->periodo);
+
+        foreach ([route('gestion-inicio'), route('gestion-estadisticas-periodo', $this->periodo)] as $url) {
+            $this->actingAs($this->admin->user)
+                ->get($url)
+                ->assertOk()
+                ->assertSee('data-cifra="poblacion-impactada"', false)
+                ->assertSee('data-cifra="programas-externos"', false);
+        }
+
+        $this->assertSame(1, ResumenInstitucion::cifras($this->periodo)['programasExternos']);
     }
 
     // ------------------------------------------------------------------

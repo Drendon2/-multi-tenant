@@ -9,6 +9,7 @@ use App\Models\Matricula;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Las cifras de «como va la escuela», en un solo sitio.
@@ -42,6 +43,8 @@ class ResumenInstitucion
      *     grupos: int,
      *     cursosYTalleres: int,
      *     proyeccion: int,
+     *     programasExternos: int,
+     *     poblacionImpactada: int,
      *     cuposDisponibles: int,
      *     promotoriasSinTope: int,
      * }
@@ -63,9 +66,74 @@ class ResumenInstitucion
             'grupos' => Grupo::count(),
             'cursosYTalleres' => Actividad::whereIn('tipo', Actividad::TIPOS_CON_FECHAS)->count(),
             'proyeccion' => Actividad::where('tipo', Actividad::PROYECCION)->count(),
+            'programasExternos' => Actividad::where('tipo', Actividad::EXTERNO)->count(),
+            'poblacionImpactada' => self::poblacionImpactada($periodo),
             'cuposDisponibles' => $cupos['disponibles'],
             'promotoriasSinTope' => $cupos['sinTope'],
         ];
+    }
+
+    /**
+     * A cuantas PERSONAS llego la casa en el periodo: estudiantes activos mas
+     * la gente de cursos, talleres, proyeccion y programas externos, sin
+     * contar dos veces a nadie que se pueda reconocer.
+     *
+     * ─── POR QUE AQUI SI SE SUMA (usuario, 25/09/2026) ─────────────────────
+     *
+     * Esa misma manana se decidio que las dos poblaciones no se mezclan, y
+     * sigue valiendo para todo lo que es una MEDIA o un reparto: una media que
+     * junte a un estudiante de semestre con quien fue a un taller de un dia no
+     * dice nada de ninguno. Esta cifra es otra pregunta —ALCANCE, «a cuantas
+     * personas llegamos»— y el usuario la pidio con ese nombre y con la
+     * objecion delante. Solo esta cifra suma; nada mas en la pantalla.
+     *
+     * ─── COMO SE EVITA CONTAR DOS VECES ────────────────────────────────────
+     *
+     * 1. Quien esta matriculado y ademas va a una actividad cuenta UNA vez: se
+     *    reconoce por `perfil_id`, que se rellena cuando el documento coincide
+     *    con el de un estudiante.
+     * 2. Quien va a dos actividades con el mismo documento cuenta una vez.
+     * 3. Quien NO dio documento —toda la lista de un programa externo y quien
+     *    se anade en plena clase— cuenta una vez POR FILA: no hay con que
+     *    reconocerlo. Si esa persona va a dos programas, cuenta dos. Es el
+     *    limite del dato, no un descuido, y es la unica forma en que la cifra
+     *    puede pasarse; nunca se queda corta.
+     *
+     * El `perfil_id IS NULL OR NOT IN` no es redundante: un NOT IN contra una
+     * fila con NULL da NULL y no TRUE, y sin la primera mitad desaparecerian
+     * de la cuenta justo los que no tienen cuenta, que son casi todos.
+     *
+     * Las actividades del periodo salen de `ResumenActividades`, la misma
+     * regla que la seccion de Estadisticas: escrita dos veces, las dos cifras
+     * de la pantalla contarian actividades distintas.
+     */
+    private static function poblacionImpactada(?Periodo $periodo): int
+    {
+        if ($periodo === null) {
+            return 0;
+        }
+
+        $activos = Matricula::query()
+            ->where('estado', Matricula::ACTIVA)
+            ->where('periodo_id', $periodo->id)
+            ->select('estudiante_id');
+
+        $estudiantes = (clone $activos)->distinct()->count('estudiante_id');
+        $actividades = array_keys(ResumenActividades::actividadesDelPeriodo($periodo));
+
+        if ($actividades === []) {
+            return $estudiantes;
+        }
+
+        $fila = DB::table('inscritos_actividad')
+            ->whereIn('actividad_id', $actividades)
+            ->where(fn ($q) => $q
+                ->whereNull('perfil_id')
+                ->orWhereNotIn('perfil_id', $activos))
+            ->selectRaw('COUNT(DISTINCT documento) as con_documento, SUM(documento IS NULL) as sin_documento')
+            ->first();
+
+        return $estudiantes + (int) ($fila->con_documento ?? 0) + (int) ($fila->sin_documento ?? 0);
     }
 
     /**

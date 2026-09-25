@@ -23,6 +23,11 @@ use Illuminate\Support\Facades\DB;
  * Es el mismo argumento por el que no se colapsan las dos cifras de
  * verificacion de una clase.
  *
+ * LA UNICA EXCEPCION es «Poblacion impactada», en la cinta de arriba
+ * (`ResumenInstitucion::poblacionImpactada()`): una cifra de ALCANCE que el
+ * usuario pidio el mismo dia, con esta regla delante. No abre la puerta a
+ * medias ni repartos mezclados.
+ *
  * ─── A QUE PERIODO PERTENECE UNA ACTIVIDAD ─────────────────────────────────
  *
  * `actividades.periodo_id` admite NULL a proposito (se monta un taller sin
@@ -58,6 +63,33 @@ class ResumenActividades
     ];
 
     /**
+     * Las actividades que pertenecen a un periodo: las que lo tienen puesto, y
+     * las que no tienen ninguno pero dieron alguna sesion dentro de sus fechas.
+     *
+     * Publica porque la usa tambien `ResumenInstitucion` para la poblacion
+     * impactada: escrita dos veces, las dos cifras de la misma pantalla
+     * acabarian contando actividades distintas.
+     *
+     * @return array<int, string> id => tipo
+     */
+    public static function actividadesDelPeriodo(Periodo $periodo): array
+    {
+        $inicio = Carbon::parse($periodo->fecha_inicio)->toDateString();
+        $fin = Carbon::parse($periodo->fecha_fin)->toDateString();
+
+        return DB::table('actividades as a')
+            ->where('a.periodo_id', $periodo->id)
+            ->orWhere(fn (Builder $q) => $q
+                ->whereNull('a.periodo_id')
+                ->whereExists(fn (Builder $s) => $s
+                    ->from('sesiones_actividad as s')
+                    ->whereColumn('s.actividad_id', 'a.id')
+                    ->whereBetween('s.fecha', [$inicio, $fin])))
+            ->pluck('a.tipo', 'a.id')
+            ->all();
+    }
+
+    /**
      * @return array{
      *     tipos: array<string, array{etiqueta: string, actividades: int, inscritos: int, sesiones: int, asistencias: int}>,
      *     verificacion: array{iniciadas: int, propia: int, qr: int}|null,
@@ -73,17 +105,7 @@ class ResumenActividades
         $inicio = Carbon::parse($periodo->fecha_inicio)->toDateString();
         $fin = Carbon::parse($periodo->fecha_fin)->toDateString();
 
-        /** @var array<int, string> $actividades id => tipo */
-        $actividades = DB::table('actividades as a')
-            ->where('a.periodo_id', $periodo->id)
-            ->orWhere(fn (Builder $q) => $q
-                ->whereNull('a.periodo_id')
-                ->whereExists(fn (Builder $s) => $s
-                    ->from('sesiones_actividad as s')
-                    ->whereColumn('s.actividad_id', 'a.id')
-                    ->whereBetween('s.fecha', [$inicio, $fin])))
-            ->pluck('a.tipo', 'a.id')
-            ->all();
+        $actividades = self::actividadesDelPeriodo($periodo);
 
         if ($actividades === []) {
             return null;

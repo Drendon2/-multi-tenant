@@ -63,6 +63,16 @@
     <span class="cifras-num">{{ $totalEstudiantesActivos }}</span>
     <span class="cifras-label">Estudiantes activos</span>
   </div>
+  {{--
+    POBLACIÓN IMPACTADA (25/09/2026, pedida por el usuario): estudiantes
+    activos más la gente de actividades del periodo, sin contar dos veces a
+    quien se puede reconocer. Es la ÚNICA cifra que suma las dos poblaciones;
+    por qué, y dónde puede pasarse, en `ResumenInstitucion::poblacionImpactada()`.
+  --}}
+  <div class="cifras-celda" data-cifra="poblacion-impactada">
+    <span class="cifras-num">{{ $cifras['poblacionImpactada'] }}</span>
+    <span class="cifras-label">Población impactada</span>
+  </div>
   <div class="cifras-celda">
     <span class="cifras-num">{{ $totalPromotorias }}</span>
     <span class="cifras-label">{{ $totalPromotorias == 1 ? 'Promotoría' : 'Promotorías' }}</span>
@@ -84,6 +94,10 @@
   <div class="cifras-celda">
     <span class="cifras-num">{{ $cifras['proyeccion'] }}</span>
     <span class="cifras-label">Grupos de proyección</span>
+  </div>
+  <div class="cifras-celda" data-cifra="programas-externos">
+    <span class="cifras-num">{{ $cifras['programasExternos'] }}</span>
+    <span class="cifras-label">{{ $cifras['programasExternos'] == 1 ? 'Programa externo' : 'Programas externos' }}</span>
   </div>
   <div class="cifras-celda">
     <span class="cifras-num">{{ $cifras['cuposDisponibles'] }}</span>
@@ -217,7 +231,8 @@
   <span class="h4-nota">— {{ $periodoActual->nombre }}</span>
 </h3>
 <p class="campo-ayuda" style="margin:-0.4rem 0 1rem;">
-  No se suman a las matrículas de arriba. Quien va a dos actividades cuenta en
+  Aquí no se suman a las matrículas; solo «Población impactada», arriba, junta
+  a las dos sin contar dos veces a nadie. Quien va a dos actividades cuenta en
   las dos, y una sesión cuenta solo si se tomó lista.
 </p>
 @foreach ($actividades['tipos'] as $tipo => $t)
@@ -240,7 +255,7 @@
     <span class="cifras-label">{{ $t['asistencias'] === 1 ? 'Asistencia' : 'Asistencias' }}</span>
   </div>
 </div>
-@if ($tipo === \App\Models\Actividad::EXTERNO && $actividades['verificacion'])
+@if ($tipo === \App\Models\Actividad::EXTERNO && $actividades['verificacion'] && $actividades['verificacion']['iniciadas'] > 0)
 {{--
   Las dos vías de verificación van SEPARADAS a propósito: la firma desde la
   cuenta de la institución y el QR que escanea el propio profesor no dan la

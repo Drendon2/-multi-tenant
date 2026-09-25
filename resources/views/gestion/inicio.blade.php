@@ -53,6 +53,16 @@
     <span class="cifras-num">{{ $cifras['estudiantesActivos'] }}</span>
     <span class="cifras-label">{{ $periodo ? 'Estudiantes activos' : 'Sin periodo en curso' }}</span>
   </div>
+  {{--
+    POBLACIÓN IMPACTADA (25/09/2026, pedida por el usuario): estudiantes
+    activos más la gente de actividades del periodo, sin contar dos veces a
+    quien se puede reconocer. Es la ÚNICA cifra que suma las dos poblaciones;
+    por qué, y dónde puede pasarse, en `ResumenInstitucion::poblacionImpactada()`.
+  --}}
+  <div class="cifras-celda" data-cifra="poblacion-impactada">
+    <span class="cifras-num">{{ $cifras['poblacionImpactada'] }}</span>
+    <span class="cifras-label">Población impactada</span>
+  </div>
   <div class="cifras-celda">
     <span class="cifras-num">{{ $cifras['profesores'] }}</span>
     <span class="cifras-label">{{ $cifras['profesores'] == 1 ? 'Profesor' : 'Profesores' }}</span>
@@ -72,6 +82,10 @@
   <div class="cifras-celda">
     <span class="cifras-num">{{ $cifras['proyeccion'] }}</span>
     <span class="cifras-label">Grupos de proyección</span>
+  </div>
+  <div class="cifras-celda" data-cifra="programas-externos">
+    <span class="cifras-num">{{ $cifras['programasExternos'] }}</span>
+    <span class="cifras-label">{{ $cifras['programasExternos'] == 1 ? 'Programa externo' : 'Programas externos' }}</span>
   </div>
   <div class="cifras-celda">
     <span class="cifras-num">{{ $cifras['cuposDisponibles'] }}</span>
