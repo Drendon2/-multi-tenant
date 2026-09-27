@@ -32,10 +32,11 @@ use stdClass;
  * grupos sin horario en la tercera.
  *
  * El director ve solo sus departamentos, por `Promotoria::queVe()`, que es la
- * misma puerta del resto de Gestion. Los CRUCES DE SALON, en cambio, se miran
- * contra toda la casa: el salon es fisico y el choque existe aunque el otro
- * grupo sea de un departamento ajeno. Lo que no se le dice es de QUIEN es ese
- * otro grupo; ver `cruces()`.
+ * misma puerta del resto de Gestion, Y NADA MAS: tampoco los cruces con grupos
+ * de otro departamento. La primera version se los decia sin nombrar el grupo
+ * —«cruce con otro grupo, de 4 a 6»—, porque el salon es fisico; el usuario lo
+ * quito el mismo 27/09: «solo ve los horarios de las promotorias asignadas y
+ * ya». Ese choque lo ve el administrador, que mira la casa entera.
  */
 class HorarioDeLaCasa
 {
@@ -55,6 +56,7 @@ class HorarioDeLaCasa
             ->join('promotorias as p', 'p.id', '=', 'g.promotoria_id')
             ->join('areas as a', 'a.id', '=', 'p.area_id')
             ->leftJoin('perfiles as prof', 'prof.id', '=', 'p.profesor_id')
+            ->whereIn('p.id', $visibles)
             ->select([
                 's.id', 's.dia', 's.hora_inicio', 's.hora_fin',
                 'g.nombre as grupo', 'g.nivel', 'g.salon',
@@ -68,15 +70,11 @@ class HorarioDeLaCasa
             ->orderBy('g.nombre')
             ->get();
 
-        $cruces = self::cruces($sesiones, array_flip($visibles));
+        $cruces = self::cruces($sesiones);
 
         $bloques = [];
 
         foreach ($sesiones as $s) {
-            if (! in_array($s->promotoria_id, $visibles, true)) {
-                continue;
-            }
-
             $bloques[$s->promotoria_id] ??= [
                 'id' => (int) $s->promotoria_id,
                 'nombre' => $s->promotoria,
@@ -131,15 +129,13 @@ class HorarioDeLaCasa
      * Horas que se TOCAN no se pisan: la clase de 4 a 6 y la de 6 a 8 en el mismo
      * salon es la programacion normal de una casa que trabaja por bloques.
      *
-     * Al director se le nombra el otro grupo solo si es de sus departamentos. Si
-     * no, se le dice que hay un cruce y a que hora, que es lo que necesita para
-     * ir a preguntar, sin enseñarle el catalogo de otro departamento.
+     * Solo entre las sesiones que llegan, que son las de lo que esta persona ve:
+     * al director no se le cuenta un choque con otro departamento (ver arriba).
      *
      * @param  Collection<int, stdClass>  $sesiones
-     * @param  array<int, int>  $visibles  ids de promotoria visibles, como claves
      * @return array<int, list<string>>
      */
-    private static function cruces(Collection $sesiones, array $visibles): array
+    private static function cruces(Collection $sesiones): array
     {
         $porSalon = [];
 
@@ -161,8 +157,8 @@ class HorarioDeLaCasa
                     $b = $mismas[$j];
 
                     if ($a->hora_inicio < $b->hora_fin && $b->hora_inicio < $a->hora_fin) {
-                        $cruces[$a->id][] = self::frase($b, $visibles);
-                        $cruces[$b->id][] = self::frase($a, $visibles);
+                        $cruces[$a->id][] = self::frase($b);
+                        $cruces[$b->id][] = self::frase($a);
                     }
                 }
             }
@@ -171,16 +167,11 @@ class HorarioDeLaCasa
         return $cruces;
     }
 
-    /** @param  array<int, int>  $visibles */
-    private static function frase(stdClass $otra, array $visibles): string
+    private static function frase(stdClass $otra): string
     {
         $cuando = SesionGrupo::rangoCorto($otra->hora_inicio, $otra->hora_fin);
 
-        if (isset($visibles[$otra->promotoria_id])) {
-            return "{$otra->promotoria} · ".self::nombreDelGrupo($otra->grupo, $otra->nivel).", de {$cuando}";
-        }
-
-        return "otro grupo, de {$cuando}";
+        return "{$otra->promotoria} · ".self::nombreDelGrupo($otra->grupo, $otra->nivel).", de {$cuando}";
     }
 
     /**

@@ -255,7 +255,12 @@ class HorariosDeLaCasaTest extends TestCase
         $this->assertSame(0, $x->query('//tr[@data-cruce]')->length);
     }
 
-    public function test_al_director_el_cruce_con_un_grupo_ajeno_se_le_dice_sin_nombrarlo(): void
+    /**
+     * AL DIRECTOR, SOLO LO SUYO «Y YA» (decision del usuario, 27/09/2026). La
+     * primera version le decia «cruce con otro grupo» cuando chocaba con un
+     * departamento ajeno; ahora ese choque no le sale. El administrador si lo ve.
+     */
+    public function test_el_director_no_ve_cruces_con_grupos_de_otro_departamento(): void
     {
         $this->grupo($this->piano, 'Grupo A', 'Salón 1', [[2, '16:00', '18:00']]);
         $this->grupo($this->ballet, 'Grupo Secreto', 'Salón 1', [[2, '17:00', '19:00']]);
@@ -264,16 +269,28 @@ class HorariosDeLaCasaTest extends TestCase
             ->get(route('gestion-horarios', ['dia' => 2]))
             ->getContent();
 
-        // El cruce existe aunque el otro grupo sea de Danza: el salon es fisico.
-        $this->assertStringContainsString('data-cruce', $html);
-        // Pero no se le enseña de quien es.
+        $this->assertStringContainsString('Grupo A', $html);
+        $this->assertStringNotContainsString('data-cruce', $html);
         $this->assertStringNotContainsString('Grupo Secreto', $html);
         $this->assertStringNotContainsString('Ballet', $html);
 
-        // El administrador si lo ve nombrado.
+        // El administrador ve el choque, nombrado, en las dos filas.
+        $x = $this->pagina($this->admin, ['dia' => 2]);
+        $this->assertSame(2, $x->query('//tr[@data-cruce]')->length);
         $this->actingAs($this->admin->user)
             ->get(route('gestion-horarios', ['dia' => 2]))
             ->assertSee('Grupo Secreto');
+    }
+
+    /** Entre dos grupos SUYOS el director si ve el cruce: el recorte no lo apaga. */
+    public function test_el_director_si_ve_los_cruces_entre_sus_propios_grupos(): void
+    {
+        $this->grupo($this->piano, 'Grupo A', 'Salón 1', [[2, '16:00', '18:00']]);
+        $this->grupo($this->violin, 'Grupo V', 'Salón 1', [[2, '17:00', '19:00']]);
+
+        $x = $this->pagina($this->director, ['dia' => 2]);
+
+        $this->assertSame(2, $x->query('//tr[@data-cruce]')->length);
     }
 
     // ------------------------------------------------------------------
