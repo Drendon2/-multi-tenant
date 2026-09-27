@@ -33,7 +33,14 @@ jobs:
 
   pruebas:
     name: Pruebas
-    runs-on: ubuntu-latest
+    # Version FIJA y no `ubuntu-latest`, a proposito. GitHub pasa esa etiqueta a
+    # Ubuntu 26.04 poco a poco entre el 19/10 y el 19/11/2026, o sea que un push
+    # cualquiera caeria en una maquina u otra al azar. Y este trabajo es la
+    # puerta del despliegue: si la imagen nueva rompe `setup-php` (en sep/2026
+    # tenia incidencias abiertas con 26.04) o el servicio de MariaDB, lo que se
+    # para es publicar, el dia que menos convenga. Subir de version se hace
+    # aposta, cambiando esta linea en una rama y mirando el CI, no por sorpresa.
+    runs-on: ubuntu-24.04
 
     # Las pruebas corren contra MariaDB y no contra SQLite, y no es preferencia:
     # comprueban garantias del motor —columnas generadas con indice unico,
@@ -54,7 +61,7 @@ jobs:
 
     steps:
       - name: Traer el codigo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Preparar PHP 8.4
         uses: shivammathur/setup-php@v2
@@ -64,7 +71,7 @@ jobs:
           coverage: none
 
       - name: Cachear las dependencias
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: vendor
           key: composer-${{ hashFiles('composer.lock') }}
@@ -149,7 +156,8 @@ jobs:
   desplegar:
     name: Desplegar
     needs: pruebas
-    runs-on: ubuntu-latest
+    # Fija por lo mismo que la de las pruebas.
+    runs-on: ubuntu-24.04
     # Una rama de trabajo se prueba, pero no se publica.
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
 
