@@ -151,6 +151,37 @@ class MenuComoBarraTest extends TestCase
         );
     }
 
+    /**
+     * HORARIOS ES EL CUARTO DESTINO DE DIRECCION (27/09/2026, pedido del
+     * usuario: es lo que mas se consulta cuando alguien llega a preguntar).
+     *
+     * Lista EXACTA por lo mismo que la del estudiante: con este, administrador
+     * y director llegan al tope de cuatro, y un quinto tiene que enrojecer. El
+     * profesor no lo lleva porque la ruta no le deja entrar: un boton que rebota
+     * es el fallo que ya costo con la cuenta de institucion externa.
+     */
+    public function test_direccion_tiene_horarios_en_la_barra_y_el_profesor_no(): void
+    {
+        $admin = $this->crearAdministrador();
+
+        $this->assertSame(
+            ['Panel', 'Gestión', 'Horarios', 'Mi perfil', 'Salir'],
+            $this->rotulosDeLaBarra((string) $this->actingAs($admin)->get(route('mi-perfil'))->getContent()),
+            'cambio la barra de direccion: a 375px solo caben cuatro destinos con su rotulo entero'
+        );
+
+        // El director, igual; el profesor, sin Horarios ni Gestion.
+        foreach (['director' => ['Panel', 'Gestión', 'Horarios', 'Mi perfil', 'Salir'], 'profesor' => ['Panel', 'Mi perfil', 'Salir']] as $rol => $esperados) {
+            $admin->perfil->update(['rol' => $rol]);
+
+            $this->assertSame(
+                $esperados,
+                $this->rotulosDeLaBarra((string) $this->actingAs($admin->refresh())->get(route('mi-perfil'))->getContent()),
+                "la barra del {$rol}"
+            );
+        }
+    }
+
     /** Y su puerta esta en «Mis matriculas», que es donde se fue. */
     public function test_la_puerta_a_promotorias_vive_en_mis_matriculas(): void
     {

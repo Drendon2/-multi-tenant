@@ -128,6 +128,17 @@
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
             <span class="nav-texto">Gestión</span>
           </a>
+          {{--
+            HORARIOS EN LA BARRA (27/09/2026, pedido del usuario): es lo que más
+            se consulta cuando alguien llega a la oficina a preguntar, y dentro
+            de Gestión quedaba a dos toques. Es el CUARTO destino de este rol
+            —Panel, Gestión, Horarios, Mi perfil—, o sea el tope: no cabe un
+            quinto. Ver «El menú es una barra» en DESIGN.md.
+          --}}
+          <a href="{{ route('gestion-horarios') }}">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <span class="nav-texto">Horarios</span>
+          </a>
         @endif
 
         <a href="{{ route('mi-perfil') }}">
