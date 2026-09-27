@@ -9,6 +9,7 @@ use App\Models\ConfiguracionInstitucion;
 use App\Models\DatosEstudiante;
 use App\Models\Grupo;
 use App\Models\Matricula;
+use App\Models\OmisionArchivada;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
@@ -176,6 +177,26 @@ class EstadisticasDeProfesorTest extends TestCase
 
         $this->assertSame(0, $datos['clasesDadas']);
         $this->assertSame(2, $datos['perdidas']['total']);
+    }
+
+    /**
+     * UNA ARCHIVADA SIGUE SIENDO UNA CLASE PERDIDA (decision del usuario,
+     * 27/09/2026). En produccion Percusion salia con 2 perdidas y le faltaron
+     * 18: 16 estaban archivadas. Archivar limpia la BANDEJA y nada mas.
+     */
+    public function test_una_clase_perdida_archivada_sigue_contando_y_se_dice(): void
+    {
+        $this->clase($this->grupoPiano, '2026-03-03 08:00:00');
+        OmisionArchivada::create(['grupo_id' => $this->grupoPiano->id, 'fecha' => '2026-03-10']);
+
+        $perdidas = $this->datos()['perdidas'];
+
+        $this->assertSame(1, $perdidas['total']);
+        $this->assertSame(1, $perdidas['archivadas']);
+        // La contraparte: de la bandeja de alertas si sale.
+        $this->assertSame(0, Alertas::clasesNoDictadas($this->actual, $this->profe)->count());
+
+        $this->actingAs($this->profe->user)->get(route('mis-estadisticas'))->assertSee('Está archivada');
     }
 
     public function test_con_las_alertas_apagadas_no_pinta_un_cero_de_perdidas(): void

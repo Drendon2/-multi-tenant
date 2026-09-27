@@ -21,10 +21,12 @@ use Illuminate\Support\Facades\DB;
  *   iniciado el o un reemplazo. No `registrada_por`, que es lo que ensena «Mi
  *   perfil»: aqui la pregunta es por SUS grupos, y asi cuadra con las perdidas,
  *   que tambien son de sus grupos.
- * - CLASES PERDIDAS son exactamente las que la bandeja de alertas da por no
- *   dictadas (`Alertas::clasesNoDictadas`), no una segunda cuenta: cuentan
- *   desde que se encendieron las alertas, y una que la administracion ARCHIVO
- *   ya no cuenta. Dos cifras calculadas en dos sitios acaban diciendo dos cosas.
+ * - CLASES PERDIDAS salen de la misma cuenta que la bandeja de alertas
+ *   (`Alertas::clasesNoDictadas`), no de una segunda: cuentan desde que se
+ *   encendieron las alertas. Las ARCHIVADAS SI cuentan (decision del usuario,
+ *   27/09/2026, viendo Percusion en produccion: 2 perdidas a la vista y 18
+ *   reales): archivar limpia la bandeja, pero la clase no se dio. Se dice
+ *   cuantas estan archivadas.
  * - CANCELACIONES son solo las TRAMITADAS: pedidas por el estudiante y
  *   aprobadas por la direccion (`motivo_retiro = cancelacion`). Quien se retiro
  *   solo o fue retirado por inasistencia no entra.
@@ -159,24 +161,25 @@ class EstadisticasDeProfesor
      * cero ahi se leeria como «no falto a ninguna»: las alertas apagadas, y un
      * periodo que termino antes de que empezaran a contar.
      *
-     * @return array{total: ?int, porGrupo: array<int, int>, motivo: ?string, desde: ?Carbon}
+     * @return array{total: ?int, archivadas: int, porGrupo: array<int, int>, motivo: ?string, desde: ?Carbon}
      */
     private static function perdidas(Perfil $profesor, Periodo $periodo): array
     {
         if (! ConfiguracionInstitucion::actual()->alerta_clase_no_dictada) {
-            return ['total' => null, 'porGrupo' => [], 'motivo' => 'apagadas', 'desde' => null];
+            return ['total' => null, 'archivadas' => 0, 'porGrupo' => [], 'motivo' => 'apagadas', 'desde' => null];
         }
 
         $desde = Alertas::desde($periodo);
 
         if ($desde->gt(Carbon::parse($periodo->fecha_fin)->startOfDay())) {
-            return ['total' => null, 'porGrupo' => [], 'motivo' => 'fuera', 'desde' => $desde];
+            return ['total' => null, 'archivadas' => 0, 'porGrupo' => [], 'motivo' => 'fuera', 'desde' => $desde];
         }
 
-        $faltas = Alertas::clasesNoDictadas($periodo, $profesor);
+        $faltas = Alertas::clasesNoDictadas($periodo, $profesor, conArchivadas: true);
 
         return [
             'total' => $faltas->count(),
+            'archivadas' => $faltas->where('archivada', true)->count(),
             'porGrupo' => $faltas->countBy(fn ($f) => $f['grupo']->id)->all(),
             'motivo' => null,
             'desde' => $desde,

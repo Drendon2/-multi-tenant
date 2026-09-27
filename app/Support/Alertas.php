@@ -79,9 +79,15 @@ class Alertas
     /**
      * Los dias del periodo en los que un grupo tenia clase y no la hubo.
      *
-     * @return Collection<int, array{grupo: Grupo, fecha: Carbon, dia: string}>
+     * `$conArchivadas` (27/09/2026) las devuelve TAMBIEN, marcadas. Archivar
+     * saca un aviso de la BANDEJA —«ya lo hable con quien dicta»—, pero la
+     * clase no se dio igual, y las estadisticas del profesor tienen que
+     * contarla: en produccion, Percusion salia con 2 clases perdidas y le
+     * faltaron 18, porque 16 estaban archivadas. La bandeja sigue sin ellas.
+     *
+     * @return Collection<int, array{grupo: Grupo, fecha: Carbon, dia: string, archivada: bool}>
      */
-    public static function clasesNoDictadas(Periodo $periodo, ?Perfil $quienMira = null): Collection
+    public static function clasesNoDictadas(Periodo $periodo, ?Perfil $quienMira = null, bool $conArchivadas = false): Collection
     {
         // El horario de todos los grupos con matriculas en este periodo, de una
         // vez. Un grupo sin sesiones no tiene dia asignado y no puede faltar a
@@ -162,11 +168,14 @@ class Alertas
                 if (in_array($fecha->dayOfWeekIso, $dias, true)) {
                     $clave = $grupoId.'|'.$fecha->toDateString();
 
-                    if (! $dictadas->has($clave) && ! $archivadas->has($clave)) {
+                    $archivada = $archivadas->has($clave);
+
+                    if (! $dictadas->has($clave) && ($conArchivadas || ! $archivada)) {
                         $faltantes->push([
                             'grupo' => $grupo,
                             'fecha' => $fecha->copy(),
                             'dia' => SesionGrupo::DIAS[$fecha->dayOfWeekIso] ?? '',
+                            'archivada' => $archivada,
                         ]);
                     }
                 }

@@ -75,6 +75,10 @@
       Clases perdidas: días en que un grupo tenía horario y no se registró clase,
       contados desde el {{ $perdidas['desde']->format('d/m/Y') }}, cuando se
       encendieron las alertas.
+      @if ($perdidas['archivadas'])
+        {{ $perdidas['archivadas'] === $perdidas['total'] ? ($perdidas['total'] === 1 ? 'Está archivada' : 'Todas están archivadas') : $perdidas['archivadas'].' de ellas '.($perdidas['archivadas'] === 1 ? 'está archivada' : 'están archivadas') }}
+        en la bandeja de alertas: ya se habló de ellas, pero cuentan porque la clase no se dio.
+      @endif
     @endif
   </li>
   <li>
