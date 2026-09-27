@@ -3222,18 +3222,35 @@
      `input[type=number]` reclama su ancho por defecto aunque se dibuje
      estrecho.
 
-     El botón se alinea con `end` para que quede sobre la línea de los campos y
-     no flotando a media altura de sus etiquetas. */
+     Tres FILAS compartidas —etiqueta, control, error— y cada campo las toma
+     con `subgrid`. Antes era una sola fila con `align-items: end`, y el aviso
+     de error, que va DEBAJO del control, lo empujaba hacia arriba: con «Falta
+     edad.» la casilla de la edad subía 26px respecto a la del nombre. Así los
+     dos controles comparten fila salga o no el error, y el botón va en esa
+     misma fila. */
   .lista-externa-forma .field { margin-bottom: 0.7rem; }
 
   @media not all and (max-width: 640px) {
     .lista-externa-forma {
       display: grid;
       grid-template-columns: 1fr 6rem auto;
+      grid-template-rows: auto auto auto;
       gap: 0 0.9rem;
-      align-items: end;
     }
-    .lista-externa-forma .field { margin-bottom: 0; }
+    .lista-externa-forma .field {
+      margin-bottom: 0;
+      grid-row: 1 / span 3;
+      display: grid;
+      grid-template-rows: subgrid;
+      align-content: start;
+    }
+    /* `margin-top: 0` porque `.card > form > button[type="submit"]` le pone
+       1.6rem, pensado para un formulario apilado; en la rejilla ese margen
+       estiraba la fila de los controles y los dos campos se dibujaban de 68px
+       de alto. El selector es `form.… > button[type="submit"]` para IGUALAR
+       la especificidad de aquella regla (0,2,2) y ganarle por ir despues; sin
+       el `form` delante se queda en (0,2,1) y pierde sin avisar. */
+    form.lista-externa-forma > button[type="submit"] { grid-row: 2; grid-column: 3; align-self: end; margin-top: 0; }
     .lista-externa-forma input[type="number"] { width: 100%; }
     /* 44px para que el botón case con el alto de los controles de al lado, que
        es también el mínimo táctil del sistema. */
