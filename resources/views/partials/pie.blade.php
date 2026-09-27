@@ -24,5 +24,6 @@
     marca viaja igual a todas. Las siglas en pantalla; el nombre entero en el
     `title` de la abreviatura.
   --}}
-  <span class="pie-autor">Desarrollado por <abbr title="Daniel Fernando Rendón Ramírez">DFRR</abbr></span>
+  {{-- El año es FIJO a propósito: es el de creación del sistema, que es lo que dice un aviso de copyright. --}}
+  <span class="pie-autor">© 2026 · Desarrollado por <abbr title="Daniel Fernando Rendón Ramírez">DFRR</abbr></span>
 </footer>
