@@ -3118,6 +3118,177 @@
   }
   .dias-selector-actual:hover { background: var(--accent-dark); color: var(--sobre-acento); }
 
+  /* GESTION → HORARIOS (27/09/2026). Un dia a la vez, promotoria por
+     promotoria; la forma y el porque en `App\Support\HorarioDeLaCasa`.
+
+     LOS SEIS DIAS SON UNA RENGLERA DE CELDAS IGUALES y no una fila de botones
+     que se envuelve: a 390px caben seis de 55px y ninguno baja a otra linea,
+     que es lo que haria un `flex-wrap` con «Miércoles» escrito entero. Cada
+     celda lleva debajo cuantas clases hay ese dia, con el filtro puesto.
+
+     El dia que se mira va RELLENO y los demas en contorno: la diferencia es de
+     forma, no solo de color, igual que en el resto del sistema. Un dia sin
+     clases sigue siendo pulsable —hay que poder comprobarlo— pero baja de tono.
+
+     Los dias van PEGADOS ARRIBA al bajar: en el telefono, con diez
+     promotorias un dia de semana, cambiar de dia obligaba a volver a subir.
+     Solo los dias: con el desplegable tambien eran 150px de pantalla quieta.
+     Para eso los controles se DISUELVEN (`display: contents`) y la fila de dias
+     queda como hija de `.horarios`, que es lo bastante alto para que la
+     pegajosidad dure toda la lista; dentro de su caja de controles se soltaria
+     en cuanto esa caja saliera de pantalla. */
+  .horarios-controles { display: contents; }
+  .horarios-dias {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.35rem;
+    position: sticky; top: 0; z-index: 3;
+    background: var(--bg);
+    padding: 0.6rem 0;
+    box-shadow: 0 1px 0 var(--border);
+  }
+  .horarios-dia {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 0.1rem;
+    min-height: 52px;
+    padding: 0.35rem 0.2rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink);
+    text-decoration: none;
+    line-height: 1.1;
+  }
+  .horarios-dia:hover { background: var(--accent-soft); color: var(--accent-dark); }
+  .horarios-dia:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .horarios-dia-nombre { font-size: 0.88rem; font-weight: 700; }
+  .horarios-dia-cuenta {
+    font-family: var(--font-mono); font-size: 0.72rem;
+    font-variant-numeric: tabular-nums; color: var(--ink-soft);
+  }
+  /* «hoy» con una palabra y no con un punto de color: dice lo mismo a quien no
+     distingue el verde. */
+  .horarios-dia-hoy {
+    position: absolute; top: 3px; right: 5px;
+    font-family: var(--font-mono); font-size: 0.56rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--accent);
+  }
+  .horarios-dia-vacio { color: var(--ink-faint); border-style: dashed; }
+  .horarios-dia-vacio .horarios-dia-nombre { font-weight: 600; }
+  /* Va DESPUES de `-vacio`: un dia sin clases tambien puede ser el que se mira,
+     y a igual especificidad manda la ultima regla. */
+  .horarios-dia-actual,
+  .horarios-dia-actual:hover {
+    background: var(--accent); border-color: var(--accent); border-style: solid;
+    color: var(--sobre-acento);
+  }
+  .horarios-dia-actual .horarios-dia-cuenta,
+  .horarios-dia-actual .horarios-dia-hoy { color: var(--sobre-acento); }
+
+  .horarios-filtro { margin: 0.2rem 0 0.3rem; }
+  .horarios-filtro label {
+    display: block;
+    font-family: var(--font-mono); font-size: 0.68rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft);
+    margin-bottom: 0.25rem;
+  }
+  .horarios-filtro-fila { display: flex; gap: 0.5rem; }
+  /* `width` y no solo `min-width: 0`: un <select> reclama el ancho de su opcion
+     mas larga aunque se dibuje estrecho, y con los nombres de promotoria eso
+     empujaba el boton fuera de la pantalla. Es la trampa del Panel. */
+  .horarios-filtro select { flex: 1 1 auto; width: 100%; min-width: 0; min-height: 44px; margin: 0; }
+  .horarios-filtro .btn { flex: 0 0 auto; min-height: 44px; margin: 0; }
+
+  /* En escritorio los dias y el filtro comparten renglon; por debajo van
+     apilados, que es lo que ya hacen sin esta regla. Escrita como `not all and`
+     por costumbre de la casa: si algun dia hace falta la regla de enfrente, se
+     escribe con el mismo numero y no queda hueco. */
+  @media not all and (max-width: 900px) {
+    .horarios-controles {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 18rem;
+      gap: 1.2rem;
+      align-items: end;
+      position: sticky; top: 0; z-index: 3;
+      background: var(--bg);
+      padding: 0.6rem 0;
+      box-shadow: 0 1px 0 var(--border);
+    }
+    /* El filtro va antes en el documento; aqui se pinta a la derecha. */
+    .horarios-controles .horarios-filtro { order: 2; margin: 0; }
+    .horarios-controles .horarios-dias {
+      order: 1;
+      position: static; padding: 0; box-shadow: none; background: none;
+    }
+  }
+
+  .horarios-resumen {
+    margin: 0.9rem 0 0;
+    min-height: 1.4em;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+  }
+  .horarios-resumen strong { color: var(--ink); }
+  .horarios-resumen-cruce { color: var(--danger); font-weight: 600; }
+
+  .horarios-bloque { margin-top: 1.5rem; }
+  .horarios-cabecera {
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: 0.15rem 0.8rem;
+    margin-bottom: 0.5rem;
+  }
+  .horarios-cabecera h3 { margin: 0; display: flex; align-items: center; }
+  .horarios-meta { margin: 0; font-size: 0.85rem; color: var(--ink-soft); }
+
+  /* `display: table` porque por debajo de 640px todas las tablas pasan a
+     `block` para poder arrastrarlas, y un bloque no estira sus columnas al
+     ancho: esta tabla quedaba de la mitad de la pantalla. Con tres columnas no
+     hay nada que arrastrar. `table-layout: fixed` para que las horas de todos
+     los bloques caigan en la misma vertical y el ojo baje por ellas. */
+  .horarios-tabla { display: table; table-layout: fixed; }
+  .horarios-tabla th:first-child { width: 10.5rem; }
+  .horarios-tabla th:last-child { width: 8rem; }
+  .horarios-hora { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .horarios-tabla td { vertical-align: top; overflow-wrap: anywhere; }
+
+  /* EL CRUCE DE SALON. Contorno macizo en el rojo y SIN relleno: no se parece
+     a «retirada» (relleno y tachado) ni a «rechazada» (relleno), que son
+     desenlaces de una persona. Esto es un aviso sobre el horario, y la palabra
+     del marcador es lo que lo dice. */
+  /* UN marcador por fila y la lista de choques debajo: con tres cruces, el
+     marcador repetido tres veces pesaba mas que el nombre del grupo. */
+  .horarios-cruce { margin-top: 0.4rem; }
+  .horarios-cruce-lista {
+    list-style: none; margin: 0.3rem 0 0; padding: 0;
+    font-size: 0.8rem; color: var(--ink-soft);
+  }
+  .horarios-cruce-lista li + li { margin-top: 0.15rem; }
+  .estado-cruce {
+    background: transparent; color: var(--danger);
+    border: 1.5px solid var(--danger);
+  }
+
+  /* Refuerzo del atributo: ninguna regla de aqui pone `display` a estas piezas,
+     pero `[hidden]` pierde contra cualquiera que lo haga, y la que lo haga
+     manana no romperia nada que se vea en escritorio. */
+  .horarios-bloque[hidden],
+  .horarios-tabla tr[hidden],
+  .horarios .vacio[hidden],
+  .horarios-filtro .btn[hidden] { display: none; }
+
+  .horarios-sin-horario { margin-top: 2rem; }
+
+  @media (max-width: 640px) {
+    .horarios-tabla th:first-child { width: 7.4rem; }
+    .horarios-tabla th:last-child { width: 5.2rem; }
+    .horarios-tabla th, .horarios-tabla td { padding: 0.6rem 0.65rem; }
+    /* En el telefono la hora parte en dos renglones antes que robarle ancho al
+       grupo, que es el nombre largo. */
+    .horarios-hora { white-space: normal; }
+  }
+
   /* EL CAMPO DEL ENLACE, PLEGADO. En la lista de actividades la URL entera se
      repetia en cada fila y era lo que mas pesaba en esa pantalla; el boton de
      copiar es lo que se usa. Solo se pliega ahi: en la ficha de la actividad y

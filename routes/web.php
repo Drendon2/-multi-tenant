@@ -536,6 +536,10 @@ Route::middleware(['auth', 'rol:administrador,director'])->prefix('gestion')->gr
     // las pantallas de cada uno por separado siguen vivas debajo.
     Route::get('/programas', Gestion\ProgramasController::class)->name('gestion-programas');
 
+    // Horarios: que se dicta cada dia, por promotoria. El director ve sus
+    // departamentos; el recorte vive en `HorarioDeLaCasa`.
+    Route::get('/horarios', Gestion\HorariosController::class)->name('gestion-horarios');
+
     // Departamentos
     Route::get('/areas', [Gestion\AreaController::class, 'index'])->name('area-lista');
     Route::get('/areas/{area}/promotorias', [Gestion\PromotoriaController::class, 'porArea'])
