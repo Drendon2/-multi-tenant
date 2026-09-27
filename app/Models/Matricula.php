@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Auditoria;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -216,6 +217,25 @@ class Matricula extends Model
     public function promotoria(): BelongsTo
     {
         return $this->belongsTo(Promotoria::class);
+    }
+
+    /**
+     * Las matriculas de las promotorias que esta persona ve: el recorte del
+     * director, llevado a las matriculas.
+     *
+     * No escribe la regla: pregunta a `Promotoria::queVe()`, que es su unica
+     * casa. Existe desde el 27/09/2026 porque la bandeja de cancelaciones se
+     * quedo sin recorte el 12/09 —las dos alertas de la misma pantalla si lo
+     * llevaban— y el director veia y podia resolver las de toda la casa.
+     *
+     * @param  Builder<Matricula>  $query
+     */
+    public function scopeQueVe(Builder $query, Perfil $perfil): void
+    {
+        $query->whereIn(
+            $this->qualifyColumn('promotoria_id'),
+            Promotoria::queVe($perfil)->select('promotorias.id')
+        );
     }
 
     /**

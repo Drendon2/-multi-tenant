@@ -4,13 +4,16 @@ namespace App\Http\Controllers\Gestion;
 
 use App\Http\Controllers\Controller;
 use App\Models\ConfiguracionInstitucion;
+use App\Models\Grupo;
 use App\Models\Matricula;
 use App\Models\OmisionArchivada;
 use App\Models\Perfil;
 use App\Models\Periodo;
+use App\Models\Promotoria;
 use App\Support\Alertas;
 use App\Support\Auditoria;
 use App\Support\FichasIncompletas;
+use App\Support\Permisos;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -68,7 +71,10 @@ class CancelacionesController extends Controller
         /** @var Perfil $perfil */
         $perfil = $request->attributes->get('perfil');
 
-        $pendientes = Matricula::query()
+        // `queVe()`: el director, solo las de sus departamentos. Faltaba desde
+        // el 12/09/2026 —las dos alertas de abajo si lo llevaban— y lo reporto
+        // el usuario el 27/09 mirando desde la cuenta de un director.
+        $pendientes = Matricula::queVe($perfil)
             ->where('estado', Matricula::CANCELACION_SOLICITADA)
             ->with([
                 'estudiante.datosEstudiante.acudiente',
@@ -172,6 +178,8 @@ class CancelacionesController extends Controller
             'fecha' => ['required', 'date'],
         ]);
 
+        $this->cerrarSiEsAjena(Grupo::findOrFail($datos['grupo_id'])->promotoria);
+
         OmisionArchivada::updateOrCreate(
             ['grupo_id' => $datos['grupo_id'], 'fecha' => $datos['fecha']],
             ['archivada_por_id' => auth()->user()?->perfil?->id],
@@ -191,6 +199,7 @@ class CancelacionesController extends Controller
     public function retirarPorAbandono(Matricula $matricula): RedirectResponse
     {
         abort_unless($matricula->estado === Matricula::ACTIVA, 404);
+        $this->cerrarSiEsAjena($matricula->promotoria);
 
         $nombre = $matricula->estudiante->nombre_completo;
         $promotoria = $matricula->promotoria;
@@ -216,6 +225,7 @@ class CancelacionesController extends Controller
     {
         abort_unless($matricula->estado === Matricula::CANCELACION_SOLICITADA, 404);
         abort_unless(in_array($decision, ['aprobar', 'rechazar'], true), 404);
+        $this->cerrarSiEsAjena($matricula->promotoria);
 
         $nombre = $matricula->estudiante->nombre_completo;
 
@@ -282,7 +292,9 @@ class CancelacionesController extends Controller
 
         abort_unless(in_array($decision, ['aprobar', 'rechazar'], true), 404);
 
-        $matriculas = Matricula::query()
+        // Las ajenas se quedan fuera en silencio, como si no se hubieran
+        // marcado: la pantalla no las pinta, asi que solo llegan compuestas a mano.
+        $matriculas = Matricula::queVe($request->attributes->get('perfil'))
             ->whereIn('id', (array) $request->input('matricula_ids', []))
             ->where('estado', Matricula::CANCELACION_SOLICITADA)
             ->with(['estudiante.datosEstudiante', 'promotoria'])
@@ -355,6 +367,20 @@ class CancelacionesController extends Controller
      * `back()` lee la ultima URL GET de la sesion, que durante estos POST por
      * `fetch` sigue siendo la de la bandeja con su `?page=`.
      */
+    /**
+     * 404 si la promotoria no es de las que esta persona ve, igual que
+     * `buscar()` en el catalogo: esconder la fila no cierra la puerta, y una
+     * accion ajena compuesta a mano tiene que rebotar AQUI. Un 404 y no un 403,
+     * para no confirmar siquiera que esa matricula existe.
+     */
+    private function cerrarSiEsAjena(?Promotoria $promotoria): void
+    {
+        abort_unless(
+            $promotoria !== null && Permisos::veLaPromotoria(request()->attributes->get('perfil'), $promotoria),
+            404
+        );
+    }
+
     private function volver(string $mensaje, bool $exito = false): RedirectResponse
     {
         return back()->with($exito ? 'success' : 'error', $mensaje);

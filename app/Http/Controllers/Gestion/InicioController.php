@@ -27,7 +27,13 @@ class InicioController extends Controller
         // sin ella habria que entrar a mirar. Desde el 02/09/2026 cuenta las
         // TRES cosas de esa bandeja y no solo las cancelaciones, porque si
         // contara una sola la ficha diria «0» con veinte clases sin registrar.
-        $cancelaciones = Matricula::where('estado', Matricula::CANCELACION_SOLICITADA)->count();
+        //
+        // Acotada al director como las dos alertas (27/09/2026): hasta ese dia
+        // contaba las cancelaciones de toda la casa, y la ficha invitaba a
+        // entrar por solicitudes que no eran suyas. Las CIFRAS de la cinta de
+        // arriba siguen siendo generales a proposito; esta no es una cifra de
+        // la casa, es lo que ESTA PERSONA tiene por atender.
+        $cancelaciones = Matricula::queVe($perfil)->where('estado', Matricula::CANCELACION_SOLICITADA)->count();
 
         $alertas = 0;
         $ultimas = [];

@@ -661,6 +661,113 @@ class DirectorPorDepartamentoTest extends TestCase
         $this->assertStringNotContainsString('Ballet', $fichas);
     }
 
+    // ------------------------------------------------------------------
+    // Cancelaciones (27/09/2026): el recorte se habia quedado fuera
+    // ------------------------------------------------------------------
+
+    /**
+     * LA BANDEJA DE CANCELACIONES ENSEÑABA LAS DE TODA LA CASA. Lo reporto el
+     * usuario desde el perfil de un director el 27/09/2026: las dos alertas de
+     * esa misma pantalla si estaban acotadas desde el 12/09, y la lista de
+     * cancelaciones —que vive en el mismo controlador— no.
+     */
+    public function test_la_bandeja_de_cancelaciones_es_solo_de_sus_departamentos(): void
+    {
+        $this->cancelacion('suyo', $this->piano);
+        $this->cancelacion('ajeno', $this->ballet);
+
+        $html = (string) $this->actingAs($this->director->user)
+            ->get(route('gestion-cancelaciones'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Suyo Ruiz', $html);
+        $this->assertStringNotContainsString('Ajeno Ruiz', $html);
+
+        // La contraparte: el administrador ve las dos.
+        $this->actingAs($this->admin->user)
+            ->get(route('gestion-cancelaciones'))
+            ->assertSee('Suyo Ruiz')
+            ->assertSee('Ajeno Ruiz');
+    }
+
+    /** Y la cifra de la ficha de la portada, que es la que invita a entrar. */
+    public function test_la_cifra_de_cancelaciones_de_la_portada_va_acotada(): void
+    {
+        $this->cancelacion('suyo', $this->piano);
+        $this->cancelacion('ajeno', $this->ballet);
+
+        $this->actingAs($this->director->user)->get(route('gestion-inicio'))
+            ->assertViewHas('cancelacionesPendientes', 1);
+        $this->actingAs($this->admin->user)->get(route('gestion-inicio'))
+            ->assertViewHas('cancelacionesPendientes', 2);
+    }
+
+    /**
+     * ESCONDER LA FILA NO CIERRA LA PUERTA: resolver a mano la de otro
+     * departamento contesta 404 y no toca la matricula, igual que `buscar()` en
+     * el catalogo. Con la suya sigue funcionando: la otra mitad.
+     */
+    public function test_no_resuelve_una_cancelacion_ajena_ni_componiendo_el_envio(): void
+    {
+        $suya = $this->cancelacion('suyo', $this->piano);
+        $ajena = $this->cancelacion('ajeno', $this->ballet);
+
+        $this->actingAs($this->director->user)
+            ->post(route('gestion-resolver-cancelacion', [$ajena, 'aprobar']))
+            ->assertNotFound();
+        $this->assertSame(Matricula::CANCELACION_SOLICITADA, $ajena->refresh()->estado);
+
+        $this->actingAs($this->director->user)
+            ->post(route('gestion-resolver-cancelacion', [$suya, 'aprobar']))
+            ->assertRedirect();
+        $this->assertSame(Matricula::RETIRADA, $suya->refresh()->estado);
+    }
+
+    public function test_el_lote_solo_resuelve_las_de_sus_departamentos(): void
+    {
+        $suya = $this->cancelacion('suyo', $this->piano);
+        $ajena = $this->cancelacion('ajeno', $this->ballet);
+
+        $this->actingAs($this->director->user)
+            ->post(route('gestion-cancelaciones-lote'), [
+                'decision' => 'aprobar',
+                'matricula_ids' => [$suya->id, $ajena->id],
+            ])->assertRedirect();
+
+        $this->assertSame(Matricula::RETIRADA, $suya->refresh()->estado);
+        $this->assertSame(Matricula::CANCELACION_SOLICITADA, $ajena->refresh()->estado);
+    }
+
+    public function test_no_retira_por_abandono_ni_archiva_avisos_de_otro_departamento(): void
+    {
+        $ajena = $this->matricular('ajeno', $this->ballet);
+
+        $this->actingAs($this->director->user)
+            ->post(route('gestion-retirar-abandono', $ajena))
+            ->assertNotFound();
+        $this->assertSame(Matricula::ACTIVA, $ajena->refresh()->estado);
+
+        $grupoAjeno = Grupo::create([
+            'promotoria_id' => $this->ballet->id, 'nombre' => 'Grupo B',
+            'nivel' => 'basico', 'salon' => 'B1', 'cupo_maximo' => 10,
+        ]);
+
+        $this->actingAs($this->director->user)
+            ->post(route('gestion-archivar-omision'), [
+                'grupo_id' => $grupoAjeno->id,
+                'fecha' => Carbon::today()->subDay()->toDateString(),
+            ])->assertNotFound();
+        $this->assertDatabaseMissing('omisiones_archivadas', ['grupo_id' => $grupoAjeno->id]);
+    }
+
+    private function cancelacion(string $username, Promotoria $promotoria): Matricula
+    {
+        $matricula = $this->matricular($username, $promotoria);
+        $matricula->estado = Matricula::CANCELACION_SOLICITADA;
+        $matricula->save();
+
+        return $matricula;
+    }
+
     private function matricular(string $username, Promotoria $promotoria): Matricula
     {
         $estudiante = $this->perfil($username, 'estudiante');
