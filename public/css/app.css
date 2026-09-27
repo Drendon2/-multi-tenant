@@ -688,6 +688,48 @@
   .stat-bar-fila-ausente .stat-bar-num { color: var(--ink-faint); }
   .stat-bar-fila-ausente .stat-bar-relleno { background: var(--border-strong); }
 
+  /* «CLASES POR GRUPO» en Mis estadísticas del profesor (27/09/2026): una barra
+     PARTIDA, dadas y perdidas, porque son partes de las clases que tocaban.
+
+     Los dos tonos son los DOS PRIMEROS de la rampa de tortas
+     (`Grafica::COLORES`) y no el acento y el rojo del sistema: esa pareja, pasada
+     por el validador, quedaba en ΔE 7,8 bajo deuteranopía en claro y fallaba la
+     franja de luminosidad en oscuro, porque `--danger` es un color de TEXTO y
+     como relleno sale demasiado claro. Azul/naranja da ΔE 24,7. El naranja baja
+     un escalón en oscuro (#e2622f) para caer dentro de la franja, sin cambiar
+     de tono. El hueco de 2px entre tramos es el separador de la guía de
+     gráficas, y la cifra al lado es la que permite leerla sin el color. */
+  .clases-grupo-pista { display: flex; gap: 2px; }
+  .clases-grupo-pista .stat-bar-relleno { flex: 0 0 auto; background: #2a78d6; }
+  .clases-grupo-pista .clases-grupo-perdidas { background: light-dark(#eb6834, #e2622f); }
+  .clases-grupo-leyenda {
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem;
+    margin: 0 0 0.9rem; font-size: 0.8rem; color: var(--ink-soft);
+  }
+  .clases-grupo-punto {
+    display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+    margin-right: 0.4rem; vertical-align: -1px;
+  }
+  .clases-grupo-punto-dadas { background: #2a78d6; }
+  .clases-grupo-punto-perdidas { background: light-dark(#eb6834, #e2622f); }
+  .clases-grupo-num { min-width: 3.4rem; }
+  .clases-grupo-sep { margin: 0 0.3rem; color: var(--ink-faint); font-weight: 400; }
+
+  /* Lo que cada cifra de la cinta deja fuera, dicho debajo de ella. */
+  .estadisticas-notas {
+    list-style: none; padding: 0; margin: 0.9rem 0 0;
+    font-size: 0.82rem; color: var(--ink-soft);
+  }
+  .estadisticas-notas li + li { margin-top: 0.35rem; }
+  /* En el telefono el NOMBRE del grupo va en su propio renglon, encima de la
+     barra: con los 150px fijos de `.stat-bar-etiqueta` se cortaba en «Grupo A ·
+     Bási…», y en produccion un tercio de los grupos lleva dia y hora en el
+     nombre. Solo en esta pantalla: Estadisticas del administrador no se toca. */
+  @media (max-width: 640px) {
+    .estadisticas-barras .stat-bar-fila { flex-wrap: wrap; row-gap: 0.3rem; margin-bottom: 0.85rem; }
+    .estadisticas-barras .stat-bar-etiqueta { flex: 1 0 100%; white-space: normal; }
+  }
+
   /* Permanencia: micro-columnas al final de una barra del árbol.
      Antes eran tres cifras en texto, y ocupaban media fila: empujaban la barra
      de magnitud —que es la que manda— y no se alineaban entre renglones, así

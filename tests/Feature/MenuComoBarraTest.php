@@ -170,8 +170,9 @@ class MenuComoBarraTest extends TestCase
             'cambio la barra de direccion: a 375px solo caben cuatro destinos con su rotulo entero'
         );
 
-        // El director, igual; el profesor, sin Horarios ni Gestion.
-        foreach (['director' => ['Panel', 'Gestión', 'Horarios', 'Mi perfil', 'Salir'], 'profesor' => ['Panel', 'Mi perfil', 'Salir']] as $rol => $esperados) {
+        // El director, igual; el profesor, sin Horarios ni Gestion pero con sus
+        // Estadisticas (27/09/2026), que solo son suyas.
+        foreach (['director' => ['Panel', 'Gestión', 'Horarios', 'Mi perfil', 'Salir'], 'profesor' => ['Panel', 'Estadísticas', 'Mi perfil', 'Salir']] as $rol => $esperados) {
             $admin->perfil->update(['rol' => $rol]);
 
             $this->assertSame(

@@ -21,6 +21,7 @@ use App\Http\Controllers\MatricularController;
 use App\Http\Controllers\MiPerfilController;
 use App\Http\Controllers\MisClasesController;
 use App\Http\Controllers\MisCompanerosController;
+use App\Http\Controllers\MisEstadisticasController;
 use App\Http\Controllers\MisMatriculasController;
 use App\Http\Controllers\PanelActividadController;
 use App\Http\Controllers\PanelController;
@@ -341,6 +342,14 @@ Route::middleware(['auth', 'rol:administrador,director,profesor'])->group(functi
     Route::post('/panel/matriculas/{matricula}/deshacer-rechazo',
         [FichaController::class, 'deshacerRechazo'])
         ->name('deshacer-rechazo');
+});
+
+// Las estadisticas del profesor (27/09/2026): SOLO el rol profesor, que es
+// quien las tiene en el menu. El director y el administrador ya tienen las de
+// la casa en Gestion, y su barra esta en el tope de cuatro destinos.
+Route::middleware(['auth', 'rol:profesor'])->group(function () {
+    Route::get('/mis-estadisticas', MisEstadisticasController::class)->name('mis-estadisticas');
+    Route::get('/mis-estadisticas/{periodo}', MisEstadisticasController::class)->name('mis-estadisticas-periodo');
 });
 
 // ---------------------------------------------------------------------------
