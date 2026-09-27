@@ -223,19 +223,6 @@
     </span>
   </a>
 
-  {{--
-    HORARIOS (27/09/2026), junto a Programas porque sale de lo mismo —el
-    horario que tiene puesto cada grupo— pero en ficha propia: un horario no es
-    catálogo, se consulta, y metido dentro de Programas quedaría a dos toques.
-    La ven el administrador y el director, este acotado a sus departamentos.
-  --}}
-  <a class="tarjeta-enlace" href="{{ route('gestion-horarios') }}">
-    Horarios
-    <span class="tarjeta-nota">
-      Qué se dicta cada día, promotoría por promotoría, y los cruces de salón.
-    </span>
-  </a>
-
   @if ($yo->rol === 'administrador')
   <a class="tarjeta-enlace" href="{{ route('usuario-lista') }}">
     Usuarios
