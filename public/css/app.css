@@ -3040,6 +3040,10 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
+    /* El nombre de la institucion parte en dos renglones cuando es largo, y
+       sin esto el segundo quedaba pegado a la izquierda (27/09/2026). */
+    text-align: center;
+    text-wrap: balance;
     gap: 0.5rem;
     border-top: 1px solid var(--border);
     padding-top: 0.4rem;
@@ -3057,6 +3061,16 @@
   .pie a:hover { color: var(--accent-dark); }
   .pie-separador { color: var(--border-strong); }
   .pie-entidad { color: var(--ink-soft); }
+
+  /* La marca de quien hizo el sistema, en su propio renglon y un paso por
+     debajo del resto: es una firma, no un enlace ni un dato de la entidad. */
+  .pie-autor {
+    flex-basis: 100%;
+    margin-top: -0.35rem;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+  }
+  .pie-autor abbr { text-decoration: none; font-weight: 700; letter-spacing: 0.06em; }
 
   /* LAS SESIONES DE UNA ACTIVIDAD EN LA PORTADA DEL PANEL. Nace el 06/09/2026,
      cuando los cursos y talleres pasaron de estar detras de un boton a estar

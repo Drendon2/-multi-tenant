@@ -17,4 +17,12 @@
   <a href="{{ route('politica-datos') }}">Tratamiento de datos personales</a>
   <span class="pie-separador" aria-hidden="true">·</span>
   <span class="pie-entidad">{{ $configuracion->nombre_institucion }}</span>
+  {{--
+    LA MARCA DE QUIEN HIZO EL SISTEMA (27/09/2026, pedida por él). Es del
+    PRODUCTO y no de la entidad, así que sí va escrita aquí: la regla de no
+    quemar nada en el código es para los datos de cada institución, y esta
+    marca viaja igual a todas. Las siglas en pantalla; el nombre entero en el
+    `title` de la abreviatura.
+  --}}
+  <span class="pie-autor">Desarrollado por <abbr title="Daniel Fernando Rendón Ramírez">DFRR</abbr></span>
 </footer>

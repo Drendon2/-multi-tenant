@@ -231,6 +231,10 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
+    /* El nombre de la institucion parte en dos renglones cuando es largo, y
+       sin esto el segundo quedaba pegado a la izquierda (27/09/2026). */
+    text-align: center;
+    text-wrap: balance;
     gap: 0.5rem;
     font-size: 0.8rem;
     color: var(--ink-soft);
@@ -245,6 +249,16 @@
   }
   .pie a:hover { color: var(--accent-dark); }
   .pie-separador { color: var(--border-strong); }
+
+  /* La marca de quien hizo el sistema, en su propio renglon y un paso por
+     debajo del resto: es una firma, no un enlace ni un dato de la entidad. */
+  .pie-autor {
+    flex-basis: 100%;
+    margin-top: -0.35rem;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+  }
+  .pie-autor abbr { text-decoration: none; font-weight: 700; letter-spacing: 0.06em; }
 
   /* LA POLITICA DE TRATAMIENTO DE DATOS. Es la unica pantalla de este
      envoltorio que es un DOCUMENTO para leer seguido y no un formulario, de ahi

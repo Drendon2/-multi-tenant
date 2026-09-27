@@ -390,6 +390,26 @@ class TratamientoDeDatosTest extends TestCase
     }
 
     /**
+     * LA MARCA DEL AUTOR va en el pie de los DOS envoltorios (27/09/2026,
+     * pedida por el). Atada a la clase y a las siglas, que son lo que se pidio;
+     * no al rotulo de delante, que puede cambiar.
+     */
+    public function test_el_pie_lleva_la_marca_del_autor_en_los_dos_envoltorios(): void
+    {
+        $publico = $this->get(route('login'))->assertOk()->getContent();
+        $conSesion = $this->actingAs($this->perfil('jefa', 'administrador')->user)
+            ->get(route('panel'))->assertOk()->getContent();
+
+        foreach (['sin sesion' => $publico, 'con sesion' => $conSesion] as $cual => $html) {
+            $this->assertMatchesRegularExpression(
+                '/class="pie-autor">[^<]*<abbr title="Daniel Fernando Rendón Ramírez">DFRR<\/abbr>/u',
+                $html,
+                "sin la marca del autor en el pie {$cual}"
+            );
+        }
+    }
+
+    /**
      * EL PIE VA FUERA DE `<main>`.
      *
      * Dentro, se lo llevaria el repintado de `acciones.js` en cuanto alguien
