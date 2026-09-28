@@ -310,15 +310,18 @@ class MisMatriculasTest extends TestCase
             ->assertDontSee('Cancelar matrícula', false);
     }
 
-    /** Con la cancelación ya pedida, el botón deja paso a «En trámite». */
+    /**
+     * Con la cancelación ya pedida, el botón de cancelar deja paso al de
+     * echarse atrás (28/09/2026). Atado a la ruta, no al rótulo.
+     */
     public function test_con_la_cancelacion_pedida_el_boton_desaparece(): void
     {
-        $this->matricular($this->violin, Matricula::CANCELACION_SOLICITADA);
+        $matricula = $this->matricular($this->violin, Matricula::CANCELACION_SOLICITADA);
 
         $this->actingAs($this->user)
             ->get(route('mis-matriculas'))
-            ->assertSee('En trámite', false)
-            ->assertDontSee('Cancelar matrícula', false);
+            ->assertSee(route('mis-matriculas.seguir', $matricula), false)
+            ->assertDontSee(route('mis-matriculas.confirmar-retiro', $matricula), false);
     }
 
     /** Nadie se retira una matrícula ajena. */

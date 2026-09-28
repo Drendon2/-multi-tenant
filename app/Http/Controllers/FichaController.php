@@ -460,6 +460,86 @@ class FichaController extends Controller
             return $volver->with('error', 'Esa matrícula ya no está rechazada.');
         }
 
+        return $this->devolverAPendiente(
+            $matricula,
+            $volver,
+            "La solicitud de {$matricula->estudiante->nombre_completo} a {$matricula->promotoria} "
+            .'vuelve a estar pendiente, y quien la dicta la verá otra vez en su Panel.'
+        );
+    }
+
+    /**
+     * Readmitir a alguien en la MISMA promotoria de la que salio.
+     *
+     * POR QUE EXISTE (28/09/2026, pedido por el usuario): quien cancela por
+     * accidente no tenia vuelta. «Corregir promotoria» se niega a mover una
+     * matricula a donde ya esta, «Deshacer el rechazo» solo vale para rechazos,
+     * y lo unico que quedaba era que el propio estudiante pulsara
+     * «Matricularme» en el catalogo — con la ventana de matriculas ABIERTA.
+     * Cerrada, no habia ningun camino.
+     *
+     * Vale para cualquier retirada del periodo en curso: cancelacion aprobada,
+     * retiro propio, abandono y tambien un rechazo (el boton de la pantalla se
+     * esconde en ese caso porque ya esta «Deshacer el rechazo», que tambien
+     * puede pulsar el profesor).
+     *
+     * LA PUERTA ES LA DE «CORREGIR PROMOTORIA», decision del usuario: el
+     * administrador siempre, el director solo con la ventana abierta. No la
+     * del rechazo: aqui se revierte una salida que decidio el estudiante o la
+     * direccion, no un clic del profesor.
+     *
+     * VUELVE A PENDIENTE, como las otras dos readmisiones: el retiro le quito
+     * los grupos y quien la dicta tiene que volver a confirmarla y repartirla.
+     */
+    public function readmitir(Request $request, Matricula $matricula): RedirectResponse
+    {
+        /** @var Perfil $perfil */
+        $perfil = $request->attributes->get('perfil');
+
+        $volver = redirect()->route('historial-estudiante', $matricula->estudiante_id);
+        $enCurso = Periodo::enCurso();
+
+        if ($matricula->periodo_id !== $enCurso?->id) {
+            return $volver->with('error', 'Solo se readmite en una matrícula del periodo en curso.');
+        }
+
+        if (! $this->puedeCorregirPromotoria($perfil, $enCurso)) {
+            return $volver->with('error', $perfil->rol === 'director'
+                ? "Las matrículas de {$enCurso} están cerradas. Con la ventana cerrada, "
+                    .'solo el administrador puede readmitir.'
+                : 'No tienes acceso a esta corrección.');
+        }
+
+        // El director, solo en las promotorias de sus departamentos: esconder
+        // el boton no cierra la puerta.
+        if (! Permisos::veLaPromotoria($perfil, $matricula->promotoria)) {
+            return $volver->with('error', 'No tienes acceso a esta promotoría.');
+        }
+
+        // Entre que se pinto el boton y se pulso, otro pudo readmitirla o el
+        // estudiante pudo volver por el catalogo.
+        if ($matricula->estado !== Matricula::RETIRADA) {
+            return $volver->with('error', 'Esa matrícula ya no está retirada.');
+        }
+
+        return $this->devolverAPendiente(
+            $matricula,
+            $volver,
+            "{$matricula->estudiante->nombre_completo} vuelve a {$matricula->promotoria}. "
+            .'Queda pendiente de que la confirme quien la dicta, que además tendrá que '
+            .'asignarle grupo de nuevo.'
+        );
+    }
+
+    /**
+     * Lo comun de las dos readmisiones en la misma promotoria.
+     *
+     * Se valida como cualquier alta porque la ocupacion AUMENTA: entre la
+     * salida y la vuelta el estudiante pudo llenar su limite de promotorias por
+     * otro lado, y el cupo pudo agotarse (eso lo dice el trigger).
+     */
+    private function devolverAPendiente(Matricula $matricula, RedirectResponse $volver, string $exito): RedirectResponse
+    {
         $matricula->estado = Matricula::PENDIENTE;
         $matricula->motivo_retiro = null;
 
@@ -472,10 +552,6 @@ class FichaController extends Controller
             return $volver->with('error', $this->porQueNoSePudoCorregir($e, $matricula->promotoria));
         }
 
-        return $volver->with(
-            'success',
-            "La solicitud de {$matricula->estudiante->nombre_completo} a {$matricula->promotoria} "
-            .'vuelve a estar pendiente, y quien la dicta la verá otra vez en su Panel.'
-        );
+        return $volver->with('success', $exito);
     }
 }

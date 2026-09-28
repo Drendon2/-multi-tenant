@@ -173,6 +173,9 @@ Route::middleware(['auth', 'rol:estudiante'])->group(function () {
         ->name('mis-matriculas.confirmar-retiro');
     Route::post('/mis-matriculas/{matricula}/retirar', [MisMatriculasController::class, 'retirar'])
         ->name('mis-matriculas.retirar');
+    // Echarse atras de una cancelacion todavia sin resolver.
+    Route::post('/mis-matriculas/{matricula}/seguir', [MisMatriculasController::class, 'seguir'])
+        ->name('mis-matriculas.seguir');
 
     Route::get('/renovar', [RenovarController::class, 'mostrar'])->name('renovar-matricula');
     Route::post('/renovar', [RenovarController::class, 'guardar'])->name('renovar-matricula.guardar');
@@ -342,6 +345,12 @@ Route::middleware(['auth', 'rol:administrador,director,profesor'])->group(functi
     Route::post('/panel/matriculas/{matricula}/deshacer-rechazo',
         [FichaController::class, 'deshacerRechazo'])
         ->name('deshacer-rechazo');
+
+    // Readmitir en la MISMA promotoria a quien salio (por ejemplo, cancelo por
+    // accidente). La puerta es la de la correccion, no la del rechazo.
+    Route::post('/panel/matriculas/{matricula}/readmitir',
+        [FichaController::class, 'readmitir'])
+        ->name('readmitir-matricula');
 });
 
 // Las estadisticas del profesor (27/09/2026): SOLO el rol profesor, que es

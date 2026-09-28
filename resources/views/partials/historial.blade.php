@@ -148,6 +148,18 @@
             <button type="submit" class="btn btn-secundario btn-sm">Deshacer el rechazo</button>
           </form>
           @endif
+          {{--
+            READMITIR en la misma promotoría (28/09/2026): quien canceló por
+            accidente no tenía vuelta, porque «Cambiar» no ofrece la promotoría
+            en la que ya está. Con la puerta de la corrección. En un rechazo no
+            se pinta: ahí ya está «Deshacer el rechazo», que hace lo mismo.
+          --}}
+          @if ($puedeCorregir && $m->periodo_id === $periodoEnCursoId && $m->estado === \App\Models\Matricula::RETIRADA && ! $esRechazo && \App\Support\Permisos::veLaPromotoria($yo, $m->promotoria))
+          <form action="{{ route('readmitir-matricula', $m) }}" method="post" class="deshacer-rechazo">
+            @csrf
+            <button type="submit" class="btn btn-secundario btn-sm">Readmitir aquí</button>
+          </form>
+          @endif
           @if ($puedeCorregir && $m->periodo_id === $periodoEnCursoId)
           {{--
             Una retirada TAMBIÉN se mueve: quien se salió y quiere entrar a otra
@@ -204,7 +216,17 @@
           @if ($m->periodo_id !== $periodoActualId)
             <span class="periodo-terminado">Periodo terminado</span>
           @elseif ($m->cancelacion_pendiente)
-            <span class="periodo-terminado">En trámite</span>
+            {{--
+              Mientras la dirección no resuelva, la decisión sigue siendo suya:
+              quien canceló por accidente se echa atrás aquí (28/09/2026). Siendo
+              mayor, la dirección solo puede aprobar, así que sin este botón el
+              accidente acababa en retiro sí o sí.
+            --}}
+            <span class="periodo-terminado">Cancelación en trámite</span>
+            <form action="{{ route('mis-matriculas.seguir', $m) }}" method="post">
+              @csrf
+              <button type="submit" class="btn btn-secundario btn-sm">Seguir matriculado</button>
+            </form>
           @elseif (in_array($m->estado, [\App\Models\Matricula::ACTIVA, \App\Models\Matricula::PENDIENTE], true))
             {{--
               Una matricula ACTIVA pasa por la pantalla de salida, que pide la

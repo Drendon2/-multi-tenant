@@ -106,6 +106,48 @@ class MisMatriculasController extends Controller
     }
 
     /**
+     * Echarse atras de una cancelacion que la direccion todavia no resolvio.
+     *
+     * Existe desde el 28/09/2026, pedido por el usuario: quien cancelaba por
+     * accidente no tenia vuelta. Siendo MAYOR, la direccion solo puede aprobar
+     * su salida —a un mayor no se le discute—, asi que la cancelacion iba a
+     * acabar retirandolo si o si. Aqui la decision sigue siendo suya: la misma
+     * persona que pidio salir dice que se queda.
+     *
+     * Vuelve a ACTIVA con sus grupos intactos, porque nunca dejo de estar: la
+     * cancelacion en tramite ocupa su silla y su cupo hasta que se resuelve.
+     * La encuesta de salida, si la contesto, se queda: es una valoracion de
+     * verdad, igual que la que se contesta al renovar.
+     */
+    public function seguir(Request $request, Matricula $matricula): RedirectResponse
+    {
+        /** @var Perfil $perfil */
+        $perfil = $request->attributes->get('perfil');
+
+        abort_unless($matricula->estudiante_id === $perfil->id, 404);
+
+        // Si la direccion ya la resolvio entre que se pinto el boton y se
+        // pulso, no hay nada de que echarse atras, y hay que decirlo: callar
+        // dejaria creer que sigue inscrito.
+        if ($matricula->estado !== Matricula::CANCELACION_SOLICITADA) {
+            return $this->volver(
+                $matricula->estado === Matricula::RETIRADA
+                    ? "La dirección ya aprobó tu salida de {$matricula->promotoria}. Si fue un "
+                        .'error, habla con la institución: pueden readmitirte.'
+                    : ''
+            );
+        }
+
+        $matricula->estado = Matricula::ACTIVA;
+        $matricula->save();
+
+        return $this->volver(
+            "Sigues matriculado en {$matricula->promotoria}. Tu solicitud de cancelación quedó anulada.",
+            exito: true
+        );
+    }
+
+    /**
      * La pantalla que pide la encuesta antes de tramitar una salida.
      *
      * Solo aparece cuando la matricula esta ACTIVA. Una pendiente no ha tenido
