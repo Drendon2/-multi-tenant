@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\ConfiguracionInstitucion;
 use App\Models\DocumentoEstudiante;
 use App\Models\Perfil;
-use App\Support\Companeros;
 use App\Support\LogoInstitucion;
+use App\Support\Permisos;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
@@ -90,15 +90,12 @@ class ArchivoController extends Controller
 
         abort_if($solicitante === null, 404);
 
-        $permitido = $solicitante->id === $perfil->id || $solicitante->esPersonal();
-
-        if (! $permitido) {
-            $permitido = Companeros::sonCompaneros($solicitante, $perfil);
-        }
-
+        // Quien ve que foto vive en UN sitio (`Permisos::puedeVerFoto`), acotado
+        // el 27/09/2026: hasta entonces cualquier profesor veia la de cualquiera.
+        //
         // Un 404 y no un 403 en los dos casos: que exista o no la foto de otra
         // persona tampoco es asunto de quien pregunta.
-        abort_unless($permitido && $perfil->foto_perfil !== '', 404);
+        abort_unless(Permisos::puedeVerFoto($solicitante, $perfil) && $perfil->foto_perfil !== '', 404);
 
         return $this->entregar($perfil->foto_perfil);
     }

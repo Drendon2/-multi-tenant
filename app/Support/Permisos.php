@@ -355,6 +355,48 @@ class Permisos
     }
 
     /**
+     * ¿Puede ver la FOTO de otra persona?
+     *
+     * Acotada el 27/09/2026 en la revision de seguridad, a peticion del
+     * usuario. Hasta ese dia bastaba ser personal de la casa, asi que cualquier
+     * cuenta de profesor podia descargar la foto de cualquiera —menores
+     * incluidos— probando ids seguidos en `/foto/{perfil}`. Si le robaban la
+     * cuenta a un profesor, se llevaban la de todo el mundo.
+     *
+     * - Uno mismo, siempre.
+     * - Administrador y director, como antes: administran a la gente.
+     * - El profesor, solo la de estudiantes con ALGUNA matricula en una
+     *   promotoria que el dicta, en cualquier periodo y estado: la pendiente
+     *   que tiene que confirmar y la retirada de su historial tambien son
+     *   suyas. Es exactamente lo que le ensenan su Panel, sus carnes y sus
+     *   fichas. Lo que manda es el VINCULO (`profesor_id`), no el rol.
+     * - El estudiante, la de sus compañeros de grupo (`Companeros`).
+     */
+    public static function puedeVerFoto(?Perfil $solicitante, Perfil $objetivo): bool
+    {
+        if ($solicitante === null) {
+            return false;
+        }
+
+        if ($solicitante->id === $objetivo->id) {
+            return true;
+        }
+
+        if (in_array($solicitante->rol, ['administrador', 'director'], true)) {
+            return true;
+        }
+
+        if ($solicitante->rol === 'profesor') {
+            return $objetivo->rol === 'estudiante'
+                && Matricula::where('estudiante_id', $objetivo->id)
+                    ->whereIn('promotoria_id', Promotoria::where('profesor_id', $solicitante->id)->select('id'))
+                    ->exists();
+        }
+
+        return Companeros::sonCompaneros($solicitante, $objetivo);
+    }
+
+    /**
      * ¿Puede abrir la ficha de otra persona? Se mira hacia abajo, no hacia los
      * lados.
      *
