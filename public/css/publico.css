@@ -255,10 +255,12 @@
   .pie-autor {
     flex-basis: 100%;
     margin-top: -0.35rem;
-    font-size: 0.72rem;
+    /* MAS PEQUENA que el resto del pie, a pedido del usuario: 0,64rem son
+       unos 10px, el suelo de lo que se sigue leyendo en un telefono. */
+    font-size: 0.64rem;
     color: var(--ink-faint);
   }
-  .pie-autor abbr { text-decoration: none; font-weight: 700; letter-spacing: 0.06em; }
+  .pie-autor abbr { text-decoration: none; font-weight: 600; letter-spacing: 0.04em; }
 
   /* LA POLITICA DE TRATAMIENTO DE DATOS. Es la unica pantalla de este
      envoltorio que es un DOCUMENTO para leer seguido y no un formulario, de ahi
