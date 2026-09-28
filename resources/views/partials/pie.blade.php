@@ -25,5 +25,5 @@
     `title` de la abreviatura.
   --}}
   {{-- El año es FIJO a propósito: es el de creación del sistema, que es lo que dice un aviso de copyright. --}}
-  <span class="pie-autor">© 2026 · Desarrollado por <abbr title="Daniel Fernando Rendón Ramírez">DFRR</abbr></span>
+  <span class="pie-autor">© 2026 <abbr title="Daniel Fernando Rendón Ramírez">DFRR</abbr></span>
 </footer>
