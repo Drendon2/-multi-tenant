@@ -155,6 +155,14 @@ class AppServiceProvider extends ServiceProvider
      * fuera a proposito; si algun dia hace falta, el sitio es aqui y el numero
      * tiene que salir de cuanta gente entra de verdad a la vez.
      *
+     * Y hay una razon MAS para no ponerlo, vista en la revision del 27/09/2026:
+     * en produccion hay un CDN delante y no se configura `TrustProxies`, asi que
+     * `$request->ip()` puede ser la del borde del CDN, compartida por mucha
+     * gente. Y leer la IP real de `X-Forwarded-For` tampoco vale: el origen se
+     * alcanza directo, asi que esa cabecera la puede inventar cualquiera y con
+     * ella saltarse el tope. Contra el barrido la defensa no es un contador, es
+     * que no haya contrasenas debiles.
+     *
      * El registro y la inscripcion no pasan por aqui: se limitan por IP con el
      * `throttle:` de sus rutas, porque ahi lo que se frena es la creacion masiva
      * de cuentas y no hay ninguna cuenta previa contra la cual contar.
@@ -167,7 +175,23 @@ class AppServiceProvider extends ServiceProvider
             // de intentos por escribirlo distinto.
             $usuario = Str::lower(trim((string) $request->input('username')));
 
-            return Limit::perMinute(5)->by($usuario.'|'.$request->ip());
+            return [
+                Limit::perMinute(5)->by($usuario.'|'.$request->ip()),
+                // POR CUENTA, VENGA DE DONDE VENGA (27/09/2026, revision de
+                // seguridad pedida por el usuario): «que pasa si el atacante
+                // cambia constantemente de IP». Con el limite de arriba, cada IP
+                // nueva estrenaba cinco intentos contra la MISMA cuenta, sin
+                // fin. Este cuenta solo la cuenta: diez cada quince minutos,
+                // cambie de IP cuanto quiera.
+                //
+                // No choca con la decision de fondo —no hay tope por IP—: en la
+                // sala de computo cada quien entra con SU cuenta, y nadie se
+                // equivoca diez veces en quince minutos. Lo que si permite es
+                // que un extrano deje sin entrar a alguien concreto durante un
+                // cuarto de hora tecleando mal su usuario; es temporal y se
+                // asumio frente a la alternativa.
+                Limit::perMinutes(15, 10)->by('cuenta|'.$usuario),
+            ];
         });
 
         /**

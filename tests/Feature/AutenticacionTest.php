@@ -336,6 +336,42 @@ class AutenticacionTest extends TestCase
         $this->assertAuthenticated();
     }
 
+    /**
+     * CAMBIAR DE IP NO ESTRENA INTENTOS contra la misma cuenta (27/09/2026).
+     *
+     * Era la pregunta del usuario en la revision de seguridad: con el contador
+     * por usuario+IP, cada IP nueva traia cinco intentos mas. Ahora, pasados
+     * diez contra la misma cuenta en quince minutos, el siguiente se corta
+     * desde la IP que sea. Y las dos mitades: esas mismas IPs siguen entrando
+     * con OTRA cuenta, que es la sala de computo.
+     */
+    public function test_cambiar_de_ip_no_da_intentos_nuevos_contra_la_misma_cuenta(): void
+    {
+        $this->crearCuenta('estudiante', 'ana');
+        $this->crearCuenta('profesor', 'beto');
+
+        // Diez intentos, cada uno desde una IP distinta: ninguna llega a cinco.
+        for ($intento = 1; $intento <= 10; $intento++) {
+            $this->withServerVariables(['REMOTE_ADDR' => "10.0.0.{$intento}"])
+                ->post(route('login.entrar'), ['username' => 'ana', 'password' => 'equivocada'])
+                ->assertSessionHasErrors('username');
+        }
+
+        // El undecimo, desde una IP nunca vista y con la contrasena BUENA, se
+        // corta igual: el atacante no sabe cual acierta, asi que no puede
+        // haber una excepcion para el acierto.
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.99'])
+            ->post(route('login.entrar'), ['username' => 'ana', 'password' => 'secreto123'])
+            ->assertSessionHas('error');
+        $this->assertGuest();
+
+        // Otra cuenta desde una de esas IPs entra sin enterarse.
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.1'])
+            ->post(route('login.entrar'), ['username' => 'beto', 'password' => 'secreto123'])
+            ->assertRedirect(route('post-login'));
+        $this->assertAuthenticated();
+    }
+
     /** Escribirlo con otras mayusculas no estrena contador. */
     public function test_el_contador_no_distingue_mayusculas(): void
     {
