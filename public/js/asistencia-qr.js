@@ -108,6 +108,11 @@
   window.addEventListener("pagehide", apagar);
 
   function encender() {
+    // El sonido se prepara AQUI, dentro del toque: Safari y Chrome no dejan
+    // sonar a una pagina que no haya recibido un gesto, y los bips llegan
+    // despues, desde el temporizador del lector, que no cuenta como gesto.
+    prepararSonido();
+
     navigator.mediaDevices.getUserMedia({
       // La de ATRAS: se escanea un papel que sostiene otra persona.
       video: { facingMode: { ideal: "environment" } },
@@ -356,7 +361,74 @@
       });
   }
 
+  /**
+   * EL BIP (28/09/2026, pedido por el usuario): la lectura es tan rapida que
+   * el profesor no se entera de si leyo. La vibracion no basta —el iPhone no
+   * la tiene y en la mano apenas se nota— y mirar la pantalla es justo lo que
+   * no hace quien sostiene el telefono frente a un carne.
+   *
+   * DOS SONIDOS Y NO UNO: un bip agudo si marco a alguien y dos tonos graves
+   * si el carne no vale. Con un solo sonido para todo, un rechazo se oiria
+   * como un acierto, y eso es peor que el silencio.
+   *
+   * Se genera con Web Audio y no con un archivo: no hay nada que bajar ni que
+   * cachear, y suena al instante. El contexto se reutiliza entre repintados
+   * (`window.__sonidoCarne`) porque el navegador limita cuantos se abren.
+   *
+   * Lo que NO se puede: el interruptor de silencio del iPhone lo calla, y eso
+   * no lo decide la pagina.
+   */
+  function prepararSonido() {
+    var Contexto = window.AudioContext || window.webkitAudioContext;
+    if (!Contexto) { return; }
+
+    try {
+      if (!window.__sonidoCarne) { window.__sonidoCarne = new Contexto(); }
+      if (window.__sonidoCarne.state === "suspended") { window.__sonidoCarne.resume(); }
+    } catch (e) {
+      window.__sonidoCarne = null;
+    }
+  }
+
+  function sonar(bien) {
+    var ctx = window.__sonidoCarne;
+    if (!ctx || ctx.state !== "running") { return; }
+
+    // [frecuencia, empieza, dura] en segundos.
+    var tonos = bien ? [[1760, 0, 0.09]] : [[330, 0, 0.13], [330, 0.19, 0.13]];
+    var t0 = ctx.currentTime;
+
+    tonos.forEach(function (tono) {
+      var osc = ctx.createOscillator();
+      var vol = ctx.createGain();
+      var inicio = t0 + tono[1];
+      var fin = inicio + tono[2];
+
+      osc.type = bien ? "sine" : "square";
+      osc.frequency.value = tono[0];
+
+      // Rampa corta de entrada y salida (un corte en seco suena a chasquido) y
+      // el volumen SOSTENIDO en medio. Con una caida exponencial de punta a
+      // punta, medido el 28/09/2026, de 90 ms solo se oian 40.
+      var nivel = bien ? 0.35 : 0.15;
+      vol.gain.setValueAtTime(0.0001, inicio);
+      vol.gain.exponentialRampToValueAtTime(nivel, inicio + 0.01);
+      vol.gain.setValueAtTime(nivel, fin - 0.02);
+      vol.gain.exponentialRampToValueAtTime(0.0001, fin);
+
+      osc.connect(vol);
+      vol.connect(ctx.destination);
+      osc.start(inicio);
+      osc.stop(fin + 0.02);
+    });
+  }
+
   function decir(texto, como) {
+    // El sonido acompana a los avisos que dicen un DESENLACE; «Comprobando…» y
+    // «Apunta al codigo» no llevan ninguno.
+    if (como === "bien") { sonar(true); }
+    if (como === "mal") { sonar(false); }
+
     // Se vacia ANTES de escribir: el mismo aviso dos veces seguidas no lo
     // anuncia un lector de pantalla si el nodo no cambia. Es la misma trampa de
     // las cajas `[data-voz]` del layout.
