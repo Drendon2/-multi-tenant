@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CabecerasDeSeguridad;
 use App\Http\Middleware\CuentaActiva;
 use App\Http\Middleware\RequiereRol;
 use Illuminate\Foundation\Application;
@@ -48,6 +49,11 @@ return Application::configure(basePath: dirname(__DIR__))
             AuthenticateSession::class,
             CuentaActiva::class,
         ]);
+
+        // Las cabeceras de seguridad de cada respuesta (revision del
+        // 27/09/2026). En el grupo `web` y no global porque lo que protegen son
+        // las pantallas: la ruta de salud `/up` no lleva nada que enmarcar.
+        $middleware->web(append: [CabecerasDeSeguridad::class]);
 
         // Sin sesion, todo lleva al login (Laravel apunta por defecto a una
         // ruta 'login' que aqui si existe, pero se deja explicito).
