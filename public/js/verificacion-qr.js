@@ -77,6 +77,7 @@
   var detector = null;
   var lienzo = null;
   var enviando = false;
+  var ajeno = { texto: "", cuando: 0 };
 
   window.__lectorInstitucion = { apagar: apagar };
 
@@ -95,6 +96,10 @@
   window.addEventListener("pagehide", apagar);
 
   function encender() {
+    // Dentro del toque: el navegador no deja sonar sin un gesto, y el bip
+    // llega despues, desde el temporizador del lector.
+    prepararSonido();
+
     navigator.mediaDevices.getUserMedia({
       // La de ATRAS: se escanea un carton que sostiene otra persona.
       video: { facingMode: { ideal: "environment" } },
@@ -199,6 +204,13 @@
     if (enviando) { return; }
 
     if (texto.indexOf(PREFIJO) !== 0) {
+      // El mismo codigo ajeno quieto en el encuadre se lee diez veces por
+      // segundo: sin este freno, desde que suena (28/09/2026) seria un zumbido
+      // continuo. Es el `REPETIR_MS` del lector de carnes.
+      var ahora = Date.now();
+      if (texto === ajeno.texto && ahora - ajeno.cuando < 2500) { return; }
+      ajeno = { texto: texto, cuando: ahora };
+
       // NO se apaga la camara: lo mas probable es que se haya colado el codigo
       // de un producto en el encuadre, y quien esta sosteniendo el carton tiene
       // que poder seguir intentandolo sin volver a pulsar nada.
@@ -209,6 +221,9 @@
     enviando = true;
     campo.value = texto;
     apagar();
+    // El bip dice LEIDO, no verificado: eso lo decide el servidor y lo escribe
+    // la pantalla al volver. Es la misma promesa que el «marcado» del carne.
+    sonar(true);
     decir("Comprobando…");
 
     // Se envia el FORMULARIO y no un `fetch`: asi pasa por `acciones.js` como
@@ -225,7 +240,63 @@
   // Las clases son las del lector del carne (`.qr-lector-aviso`), no unas
   // paralelas: es el mismo componente y dos juegos de clases para uno solo es
   // como acaba divergiendo lo que se ve.
+  /**
+   * EL BIP (28/09/2026, pedido por el usuario tras ponerlo en el lector de
+   * carnes). Es una COPIA de `prepararSonido()`/`sonar()` de
+   * `asistencia-qr.js`, y lo es por lo mismo que dice la cabecera: atar los dos
+   * archivos por cuarenta lineas pesa mas que repetirlas. El contexto de audio
+   * SI se comparte (`window.__sonidoCarne`), porque el navegador limita cuantos
+   * se abren. Si cambias los tonos en uno, cambialos en el otro: el profesor
+   * usa los dos y un mismo sonido tiene que significar lo mismo.
+   *
+   * Bip agudo = leido; dos tonos graves = ese codigo no vale.
+   */
+  function prepararSonido() {
+    var Contexto = window.AudioContext || window.webkitAudioContext;
+    if (!Contexto) { return; }
+
+    try {
+      if (!window.__sonidoCarne) { window.__sonidoCarne = new Contexto(); }
+      if (window.__sonidoCarne.state === "suspended") { window.__sonidoCarne.resume(); }
+    } catch (e) {
+      window.__sonidoCarne = null;
+    }
+  }
+
+  function sonar(bien) {
+    var ctx = window.__sonidoCarne;
+    if (!ctx || ctx.state !== "running") { return; }
+
+    // [frecuencia, empieza, dura] en segundos.
+    var tonos = bien ? [[1760, 0, 0.09]] : [[330, 0, 0.13], [330, 0.19, 0.13]];
+    var t0 = ctx.currentTime;
+
+    tonos.forEach(function (tono) {
+      var osc = ctx.createOscillator();
+      var vol = ctx.createGain();
+      var inicio = t0 + tono[1];
+      var fin = inicio + tono[2];
+      var nivel = bien ? 0.35 : 0.15;
+
+      osc.type = bien ? "sine" : "square";
+      osc.frequency.value = tono[0];
+
+      // Rampas cortas (sin ellas, chasquido) y el volumen sostenido en medio.
+      vol.gain.setValueAtTime(0.0001, inicio);
+      vol.gain.exponentialRampToValueAtTime(nivel, inicio + 0.01);
+      vol.gain.setValueAtTime(nivel, fin - 0.02);
+      vol.gain.exponentialRampToValueAtTime(0.0001, fin);
+
+      osc.connect(vol);
+      vol.connect(ctx.destination);
+      osc.start(inicio);
+      osc.stop(fin + 0.02);
+    });
+  }
+
   function decir(texto, tono) {
+    if (tono === "mal") { sonar(false); }
+
     if (!aviso) { return; }
     aviso.textContent = texto;
     aviso.className = "qr-lector-aviso" + (tono === "mal" ? " qr-lector-aviso-mal" : "");
