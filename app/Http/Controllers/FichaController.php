@@ -194,8 +194,11 @@ class FichaController extends Controller
             // Solo hace falta la lista si va a pintarse el desplegable. Agrupada
             // por area para el <optgroup>, como el resto de los selectores de
             // promotoria del proyecto.
+            //
+            // Al director, SOLO las de sus departamentos (28/09/2026): hasta ese
+            // dia el desplegable ofrecia todas y bastaba elegir una ajena.
             'promotoriasParaCorregir' => $puedeCorregir
-                ? Promotoria::with('area')
+                ? Promotoria::queVe($perfil)->with('area')
                     ->join('areas', 'areas.id', '=', 'promotorias.area_id')
                     ->orderBy('areas.nombre')
                     ->orderBy('promotorias.nombre')
@@ -259,6 +262,15 @@ class FichaController extends Controller
 
         if ($destino === null) {
             return $volver->with('error', 'Esa promotoría no existe.');
+        }
+
+        // El director, solo DENTRO de sus departamentos, por los dos lados:
+        // sacar a alguien de una promotoria ajena y meterlo en una ajena son la
+        // misma puerta abierta. Hasta el 28/09/2026 solo se miraba el rol y la
+        // ventana; esconder el desplegable no la cerraba.
+        if (! Permisos::veLaPromotoria($perfil, $matricula->promotoria)
+            || ! Permisos::veLaPromotoria($perfil, $destino)) {
+            return $volver->with('error', 'No tienes acceso a esa promotoría.');
         }
 
         if ($destino->id === $matricula->promotoria_id) {

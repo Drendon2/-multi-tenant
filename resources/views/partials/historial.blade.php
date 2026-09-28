@@ -160,7 +160,7 @@
             <button type="submit" class="btn btn-secundario btn-sm">Readmitir aquí</button>
           </form>
           @endif
-          @if ($puedeCorregir && $m->periodo_id === $periodoEnCursoId)
+          @if ($puedeCorregir && $m->periodo_id === $periodoEnCursoId && \App\Support\Permisos::veLaPromotoria($yo, $m->promotoria))
           {{--
             Una retirada TAMBIÉN se mueve: quien se salió y quiere entrar a otra
             no está corrigiendo un dato viejo, está entrando. Por eso el rótulo
