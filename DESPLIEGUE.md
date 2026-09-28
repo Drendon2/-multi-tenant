@@ -899,17 +899,24 @@ sitio.
 3. **Un token en el servidor.** Funciona, caduca, y queda escrito en disco. Es
    lo que la clave de despliegue evita.
 
-**Y una consecuencia de haberlo abierto:** este mismo archivo lleva escritos la
-IP, el puerto y el usuario SSH de producción, así que ahora son públicos. No
-abren nada por sí solos, pero son la mitad del trabajo para quien pruebe fuerza
-bruta contra ese puerto. Si algún día se quiere cerrar eso, hay que sacarlos a un
-archivo fuera del repositorio — y para que desaparezcan de los commits
-anteriores, reescribir la historia.
+**Y una consecuencia de haberlo abierto:** este archivo llevó escritos la IP, el
+puerto y el usuario SSH de producción. **Se sacaron el 27/09/2026** (revisión de
+seguridad), al comprobar que el SSH acepta también CONTRASEÑA —en hosting
+compartido Hostinger no deja apagarlo—, así que esos tres datos eran la mitad
+del trabajo de una fuerza bruta. Donde hacían falta quedan `IP_DEL_SERVIDOR`,
+`PUERTO` y `USUARIO`: los reales están en **hPanel → Avanzado → Acceso SSH** y
+en los secretos del repositorio (`HOSTINGER_HOST`, `HOSTINGER_PUERTO`,
+`HOSTINGER_USUARIO`).
+
+**Siguen en los commits anteriores**, que son públicos: sacarlos de ahí pide
+reescribir la historia de un repositorio público, y no se hizo. La defensa que
+de verdad cuenta es otra: **una contraseña SSH larga y aleatoria**, que se
+cambia en ese mismo panel.
 
 Antes de culpar a la red, descarta lo de siempre desde el propio servidor:
 
 ```bash
-ssh -p 65002 u821315052@46.202.183.237
+ssh -p PUERTO USUARIO@IP_DEL_SERVIDOR
 cd ~/matriculas-app
 git log --oneline -1          # en qué commit está de verdad
 git status --short            # ¿algo a medias?
@@ -923,7 +930,7 @@ ls -lt respaldos/ | head -3   # ¿hasta dónde llegó?
 —es exactamente lo mismo que hace la acción—:
 
 ```bash
-ssh -p 65002 u821315052@46.202.183.237
+ssh -p PUERTO USUARIO@IP_DEL_SERVIDOR
 cd ~/matriculas-app && chmod +x desplegar.sh respaldar.sh && ./desplegar.sh
 ```
 
@@ -951,7 +958,7 @@ https://escuelas.culturaelsantuario.com
     └── public_html/escuelas   ─── enlace simbólico ──►  matriculas-app/public
                                                               (lo único público)
 
-/home/u821315052/matriculas-app/     la aplicación entera, fuera del docroot
+/home/USUARIO/matriculas-app/     la aplicación entera, fuera del docroot
 ```
 
 **La carpeta raíz del subdominio es un enlace simbólico a `public/`.** Es lo que
@@ -971,11 +978,11 @@ carpeta estaba vacía. El enlace solo se creó porque estaba vacía.
 
 | | |
 |---|---|
-| Hostinger, `us-bos-web1849.main-hosting.eu` | usuario `u821315052` |
-| SSH | puerto **65002**, con llave |
+| Hostinger, hosting compartido | usuario: ver hPanel |
+| SSH | puerto no estándar; acepta **llave y contraseña** (comprobado el 27/09/2026) |
 | PHP | 8.2.30, con las seis extensiones |
 | Base de datos | MariaDB **11.8.8** (en local es 10.5; sin diferencias hasta ahora) |
-| Base | `u821315052_escuelas` |
+| Base | `USUARIO_escuelas` (el nombre exacto, en hPanel → Bases de datos) |
 
 ## Las tres trampas del hosting compartido
 
@@ -997,13 +1004,13 @@ en `desplegar.sh`: `--no-scripts` y `package:discover` ejecutado aparte, en el
 mismo proceso.
 
 **Un espacio en un secreto de GitHub.** `HOSTINGER_PUERTO` se guardó como
-`" 65002"` y la acción de SSH no pudo convertirlo en número: falló al leer sus
+el número con un espacio delante y la acción de SSH no pudo convertirlo en número: falló al leer sus
 propios parámetros, sin llegar a conectar. Los secretos se escriben a mano, no
 se pegan.
 
 **Hostinger veta IP enteras, y el síntoma imita a un sitio caído.** (22/08/2026.)
 La IP de la oficina desde la que se desarrolla está bloqueada en los servidores
-de origen: se cuelga **todo** —80, 443, 21 y el 65002 del SSH—. Como el dominio
+de origen: se cuelga **todo** —80, 443, 21 y el puerto del SSH—. Como el dominio
 raíz va por CDN y el subdominio por un registro A directo, el WordPress carga y
 el sistema de matrículas parece muerto.
 
@@ -1028,7 +1035,7 @@ desplegando**: el guion que corre es el viejo, y muere antes de traer su propio
 reemplazo. Hay que entrar por SSH y hacer el `git pull` a mano una vez:
 
 ```bash
-ssh -p 65002 u821315052@46.202.183.237
+ssh -p PUERTO USUARIO@IP_DEL_SERVIDOR
 cd ~/matriculas-app && git pull --ff-only origin main
 ```
 
@@ -1061,6 +1068,6 @@ Dos reglas para que siga funcionando:
 Y la vía manual, siempre disponible:
 
 ```bash
-ssh -p 65002 u821315052@46.202.183.237
+ssh -p PUERTO USUARIO@IP_DEL_SERVIDOR
 cd ~/matriculas-app && ./desplegar.sh
 ```
