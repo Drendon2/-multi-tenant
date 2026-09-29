@@ -4,6 +4,10 @@
 @section('ancho', '440px')
 
 @php
+  // Con `$fija` la pantalla viene del ENLACE DE UNA PROMOTORIA: la promotoria
+  // no se elige y el formulario va a otra ruta. Todo lo demas es lo mismo, a
+  // proposito: dos formularios de inscripcion se separarian.
+  $fija = $fija ?? null;
   // Los cupos: el primero es obligatorio, el resto opcionales y ocultos hasta
   // que la persona los pide. Tantos como permita la configuración.
   $campos = ['promotoria'];
@@ -11,9 +15,13 @@
 @endphp
 
 @section('caja')
-  <h1>Inscripción de estudiante</h1>
+  <h1>{{ $fija ? 'Inscripción a '.$fija->nombre : 'Inscripción de estudiante' }}</h1>
   <p class="info">
-    @if ($periodo && $matriculasAbiertas)
+    @if ($fija)
+      Crea tu cuenta y quedas inscrito en <strong>{{ $fija->nombre }}</strong> para el periodo
+      <strong>{{ $periodo->nombre }}</strong>. El profesor debe confirmar tu inscripción antes
+      de asignarte un grupo.
+    @elseif ($periodo && $matriculasAbiertas)
       Crea tu cuenta y quedas inscrito para el periodo <strong>{{ $periodo->nombre }}</strong>.
       El profesor debe confirmar tu inscripción antes de asignarte un grupo.
     @elseif ($periodo)
@@ -32,7 +40,7 @@
   @endif
 
   @if ($periodo && $matriculasAbiertas)
-  <form method="post" action="{{ route('inscripcion.guardar') }}" data-recarga-completa>
+  <form method="post" action="{{ $fija ? route('promotoria-enlace.inscribir', $fija->enlace_token) : route('inscripcion.guardar') }}" data-recarga-completa>
     @csrf
 
     <fieldset>
@@ -107,6 +115,18 @@
       @error('acudiente_telefono')<ul class="errorlist"><li>{{ $message }}</li></ul>@enderror
     </fieldset>
 
+    @if ($fija)
+    {{--
+      La promotoria va escrita y no en un desplegable de una sola opcion: no
+      hay nada que elegir. El servidor la toma del enlace y no de este campo.
+    --}}
+    <fieldset>
+      <legend>Tu promotoría</legend>
+      <p class="promo-nota"><strong>{{ $fija }}</strong></p>
+      @error('promotoria')<ul class="errorlist"><li>{{ $message }}</li></ul>@enderror
+      <button type="submit">Crear cuenta e inscribirme</button>
+    </fieldset>
+    @else
     <fieldset class="promotorias" id="promotorias">
       <legend>Tus promotorías</legend>
       <p class="promo-nota">
@@ -152,10 +172,13 @@
 
       <button type="submit">Crear cuenta e inscribirme</button>
     </fieldset>
+    @endif
   </form>
   @endif
 
-  <p class="enlace-pie"><a href="{{ route('login') }}">Ya tengo cuenta, iniciar sesión</a></p>
+  <p class="enlace-pie">
+    <a href="{{ route('login') }}">{{ $fija ? 'Ya tengo cuenta: entrar y matricularme' : 'Ya tengo cuenta, iniciar sesión' }}</a>
+  </p>
 @endsection
 
 @push('scripts')

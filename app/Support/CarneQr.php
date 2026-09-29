@@ -162,7 +162,7 @@ class CarneQr
     public static function carne(Perfil $estudiante): string
     {
         return self::tarjeta(
-            $estudiante,
+            self::contenido($estudiante),
             $estudiante->nombre_completo,
             'Muéstralo para que te marquen la asistencia'
         );
@@ -191,20 +191,37 @@ class CarneQr
      */
     public static function carneDeInstitucion(Perfil $perfil, string $institucion): string
     {
-        return self::tarjeta($perfil, $institucion, 'El profesor lo lee al terminar la clase');
+        return self::tarjeta(self::contenido($perfil), $institucion, 'El profesor lo lee al terminar la clase');
     }
 
     /**
-     * El trazado que comparten los dos cartones.
+     * El cartel de un ENLACE DE INSCRIPCION (29/09/2026): el de un curso,
+     * taller o grupo de proyeccion, o el de una promotoria.
      *
-     * `$duenio` es de quien sale el CODIGO; `$nombre`, lo que se imprime en
-     * grande. En el carne de un estudiante son la misma persona; en el de una
-     * institucion no, y por eso son dos parametros y no uno.
+     * El mismo carton otra vez, y por lo mismo que el de la institucion: es un
+     * cuadrito que alguien lee con una camara, con el logo y el nombre de la
+     * casa encima. Aqui dentro no va un codigo sino la DIRECCION entera, que
+     * es lo que una camara de telefono sabe abrir sin ninguna aplicacion.
+     * Sirve igual en un cartel pegado en la pared que en una publicacion de
+     * redes, porque es un PNG.
      */
-    private static function tarjeta(Perfil $duenio, string $nombre, string $pie): string
+    public static function cartel(string $url, string $nombre, string $pie): string
+    {
+        return self::tarjeta($url, $nombre, $pie);
+    }
+
+    /**
+     * El trazado que comparten los cartones.
+     *
+     * `$contenido` es lo que va dentro del cuadrito; `$nombre`, lo que se
+     * imprime en grande. En el carne de un estudiante salen de la misma
+     * persona; en el de una institucion no, y en un cartel de inscripcion el
+     * contenido es una direccion. Por eso son dos parametros y no uno.
+     */
+    private static function tarjeta(string $contenido, string $nombre, string $pie): string
     {
         $configuracion = ConfiguracionInstitucion::actual();
-        $qr = self::imagenDesdePng(self::qr(self::contenido($duenio)));
+        $qr = self::imagenDesdePng(self::qr($contenido));
         $logo = self::logo($configuracion->logo);
 
         $anchoQr = imagesx($qr);
@@ -385,6 +402,14 @@ class CarneQr
         $nombre = preg_replace('/[^A-Za-z0-9]+/', '-', self::sinTildes($nombre ?? $estudiante->nombre_completo));
 
         return 'carne-'.trim((string) $nombre, '-').'.png';
+    }
+
+    /** El nombre del archivo de un cartel de inscripcion: `qr-inscripcion-violin.png`. */
+    public static function nombreDeCartel(string $nombre): string
+    {
+        $nombre = preg_replace('/[^A-Za-z0-9]+/', '-', self::sinTildes($nombre));
+
+        return 'qr-inscripcion-'.strtolower(trim((string) $nombre, '-')).'.png';
     }
 
     /**

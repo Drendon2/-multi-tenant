@@ -16,6 +16,7 @@ use App\Support\VerificacionExterna;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -86,6 +87,33 @@ class PanelActividadController extends Controller
      * de campo y no un error del motor.
      */
     private const REGLA_EDAD = ['required', 'integer', 'min:1', 'max:119'];
+
+    /**
+     * El cartel con el QR del enlace, para redes o para pegarlo en la pared
+     * (29/09/2026). Lo baja quien ve la actividad, que es quien ya ve el
+     * enlace en su ficha.
+     *
+     * UN PROGRAMA EXTERNO NO TIENE CARTEL, y el corte va por `llevaEnlace()`,
+     * la unica casa de esa regla: su token no abre nada, pero un QR impreso
+     * con el nombre del programa seria justo el cartel que su lista de menores
+     * de otra institucion no necesita.
+     */
+    public function qr(Request $request, Actividad $actividad): Response
+    {
+        /** @var Perfil $perfil */
+        $perfil = $request->attributes->get('perfil');
+
+        abort_unless(Permisos::puedeVerActividad($perfil, $actividad), 404);
+        abort_unless($actividad->llevaEnlace(), 404);
+
+        return EnlacePromotoriaController::entregarCartel(self::cartel($actividad), $actividad->nombre);
+    }
+
+    /** El cartel de una actividad como PNG. */
+    public static function cartel(Actividad $actividad): string
+    {
+        return CarneQr::cartel($actividad->enlace(), $actividad->nombre, 'Escanéalo para inscribirte');
+    }
 
     public function ver(Request $request, Actividad $actividad): View
     {

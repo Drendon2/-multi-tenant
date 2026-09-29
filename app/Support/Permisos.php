@@ -100,6 +100,21 @@ class Permisos
     }
 
     /**
+     * ¿Puede encender, apagar o renovar el enlace de inscripcion de esta
+     * promotoria?
+     *
+     * Mas estrecha que `puedeGestionarPromotoria()` a proposito (decision del
+     * usuario, 29/09/2026): el profesor VE el enlace y lo comparte, pero no lo
+     * enciende. Encenderlo es matricular gente con la ventana cerrada, y abrir o
+     * cerrar la ventana es cosa de direccion.
+     */
+    public static function puedeAbrirEnlace(Perfil $perfil, Promotoria $promotoria): bool
+    {
+        return $perfil->rol === 'administrador'
+            || ($perfil->rol === 'director' && self::veLaPromotoria($perfil, $promotoria));
+    }
+
+    /**
      * ¿Es esta persona quien DICTA la promotoria?
      *
      * Regla mas estrecha que la anterior, y la diferencia esta donde tiene que

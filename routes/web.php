@@ -11,6 +11,7 @@ use App\Http\Controllers\CatalogoController;
 use App\Http\Controllers\CertificadoController;
 use App\Http\Controllers\ClaseController;
 use App\Http\Controllers\ConsentimientoController;
+use App\Http\Controllers\EnlacePromotoriaController;
 use App\Http\Controllers\ExternaController;
 use App\Http\Controllers\FichaController;
 use App\Http\Controllers\Gestion;
@@ -76,6 +77,19 @@ Route::get('/inscribirse/{token}', [InscripcionActividadController::class, 'most
     ->name('actividad-inscribirse');
 Route::post('/inscribirse/{token}', [InscripcionActividadController::class, 'guardar'])
     ->middleware('throttle:10,1');
+
+// El enlace de UNA promotoria (29/09/2026), que matricula aunque la ventana
+// este cerrada si administracion o direccion lo encendieron. El GET va fuera
+// de `guest` porque atiende a los tres: sin cuenta, estudiante y personal que
+// comprueba que funciona. Los dos POST, cada uno con su puerta.
+Route::get('/unirse/{token}', [EnlacePromotoriaController::class, 'mostrar'])
+    ->name('promotoria-enlace');
+Route::post('/unirse/{token}', [InscripcionController::class, 'guardarPorEnlace'])
+    ->middleware(['guest', 'throttle:10,1'])
+    ->name('promotoria-enlace.inscribir');
+Route::post('/unirse/{token}/matricularme', [EnlacePromotoriaController::class, 'matricularme'])
+    ->middleware(['auth', 'rol:estudiante'])
+    ->name('promotoria-enlace.matricularme');
 
 Route::middleware('guest')->group(function () {
     Route::get('/entrar', [LoginController::class, 'mostrar'])->name('login');
@@ -241,6 +255,17 @@ Route::middleware(['auth', 'rol:administrador,director,profesor'])->group(functi
 
     Route::post('/panel/promotoria/{promotoria}/cupo', [PanelController::class, 'cupo'])
         ->name('panel-cupo-promotoria');
+
+    // El enlace de inscripcion de la promotoria y su QR. Lo VE quien gestiona
+    // la promotoria (tambien su profesor); lo ENCIENDE solo direccion.
+    Route::get('/panel/promotoria/{promotoria}/enlace', [EnlacePromotoriaController::class, 'panel'])
+        ->name('panel-enlace-promotoria');
+    Route::get('/panel/promotoria/{promotoria}/enlace/qr', [EnlacePromotoriaController::class, 'qr'])
+        ->name('panel-enlace-promotoria-qr');
+    Route::post('/panel/promotoria/{promotoria}/enlace', [EnlacePromotoriaController::class, 'abrir'])
+        ->name('panel-enlace-promotoria-abrir');
+    Route::post('/panel/promotoria/{promotoria}/enlace/renovar', [EnlacePromotoriaController::class, 'renovar'])
+        ->name('panel-enlace-promotoria-renovar');
     Route::post('/panel/promotoria/{promotoria}/asignar-grupo-lote', [PanelController::class, 'asignarGrupoLote'])
         ->name('panel-asignar-grupo-lote');
     Route::post('/panel/promotoria/{promotoria}/pendientes-lote', [PanelController::class, 'resolverPendientesLote'])
@@ -253,6 +278,8 @@ Route::middleware(['auth', 'rol:administrador,director,profesor'])->group(functi
         ->name('panel-actividades');
     Route::get('/panel/actividades/{actividad}', [PanelActividadController::class, 'ver'])
         ->name('panel-actividad');
+    Route::get('/panel/actividades/{actividad}/qr', [PanelActividadController::class, 'qr'])
+        ->name('panel-actividad-qr');
     Route::post('/panel/actividades/{actividad}/iniciar-hoy', [PanelActividadController::class, 'iniciarHoy'])
         ->name('panel-actividad-iniciar-hoy');
     Route::post('/panel/sesiones/{sesion}/iniciar', [PanelActividadController::class, 'iniciar'])

@@ -63,7 +63,50 @@ class InscripcionController extends Controller
             );
         }
 
+        return $this->inscribir($request, $periodo);
+    }
+
+    /**
+     * La inscripcion que llega por el ENLACE DE UNA PROMOTORIA (29/09/2026).
+     *
+     * No mira la ventana: saltarsela para UNA promotoria es para lo que existe
+     * el enlace, y lo que lo sostiene es que solo lo encienden administracion
+     * y direccion. Lo que SI mira, otra vez en el POST, es que siga encendido:
+     * un formulario abierto en un telefono sigue mandando aunque alguien haya
+     * apagado el enlace mientras tanto.
+     */
+    public function guardarPorEnlace(Request $request, string $token): RedirectResponse
+    {
+        $promotoria = Promotoria::porEnlace($token);
+        abort_if($promotoria === null, 404);
+
+        $periodo = Periodo::enCurso();
+
+        if ($periodo === null || ! $promotoria->enlace_abierto) {
+            return redirect()->route('promotoria-enlace', $token)->with(
+                'error',
+                'Este enlace ya no recibe inscripciones.'
+            );
+        }
+
+        return $this->inscribir($request, $periodo, $promotoria);
+    }
+
+    /**
+     * Crea la cuenta y la matricula. Con `$fija`, la promotoria no se elige:
+     * es la del enlace, y lo que venga en los campos de promotoria se ignora.
+     */
+    private function inscribir(Request $request, Periodo $periodo, ?Promotoria $fija = null): RedirectResponse
+    {
         $limite = Matricula::limitePromotorias();
+
+        if ($fija !== null) {
+            // Un solo campo y con el valor del enlace, sea lo que sea lo que
+            // mande el formulario: un `promotoria_2` colado a mano no puede
+            // meter a nadie en otra promotoria con la ventana cerrada.
+            $request->merge(['promotoria' => $fija->id]);
+            $limite = 1;
+        }
         $datos = $this->validar($request, $limite);
         $elegidas = $this->promotoriasElegidas($request, $limite);
 

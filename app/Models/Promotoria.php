@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Una promotoria (ej. Violin). La dicta una sola persona, o nadie todavia.
@@ -58,6 +59,56 @@ class Promotoria extends Model
         'area_id',
         'profesor_id',
     ];
+
+    // El enlace de inscripcion NO va en `$fillable` a proposito: el formulario
+    // de la promotoria no lo toca, y lo que lo enciende es una accion aparte
+    // con su propia puerta (ver `Permisos::puedeAbrirEnlace`).
+    protected $attributes = [
+        'enlace_abierto' => false,
+    ];
+
+    protected function casts(): array
+    {
+        return ['enlace_abierto' => 'boolean'];
+    }
+
+    /**
+     * La promotoria de ese enlace, este encendido o no: un enlace APAGADO dice
+     * «ahora no recibe inscripciones», que es distinto de uno que no existe.
+     * Quien lo use tiene que mirar `enlace_abierto` antes de matricular a nadie.
+     */
+    public static function porEnlace(string $token): ?self
+    {
+        if (preg_match('/^[A-Za-z0-9]{16}$/', $token) !== 1) {
+            return null;
+        }
+
+        return self::query()->with('area')->where('enlace_token', $token)->first();
+    }
+
+    /** La direccion que se comparte. Null si nunca se encendio. */
+    public function enlace(): ?string
+    {
+        return $this->enlace_token ? route('promotoria-enlace', $this->enlace_token) : null;
+    }
+
+    /** Enciende o apaga. Al encenderlo por primera vez nace el token. */
+    public function abrirEnlace(bool $abierto): void
+    {
+        if ($abierto) {
+            $this->enlace_token ??= Str::random(16);
+        }
+
+        $this->enlace_abierto = $abierto;
+        $this->save();
+    }
+
+    /** Cambia el token: el enlace y el QR anteriores dejan de servir en el acto. */
+    public function renovarEnlace(): void
+    {
+        $this->enlace_token = Str::random(16);
+        $this->save();
+    }
 
     public function area(): BelongsTo
     {

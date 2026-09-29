@@ -235,6 +235,25 @@ acepta($db, 'varios perfiles SIN codigo conviven (nulo se repite)', function ($d
     }
 });
 
+/*
+ * EL ENLACE DE UNA PROMOTORIA (29/09/2026), por lo mismo que el carne: el
+ * token es lo que dice EN QUE promotoria se matricula quien lo abre, y dos
+ * con el mismo mandarian a la gente a una de las dos al azar. Y nulo se
+ * repite: nace vacio para todas y solo se llena al encenderlo.
+ */
+echo "\n== Enlace de promotoria: el token apunta a una sola ==\n";
+rechaza($db, 'dos promotorias con el mismo enlace', function ($d) {
+    $d->exec("UPDATE promotorias SET enlace_token = 'abcdefghij012345' WHERE id = 1");
+    $d->exec("UPDATE promotorias SET enlace_token = 'abcdefghij012345' WHERE id = 2");
+}, 'Duplicate');
+acepta($db, 'varias promotorias SIN enlace conviven (nulo se repite)', function ($d) {
+    $d->exec('UPDATE promotorias SET enlace_token = NULL WHERE id IN (1, 2)');
+    $n = $d->query('SELECT COUNT(*) FROM promotorias WHERE enlace_token IS NULL')->fetchColumn();
+    if ($n < 2) {
+        throw new PDOException("se esperaban al menos dos promotorias sin enlace, hay $n");
+    }
+});
+
 echo "\n== Integridad referencial ==\n";
 rechaza($db, 'borrar una promotoria con matriculas (RESTRICT)',
     fn ($d) => $d->exec('DELETE FROM promotorias WHERE id = 1'), 'foreign key');

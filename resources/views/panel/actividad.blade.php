@@ -55,6 +55,14 @@
   <div class="enlace-fila">
     <input class="enlace-copiable" type="text" id="enlace" readonly value="{{ $actividad->enlace() }}">
   </div>
+  {{--
+    El QR del mismo enlace, para redes o para pegarlo en la pared (29/09/2026).
+    Solo el botón y no la imagen en la ficha: esta pantalla se abre para pasar
+    lista, y pintar el QR cada vez costaría sin servir.
+  --}}
+  <p style="margin-bottom:0;">
+    <a class="btn btn-secundario btn-sm" href="{{ route('panel-actividad-qr', $actividad) }}" download>Descargar QR</a>
+  </p>
 </div>
 @else
 <div class="card">

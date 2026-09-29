@@ -62,6 +62,17 @@
     · <a href="{{ route('carnes-promotoria', $item['promotoria']) }}" data-carnes-promotoria>Imprimir carnés (PDF)</a>
   @endif
 </p>
+{{--
+  El enlace de inscripción de esta promotoría y su QR (29/09/2026). Aquí solo
+  el estado y la puerta: la pantalla con el QR es aparte, porque la imagen pesa
+  y este cuerpo se pide cada vez que alguien despliega la promotoría.
+--}}
+@if ($item['puede_gestionar'])
+<p style="margin:0.4rem 0 0;">
+  <a href="{{ route('panel-enlace-promotoria', $item['promotoria']) }}">Enlace de inscripción y QR</a>
+  <span class="lista-nota">· {{ $item['promotoria']->enlace_abierto ? 'encendido' : 'apagado' }}</span>
+</p>
+@endif
 
 @php($totalPendientes = count($item['pendientes']))
 <h4>Pendientes de confirmación{{ $totalPendientes ? " ({$totalPendientes})" : '' }}</h4>
