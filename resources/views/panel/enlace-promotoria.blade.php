@@ -1,9 +1,9 @@
 {{--
   EL ENLACE DE INSCRIPCIÓN DE UNA PROMOTORÍA Y SU QR (29/09/2026).
 
-  Lo VE quien gestiona la promotoría —administración, la dirección de su
-  departamento y su profesor— y lo ENCIENDE solo dirección: encenderlo es
-  matricular gente con la ventana cerrada. Decisión del usuario.
+  Lo ven y lo encienden quienes gestionan la promotoría —administración, la
+  dirección de su departamento y su profesor—. Decisión del usuario: existe
+  para que el profesor registre gente nueva cuando quiera.
 
   La imagen va INCRUSTADA como datos y no como una segunda petición, igual que
   el QR de una institución: en este hosting cada petición cuesta ~1,5 s.
@@ -52,8 +52,6 @@
         {{ $abierto ? 'Apagar el enlace' : 'Encender el enlace' }}
       </button>
     </form>
-  @elseif (! $abierto)
-    <p class="campo-ayuda">Lo enciende la administración o la dirección del departamento.</p>
   @endif
 </div>
 

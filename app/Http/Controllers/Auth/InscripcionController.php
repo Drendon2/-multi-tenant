@@ -70,8 +70,9 @@ class InscripcionController extends Controller
      * La inscripcion que llega por el ENLACE DE UNA PROMOTORIA (29/09/2026).
      *
      * No mira la ventana: saltarsela para UNA promotoria es para lo que existe
-     * el enlace, y lo que lo sostiene es que solo lo encienden administracion
-     * y direccion. Lo que SI mira, otra vez en el POST, es que siga encendido:
+     * el enlace, y solo lo encienden quienes gestionan esa promotoria (ver
+     * `Permisos::puedeAbrirEnlace`). Lo que SI mira, otra vez en el POST, es
+     * que siga encendido:
      * un formulario abierto en un telefono sigue mandando aunque alguien haya
      * apagado el enlace mientras tanto.
      */

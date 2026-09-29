@@ -10,10 +10,9 @@
  *
  * - Entran por el los NUEVOS (crean cuenta con esa promotoria fija) y los que
  *   YA TIENEN cuenta de estudiante (un boton «Matricularme»).
- * - NACE APAGADO, y lo encienden, apagan o renuevan el administrador y el
- *   director de su departamento. El profesor lo VE y lo comparte, pero no lo
- *   enciende: encenderlo es saltarse la ventana, y esa es una decision de
- *   direccion.
+ * - NACE APAGADO, y lo encienden, apagan o renuevan el administrador, el
+ *   director de su departamento Y SU PROFESOR: existe para que el registre
+ *   gente nueva cuando quiera (ver `Permisos::puedeAbrirEnlace`).
  * - RENOVAR cambia el token y el enlace viejo deja de servir en el acto: un QR
  *   publicado donde no debia no se puede despegar de una pared.
  *

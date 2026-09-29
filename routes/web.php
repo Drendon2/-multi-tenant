@@ -256,8 +256,8 @@ Route::middleware(['auth', 'rol:administrador,director,profesor'])->group(functi
     Route::post('/panel/promotoria/{promotoria}/cupo', [PanelController::class, 'cupo'])
         ->name('panel-cupo-promotoria');
 
-    // El enlace de inscripcion de la promotoria y su QR. Lo VE quien gestiona
-    // la promotoria (tambien su profesor); lo ENCIENDE solo direccion.
+    // El enlace de inscripcion de la promotoria y su QR. Lo ven y lo encienden
+    // quienes gestionan la promotoria, tambien su profesor.
     Route::get('/panel/promotoria/{promotoria}/enlace', [EnlacePromotoriaController::class, 'panel'])
         ->name('panel-enlace-promotoria');
     Route::get('/panel/promotoria/{promotoria}/enlace/qr', [EnlacePromotoriaController::class, 'qr'])

@@ -117,7 +117,7 @@ class EnlacePromotoriaController extends Controller
 
         $abrir = $request->boolean('abierto');
         $promotoria->abrirEnlace($abrir);
-        $cerradas = ! (Periodo::enCurso()?->matriculas_abiertas ?? false);
+        $cerradas = ! (Periodo::enCurso()->matriculas_abiertas ?? false);
 
         return redirect()->route('panel-enlace-promotoria', $promotoria)->with(
             'success',

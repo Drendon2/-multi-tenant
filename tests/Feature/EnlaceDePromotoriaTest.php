@@ -21,8 +21,8 @@ use Tests\TestCase;
  *
  * Lo que se vigila es lo que abre una puerta con la ventana CERRADA: que solo
  * matricula en ESA promotoria, que apagado no matricula a nadie, que lo
- * encienden administracion y la direccion de su departamento y NO el profesor,
- * y que renovarlo mata el viejo. Mas el cartel de las actividades, que no
+ * encienden administracion, la direccion de su departamento y su profesor
+ * —nadie de fuera—, y que renovarlo mata el viejo. Mas el cartel de las actividades, que no
  * puede salir para un programa externo.
  */
 class EnlaceDePromotoriaTest extends TestCase
@@ -88,34 +88,42 @@ class EnlaceDePromotoriaTest extends TestCase
         $this->assertMatchesRegularExpression('/^[A-Za-z0-9]{16}$/', (string) $violin->enlace_token);
     }
 
-    /** Lo ve y lo comparte, pero no lo enciende: eso es saltarse la ventana. */
-    public function test_el_profesor_ve_el_enlace_pero_no_lo_enciende(): void
+    /**
+     * EL PROFESOR ENCIENDE Y APAGA EL DE SU PROMOTORIA: el enlace existe para
+     * que el registre gente nueva cuando quiera (usuario, 29/09/2026, que
+     * corrigio la primera version, donde solo lo veia).
+     */
+    public function test_el_profesor_enciende_apaga_y_renueva_el_suyo(): void
     {
-        $this->violin->abrirEnlace(true);
-
         $this->actingAs($this->profesor->user)
             ->get(route('panel-enlace-promotoria', $this->violin))
             ->assertOk()
-            ->assertSee($this->violin->enlace(), false)
             // El interruptor, por su campo: su ruta es la MISMA URL de la
             // pantalla (GET y POST), asi que por la URL no se distingue.
-            ->assertDontSee('name="abierto"', false)
-            ->assertDontSee(route('panel-enlace-promotoria-renovar', $this->violin), false);
+            ->assertSee('name="abierto"', false);
+
+        $this->actingAs($this->profesor->user)
+            ->post(route('panel-enlace-promotoria-abrir', $this->violin), ['abierto' => '1'])
+            ->assertRedirect(route('panel-enlace-promotoria', $this->violin));
+        $this->assertTrue($this->violin->fresh()->enlace_abierto);
+        $viejo = $this->violin->fresh()->enlace_token;
+
+        $this->actingAs($this->profesor->user)
+            ->post(route('panel-enlace-promotoria-renovar', $this->violin))
+            ->assertRedirect();
+        $this->assertNotSame($viejo, $this->violin->fresh()->enlace_token);
 
         $this->actingAs($this->profesor->user)
             ->post(route('panel-enlace-promotoria-abrir', $this->violin), ['abierto' => '0'])
-            ->assertNotFound();
-        $this->actingAs($this->profesor->user)
-            ->post(route('panel-enlace-promotoria-renovar', $this->violin))
-            ->assertNotFound();
-
-        $this->assertTrue($this->violin->fresh()->enlace_abierto);
+            ->assertRedirect();
+        $this->assertFalse($this->violin->fresh()->enlace_abierto);
     }
 
-    /** Un profesor no ve el enlace de una promotoria que no dicta. */
-    public function test_el_profesor_no_ve_el_de_otra_promotoria(): void
+    /** Un profesor no ve ni toca el enlace de una promotoria que no dicta. */
+    public function test_el_profesor_no_toca_el_de_otra_promotoria(): void
     {
         $this->ballet->abrirEnlace(true);
+        $token = $this->ballet->enlace_token;
 
         $this->actingAs($this->profesor->user)
             ->get(route('panel-enlace-promotoria', $this->ballet))
@@ -123,6 +131,15 @@ class EnlaceDePromotoriaTest extends TestCase
         $this->actingAs($this->profesor->user)
             ->get(route('panel-enlace-promotoria-qr', $this->ballet))
             ->assertNotFound();
+        $this->actingAs($this->profesor->user)
+            ->post(route('panel-enlace-promotoria-abrir', $this->ballet), ['abierto' => '0'])
+            ->assertNotFound();
+        $this->actingAs($this->profesor->user)
+            ->post(route('panel-enlace-promotoria-renovar', $this->ballet))
+            ->assertNotFound();
+
+        $this->assertTrue($this->ballet->fresh()->enlace_abierto);
+        $this->assertSame($token, $this->ballet->fresh()->enlace_token);
     }
 
     /** El director, solo en su departamento. */
