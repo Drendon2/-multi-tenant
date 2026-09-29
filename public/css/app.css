@@ -1494,6 +1494,52 @@
   @media (prefers-reduced-motion: reduce) {
     main[aria-busy="true"] .accion-fila, main[aria-busy="true"] form { transition: none; }
   }
+
+  /* ESQUELETO DE CARGA (`.esqueleto`), 29/09/2026.
+     Solo donde NO hay nada que ensenar mientras se espera: el cuerpo de una
+     promotoria del Panel, que se pide al desplegarla, y un modal que se esta
+     pidiendo. Una accion sobre una lista NO lleva esqueleto: ahi el contenido
+     sigue delante y se atenua (la regla de arriba), que es mejor que taparlo.
+     Por el CDN cada peticion tarda 1,3-1,9 s; sin esto el modal no daba ninguna
+     senal de haber oido el toque y el Panel decia «Cargando…» en cursiva.
+     Los bloques usan tokens con `light-dark`, asi que el modo oscuro sale solo.
+     El brillo que recorre los bloques es lo unico que se mueve, y con
+     movimiento reducido se queda quieto: el bloque gris ya dice «aqui viene
+     algo» sin animarse. */
+  .esqueleto { display: flex; flex-direction: column; gap: 0.7rem; padding: 0.4rem 0 1rem; }
+  .esqueleto-linea,
+  .esqueleto-foto,
+  .esqueleto-boton {
+    display: block;
+    background: var(--surface-alt);
+    background-image: linear-gradient(90deg, transparent 0, var(--border) 50%, transparent 100%);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    background-position: 150% 0;
+    border-radius: var(--radius-sm);
+  }
+  .esqueleto-linea { height: 0.8rem; width: 100%; }
+  .esqueleto-linea.corta { width: 40%; }
+  .esqueleto-linea.media { width: 65%; }
+  .esqueleto-linea.titulo { height: 1.1rem; width: 55%; }
+  .esqueleto-boton { height: 2.2rem; width: 8rem; }
+  .esqueleto-fila { display: flex; align-items: center; gap: 0.7rem; }
+  .esqueleto-fila > .esqueleto-texto { flex: 1; display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+  .esqueleto-foto { width: 36px; height: 36px; flex: none; }
+  /* El texto para quien no mira la pantalla: se lee y no se ve. */
+  .esqueleto-voz {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .esqueleto .esqueleto-linea,
+    .esqueleto .esqueleto-foto,
+    .esqueleto .esqueleto-boton { animation: esqueleto-brillo 1.4s ease-in-out infinite; }
+    @keyframes esqueleto-brillo {
+      from { background-position: 150% 0; }
+      to { background-position: -50% 0; }
+    }
+  }
   .grupo-cabecera { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
   .grupo-cabecera .acciones { font-size: 0.8rem; display: flex; gap: 0.6rem; }
 

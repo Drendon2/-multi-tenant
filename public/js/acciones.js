@@ -378,7 +378,47 @@
       if (evento.target === dialogo) { dialogo.close(); }
     });
 
+    // Cerrar deja sin efecto el modal que se estuviera pidiendo: quien cierra
+    // el esqueleto con Escape o tocando el fondo no quiere que la tarjeta le
+    // salte encima un segundo despues. SOLO si lo cerrado era el esqueleto:
+    // `close` llega en una tarea aparte, y cerrar una tarjeta de verdad y tocar
+    // otro enlace enseguida anularia el pedido nuevo.
+    dialogo.addEventListener("close", function () {
+      if (dialogo.querySelector(".esqueleto")) { pedidoModal++; }
+    });
+
     return dialogo;
+  }
+
+  /*
+   * EL ESQUELETO DEL MODAL, mientras llega la tarjeta de verdad.
+   *
+   * Por el CDN, pedir la tarjeta tarda de 1,3 a 1,9 s, y durante ese rato el
+   * toque no daba ninguna senal: la persona volvia a tocar, o pensaba que el
+   * enlace no hacia nada. Ahora el dialogo se abre enseguida con la forma de
+   * una tarjeta y se rellena al llegar.
+   *
+   * Solo si tarda mas de ESPERA_ESQUELETO: con una respuesta rapida, sin ese
+   * umbral cada modal abriria con un parpadeo gris antes de la tarjeta.
+   *
+   * `pedidoModal` numera los pedidos: una respuesta que llega cuando ya hay
+   * otro pedido detras —o cuando el esqueleto se cerro— se tira.
+   */
+  var ESPERA_ESQUELETO = 200;
+  var pedidoModal = 0;
+
+  function abrirEsqueleto() {
+    var d = caja();
+    d.innerHTML =
+      '<div class="card">' +
+      '<div class="esqueleto" aria-busy="true">' +
+      '<span class="esqueleto-voz">Cargando…</span>' +
+      '<span class="esqueleto-linea titulo"></span>' +
+      '<span class="esqueleto-linea"></span>' +
+      '<span class="esqueleto-linea media"></span>' +
+      '<span class="esqueleto-boton"></span>' +
+      '</div></div>';
+    if (!d.open) { d.showModal(); }
   }
 
   /*
@@ -449,16 +489,26 @@
 
     evento.preventDefault();
 
+    var turno = ++pedidoModal;
+    var espera = window.setTimeout(function () {
+      if (turno === pedidoModal) { abrirEsqueleto(); }
+    }, ESPERA_ESQUELETO);
+
     fetch(enlace.href, {
       credentials: "same-origin",
       headers: CABECERAS,
     }).then(function (respuesta) {
       return respuesta.text();
     }).then(function (html) {
+      window.clearTimeout(espera);
+      // Cerraron el esqueleto mientras llegaba: ya no lo quieren.
+      if (turno !== pedidoModal) { return; }
       // Si la respuesta no trae tarjeta —la sesion caduco y llego el login, por
       // ejemplo— se navega de verdad, que es lo que la persona esperaba.
       if (!abrirModal(html)) { window.location.href = enlace.href; }
     }).catch(function () {
+      window.clearTimeout(espera);
+      if (turno !== pedidoModal) { return; }
       window.location.href = enlace.href;
     });
   });

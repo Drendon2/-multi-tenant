@@ -26,6 +26,26 @@
      1. El cuerpo de una promotoría, al desplegarla
      --------------------------------------------------------------------- */
 
+  /*
+   * La forma de lo que va a llegar: el renglon del profesor, el cupo, el boton
+   * de «Nuevo grupo» y unas filas de estudiante con su foto. No tiene que
+   * coincidir al pixel; tiene que ocupar mas o menos lo mismo para que la
+   * pagina no pegue un salto cuando llega el cuerpo de verdad.
+   */
+  var FILA =
+    '<div class="esqueleto-fila"><span class="esqueleto-foto"></span>' +
+    '<span class="esqueleto-texto"><span class="esqueleto-linea media"></span>' +
+    '<span class="esqueleto-linea corta"></span></span></div>';
+  var ESQUELETO =
+    '<div class="esqueleto">' +
+    '<span class="esqueleto-voz">Cargando…</span>' +
+    '<span class="esqueleto-linea corta"></span>' +
+    '<span class="esqueleto-linea media"></span>' +
+    '<span class="esqueleto-boton"></span>' +
+    '<span class="esqueleto-linea titulo"></span>' +
+    FILA + FILA + FILA +
+    '</div>';
+
   function cargar(detalle) {
     var destino = detalle.querySelector("[data-cuerpo-destino]");
     var url = detalle.getAttribute("data-cuerpo");
@@ -49,6 +69,12 @@
 
     detalle.dataset.cargando = "si";
 
+    // El esqueleto lo pone ESTE archivo y no la plantilla: sin JavaScript nadie
+    // lo quitaria y seria una promesa de contenido que no llega nunca. Ahi el
+    // servidor deja su «Cargando…» y el enlace del <noscript>.
+    destino.innerHTML = ESQUELETO;
+    destino.setAttribute("aria-busy", "true");
+
     fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then(function (r) {
         if (!r.ok) { throw new Error(r.status); }
@@ -68,6 +94,7 @@
           '<a href="' + url + '">Ábrela en su propia página</a> o vuelve a intentarlo.</p>';
       })
       .finally(function () {
+        destino.removeAttribute("aria-busy");
         delete detalle.dataset.cargando;
       });
   }
