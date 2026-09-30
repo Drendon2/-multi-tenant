@@ -1,5 +1,12 @@
 # Sistema de Matrículas — versión PHP
 
+> **Rama `multi-tenant`: versión multi-institución.** Varias instituciones en
+> una sola instalación y una sola base. Lo que añade esta versión, cómo se
+> instala, cómo se opera y cómo se extiende está en
+> [`MULTI-INSTITUCION.md`](MULTI-INSTITUCION.md). Lo de abajo sigue valiendo
+> para todo lo demás, salvo lo que dice del despliegue: **esta rama no se
+> despliega ni se fusiona en `main`**.
+
 Plataforma de autoservicio para inscripción, confirmación y asignación de grupos
 en una escuela de artes (casas de cultura).
 

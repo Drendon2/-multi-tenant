@@ -30,6 +30,11 @@ Thumbs.db
 /MIGRACION.md
 /SIGUIENTE-SESION.md
 
+# Las instrucciones para el asistente de la version multi-institucion: llevan
+# rutas de esta maquina y detalles de la copia local de produccion. Lo que sirve
+# a quien clone esta en MULTI-INSTITUCION.md.
+/CLAUDE.md
+
 # Datos de demostración. Siembran cuentas con contraseñas conocidas, así que no
 # tienen sitio en un repositorio: el archivo se queda en local. El DatabaseSeeder
 # que sí se versiona lo llama solo si está presente.
