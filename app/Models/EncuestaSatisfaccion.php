@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
@@ -18,6 +19,8 @@ use Illuminate\Support\Collection;
  */
 class EncuestaSatisfaccion extends Model
 {
+    use DeLaInstitucion;
+
     public const ESCALA = [1 => '1', 2 => '2', 3 => '3', 4 => '4', 5 => '5'];
 
     protected $table = 'encuestas_satisfaccion';

@@ -717,7 +717,7 @@ class UsuarioController extends Controller
             // puente y ese director veria un departamento que no existe —o peor,
             // uno creado despues con ese id—.
             'areas_dirigidas' => ['array'],
-            'areas_dirigidas.*' => ['integer', Rule::exists('areas', 'id')],
+            'areas_dirigidas.*' => ['integer', Reglas::existe('areas')],
             'username' => Reglas::usuario(
                 Rule::unique('users', 'username')->ignore($perfil?->user_id),
             ),
@@ -752,7 +752,7 @@ class UsuarioController extends Controller
             'foto_perfil' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192', new ImagenProcesable],
             'documento_identidad' => [
                 ...Reglas::documento(obligatorio: $esEstudiante),
-                Rule::unique('datos_estudiante', 'documento_identidad')
+                Reglas::unica('datos_estudiante', 'documento_identidad')
                     ->ignore($perfil?->datosEstudiante?->id),
             ],
             'acudiente_nombre' => Reglas::nombreDePersona(90, obligatorio: false),

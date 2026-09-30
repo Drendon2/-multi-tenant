@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -23,6 +24,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class InscritoActividad extends Model
 {
+    use DeLaInstitucion;
+
     /** Llego por el enlace y lleno el formulario. */
     public const ENLACE = 'enlace';
 

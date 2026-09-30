@@ -726,13 +726,13 @@ class ProgramaExternoTest extends TestCase
             ->post(route('programa-externo-nuevo'), [
                 'nombre' => 'Guitarra — El Carmen',
                 'responsable_id' => $this->profesor->id,
-                'institucion_id' => $this->escuela->id,
+                'institucion_externa_id' => $this->escuela->id,
             ])->assertRedirect();
 
         $programa = Actividad::externos()->where('nombre', 'Guitarra — El Carmen')->first();
 
         $this->assertNotNull($programa);
-        $this->assertSame($this->escuela->id, $programa->institucion_id);
+        $this->assertSame($this->escuela->id, $programa->institucion_externa_id);
         // Nace con la puerta publica apagada: es el segundo cerrojo, y los dos
         // se leen en sitios distintos.
         $this->assertFalse((bool) $programa->abierta);
@@ -764,7 +764,7 @@ class ProgramaExternoTest extends TestCase
             'nombre' => $nombre,
             'tipo' => Actividad::EXTERNO,
             'responsable_id' => $this->profesor->id,
-            'institucion_id' => ($donde ?? $this->escuela)->id,
+            'institucion_externa_id' => ($donde ?? $this->escuela)->id,
         ]);
 
         return $programa;

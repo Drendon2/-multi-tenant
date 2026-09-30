@@ -3,9 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Support\Csv;
+use App\Support\InstitucionActual;
 use App\Support\Reglas;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Quien tiene un dato que los formularios ya no aceptan.
@@ -77,7 +77,7 @@ class RevisarDatos extends Command
      */
     private function telefonosDePerfil(): array
     {
-        return DB::table('perfiles')
+        return InstitucionActual::tabla('perfiles')
             ->select('nombre_completo', 'rol', 'telefono')
             ->orderBy('nombre_completo')
             ->get()
@@ -98,7 +98,7 @@ class RevisarDatos extends Command
      */
     private function telefonosDeAcudiente(): array
     {
-        return DB::table('acudientes')
+        return InstitucionActual::tabla('acudientes')
             ->select('nombre', 'telefono')
             ->orderBy('nombre')
             ->get()
@@ -126,7 +126,7 @@ class RevisarDatos extends Command
      */
     private function documentos(): array
     {
-        return DB::table('datos_estudiante')
+        return InstitucionActual::tabla('datos_estudiante')
             ->join('perfiles', 'perfiles.id', '=', 'datos_estudiante.perfil_id')
             ->select('perfiles.nombre_completo', 'datos_estudiante.documento_identidad as doc')
             ->orderBy('perfiles.nombre_completo')

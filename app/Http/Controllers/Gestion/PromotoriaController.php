@@ -9,7 +9,6 @@ use App\Support\Permisos;
 use App\Support\Reglas;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -170,10 +169,10 @@ class PromotoriaController extends RecursoController
     {
         return [
             'nombre' => Reglas::texto(60),
-            'area_id' => ['required', 'exists:areas,id'],
+            'area_id' => ['required', Reglas::existe('areas')],
             'profesor_id' => [
                 'nullable',
-                Rule::exists('perfiles', 'id')->whereIn('rol', Perfil::ROLES_PERSONAL),
+                Reglas::existe('perfiles')->whereIn('rol', Perfil::ROLES_PERSONAL),
             ],
         ];
     }

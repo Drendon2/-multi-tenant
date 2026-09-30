@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,9 +41,15 @@ use Illuminate\Support\Str;
  * rol "profesor" por lo mismo que en `Promotoria`: quien dirige una banda
  * sinfonica es a menudo el director de la escuela, y con el rol como unico
  * criterio no podria ni quedar a cargo ni pasar lista.
+ *
+ * @property int|null $institucion_externa_id La institucion EXTERNA de un
+ *                                            programa externo (renombrada en
+ *                                            el guion 01-instituciones.sql).
  */
 class Actividad extends Model
 {
+    use DeLaInstitucion;
+
     /** Un solo dia. */
     public const TALLER = 'taller';
 
@@ -110,7 +117,7 @@ class Actividad extends Model
         'responsable_id',
         'periodo_id',
         'cupo_maximo',
-        'institucion_id',
+        'institucion_externa_id',
     ];
 
     protected function casts(): array
@@ -211,7 +218,7 @@ class Actividad extends Model
     /** @return BelongsTo<InstitucionExterna, $this> */
     public function institucion(): BelongsTo
     {
-        return $this->belongsTo(InstitucionExterna::class, 'institucion_id');
+        return $this->belongsTo(InstitucionExterna::class, 'institucion_externa_id');
     }
 
     /**

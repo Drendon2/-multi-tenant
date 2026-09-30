@@ -130,7 +130,7 @@ class AsistenciaDeActividad
         // `DB::table` y no `AsistenciaActividad::query()`: lo que vuelve son dos
         // columnas calculadas y no una fila de esa tabla, asi que hidratar un
         // modelo seria mentir sobre lo que es —y cobrarlo—.
-        $fechas = DB::table('asistencias_actividad')
+        $fechas = InstitucionActual::tabla('asistencias_actividad')
             ->join('sesiones_actividad', 'sesiones_actividad.id', '=', 'asistencias_actividad.sesion_id')
             ->where('sesiones_actividad.actividad_id', $actividadId)
             ->selectRaw('MIN(sesiones_actividad.fecha) AS primera, MAX(sesiones_actividad.fecha) AS ultima')

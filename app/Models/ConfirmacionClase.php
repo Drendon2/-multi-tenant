@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -32,6 +33,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class ConfirmacionClase extends Model
 {
+    use DeLaInstitucion;
+
     protected $table = 'confirmaciones_clase';
 
     /** La confirmo el propio estudiante desde su sesion. */

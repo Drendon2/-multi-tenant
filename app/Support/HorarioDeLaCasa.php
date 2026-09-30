@@ -8,7 +8,6 @@ use App\Models\Perfil;
 use App\Models\Promotoria;
 use App\Models\SesionGrupo;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use stdClass;
 
 /**
@@ -51,7 +50,7 @@ class HorarioDeLaCasa
     {
         $visibles = Promotoria::queVe($perfil)->pluck('id')->all();
 
-        $sesiones = DB::table('sesiones_grupo as s')
+        $sesiones = InstitucionActual::tabla('sesiones_grupo as s')
             ->join('grupos as g', 'g.id', '=', 's.grupo_id')
             ->join('promotorias as p', 'p.id', '=', 'g.promotoria_id')
             ->join('areas as a', 'a.id', '=', 'p.area_id')
@@ -105,9 +104,9 @@ class HorarioDeLaCasa
         // Los grupos que no salen en ningun dia. Sin este aviso, un grupo al
         // que nadie le puso horario desaparece de la pantalla sin dejar rastro,
         // y la vista pareceria completa.
-        $sinHorario = DB::table('grupos')
+        $sinHorario = InstitucionActual::tabla('grupos')
             ->whereIn('promotoria_id', $visibles)
-            ->whereNotExists(fn ($q) => $q->from('sesiones_grupo')->whereColumn('sesiones_grupo.grupo_id', 'grupos.id'))
+            ->whereNotExists(fn ($q) => InstitucionActual::filtrar($q->from('sesiones_grupo'), 'sesiones_grupo')->whereColumn('sesiones_grupo.grupo_id', 'grupos.id'))
             ->count();
 
         return [

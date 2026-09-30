@@ -92,7 +92,11 @@ final class RestablecerClave
 
         DB::table(self::TABLA)->updateOrInsert(
             ['user_id' => $usuario->id],
-            ['token' => self::digerir($token), 'created_at' => now()],
+            [
+                'token' => self::digerir($token),
+                'created_at' => now(),
+                InstitucionActual::COLUMNA => $usuario->institucion_id,
+            ],
         );
 
         return $token;
@@ -123,7 +127,15 @@ final class RestablecerClave
             return null;
         }
 
-        return User::where('id', $fila->user_id)->where('activo', true)->first();
+        $usuario = User::where('id', $fila->user_id)->where('activo', true)->first();
+
+        // El enlace llega por correo, sin sesion: la pagina que lo atiende es
+        // de la institucion de ESA cuenta, no de la de por defecto.
+        if ($usuario !== null) {
+            InstitucionActual::adoptar($usuario->institucion_id);
+        }
+
+        return $usuario;
     }
 
     /** Gasta el enlace. Se llama DESPUES de guardar la contrasena nueva. */

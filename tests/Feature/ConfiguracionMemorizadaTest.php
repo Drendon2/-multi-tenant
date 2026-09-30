@@ -66,7 +66,9 @@ class ConfiguracionMemorizadaTest extends TestCase
     {
         ConfiguracionInstitucion::actual();
 
-        $otra = ConfiguracionInstitucion::find(1);
+        // La fila de la institucion actual, cargada por su cuenta (ya no es
+        // `id = 1`: hay una por institucion).
+        $otra = ConfiguracionInstitucion::query()->sole();
         $otra->nombre_institucion = 'Escuela Nueva';
         $otra->save();
 
@@ -80,7 +82,9 @@ class ConfiguracionMemorizadaTest extends TestCase
 
         $this->actingAs($admin->user)->get('/gestion/usuarios')->assertOk();
 
-        $otra = ConfiguracionInstitucion::find(1);
+        // La fila de la institucion actual, cargada por su cuenta (ya no es
+        // `id = 1`: hay una por institucion).
+        $otra = ConfiguracionInstitucion::query()->sole();
         $otra->nombre_institucion = 'Escuela Nueva';
         $otra->save();
 

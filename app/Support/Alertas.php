@@ -13,7 +13,6 @@ use App\Models\SesionGrupo;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 /**
  * LAS DOS ALERTAS DE LA BANDEJA, calculadas y no guardadas.
@@ -92,7 +91,7 @@ class Alertas
         // El horario de todos los grupos con matriculas en este periodo, de una
         // vez. Un grupo sin sesiones no tiene dia asignado y no puede faltar a
         // nada, asi que el join lo deja fuera solo.
-        $sesiones = DB::table('sesiones_grupo')
+        $sesiones = InstitucionActual::tabla('sesiones_grupo')
             ->join('grupos', 'grupos.id', '=', 'sesiones_grupo.grupo_id')
             ->select('sesiones_grupo.grupo_id', 'sesiones_grupo.dia')
             ->distinct()
@@ -107,7 +106,7 @@ class Alertas
         // Lo que SI se registro, y lo que ya se archivo. Dos consultas y no una
         // por fecha: lo que se busca es la AUSENCIA de una fila, y eso no se
         // pregunta, se deduce de tener la lista entera delante.
-        $dictadas = DB::table('clases')
+        $dictadas = InstitucionActual::tabla('clases')
             ->where('periodo_id', $periodo->id)
             ->selectRaw('grupo_id, DATE(fecha_hora) as fecha')
             ->distinct()
@@ -115,7 +114,7 @@ class Alertas
             ->map(fn ($f) => $f->grupo_id.'|'.$f->fecha)
             ->flip();
 
-        $archivadas = DB::table('omisiones_archivadas')
+        $archivadas = InstitucionActual::tabla('omisiones_archivadas')
             ->select('grupo_id', 'fecha')
             ->get()
             ->map(fn ($f) => $f->grupo_id.'|'.Carbon::parse($f->fecha)->toDateString())
@@ -202,7 +201,7 @@ class Alertas
         // consulta. Se ordena por fecha DESCENDENTE porque la racha que importa
         // es la del final: se cuenta hacia atras desde la ultima clase y se para
         // en cuanto aparece algo que no sea una falta.
-        $marcas = DB::table('asistencias')
+        $marcas = InstitucionActual::tabla('asistencias')
             ->join('clases', 'clases.id', '=', 'asistencias.clase_id')
             ->where('clases.periodo_id', $periodo->id)
             // La misma frontera que la otra alerta: lo anterior al arranque de

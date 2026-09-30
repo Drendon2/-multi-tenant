@@ -9,7 +9,6 @@ use App\Models\Matricula;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Las cifras de «como va la escuela», en un solo sitio.
@@ -125,7 +124,7 @@ class ResumenInstitucion
             return $estudiantes;
         }
 
-        $fila = DB::table('inscritos_actividad')
+        $fila = InstitucionActual::tabla('inscritos_actividad')
             ->whereIn('actividad_id', $actividades)
             ->where(fn ($q) => $q
                 ->whereNull('perfil_id')

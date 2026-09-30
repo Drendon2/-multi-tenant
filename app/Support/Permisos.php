@@ -227,9 +227,9 @@ class Permisos
      * LAS TRES CONDICIONES IMPORTAN y ninguna sobra:
      *
      * - EL ROL, porque el resto de la casa no da fe de nada aqui; sin el, el
-     *   administrador —que es `institucion_id` de nadie pero pasa por todas
+     *   administrador —que es `institucion_externa_id` de nadie pero pasa por todas
      *   partes— acabaria firmando el trabajo de sus propios profesores.
-     * - EL TIPO, porque `institucion_id` es NULL en los otros tres y en SQL
+     * - EL TIPO, porque `institucion_externa_id` es NULL en los otros tres y en SQL
      *   dos NULL no son iguales pero en PHP `null === null` SI: sin esta
      *   linea, un funcionario cuya ficha se borrara mal pasaria a poder firmar
      *   cualquier taller de la casa.
@@ -243,7 +243,7 @@ class Permisos
 
         $suya = $perfil->institucionExterna;
 
-        return $suya !== null && $suya->id === $actividad->institucion_id;
+        return $suya !== null && $suya->id === $actividad->institucion_externa_id;
     }
 
     /**

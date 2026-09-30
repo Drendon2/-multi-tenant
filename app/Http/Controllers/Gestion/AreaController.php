@@ -6,7 +6,6 @@ use App\Models\Area;
 use App\Support\Reglas;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 /**
  * Departamentos: el primer nivel del catalogo (Musica, Danza, Artes plasticas).
@@ -76,7 +75,7 @@ class AreaController extends RecursoController
     protected function reglas(Request $request, ?Model $objeto): array
     {
         return [
-            'nombre' => [...Reglas::texto(60), Rule::unique('areas', 'nombre')->ignore($objeto?->id)],
+            'nombre' => [...Reglas::texto(60), Reglas::unica('areas', 'nombre')->ignore($objeto?->id)],
         ];
     }
 }

@@ -80,6 +80,10 @@ class PaseDeLista
             $filas[] = $sesion + [
                 $quien => $id,
                 'estado' => $estado,
+                // Por lo mismo que `fecha_registro` aqui abajo: `upsert()`
+                // no dispara el evento que pone la institucion, y sin ella la
+                // base rechaza la fila (no tiene valor por defecto).
+                InstitucionActual::COLUMNA => InstitucionActual::id(),
                 // Va explicito, y ES la trampa de este metodo. La ponia el
                 // `saving` del modelo --«se refresca en cada guardado: es la
                 // marca de la ultima correccion»-- y `upsert()` NO dispara

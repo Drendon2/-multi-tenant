@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -26,6 +27,8 @@ use Illuminate\Support\Carbon;
  */
 class Clase extends Model
 {
+    use DeLaInstitucion;
+
     /**
      * Cuantos estudiantes tienen que dar fe de una clase para tenerla por
      * dictada. Tres es el numero normal; en un grupo de uno o dos no se puede

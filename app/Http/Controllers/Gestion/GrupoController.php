@@ -351,13 +351,13 @@ class GrupoController extends RecursoController
     protected function reglas(Request $request, ?Model $objeto): array
     {
         return [
-            'promotoria_id' => ['required', 'exists:promotorias,id'],
+            'promotoria_id' => ['required', Reglas::existe('promotorias')],
             // El NOMBRE es lo unico que no puede repetirse dentro de una
             // promotoria. El nivel si se repite: una promotoria con mucha gente
             // tiene varios grupos de Basico, y eso es lo normal.
             'nombre' => [
                 ...Reglas::texto(60),
-                Rule::unique('grupos', 'nombre')
+                Reglas::unica('grupos', 'nombre')
                     ->where('promotoria_id', $request->input('promotoria_id'))
                     ->ignore($objeto?->id),
             ],

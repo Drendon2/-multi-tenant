@@ -350,7 +350,7 @@ class EnlaceDePromotoriaTest extends TestCase
             'tipo' => Actividad::EXTERNO,
             'nombre' => 'Guitarra alla',
             'responsable_id' => $this->profesor->id,
-            'institucion_id' => $escuela->id,
+            'institucion_externa_id' => $escuela->id,
         ]);
 
         $this->actingAs($this->admin->user)

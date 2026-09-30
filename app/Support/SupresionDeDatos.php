@@ -107,7 +107,7 @@ class SupresionDeDatos
             // taller— pero sin nada de la persona. Esta tabla guarda sus
             // PROPIOS datos, copiados al inscribirse, y la clave hacia el perfil
             // no se los lleva ni al borrar la cuenta (es nullOnDelete).
-            DB::table('inscritos_actividad')->where('perfil_id', $perfil->id)->update([
+            InstitucionActual::tabla('inscritos_actividad')->where('perfil_id', $perfil->id)->update([
                 'nombre_completo' => self::NOMBRE,
                 'documento' => null,
                 'telefono' => null,
@@ -138,7 +138,7 @@ class SupresionDeDatos
             $user->save();
 
             DB::table('sessions')->where('user_id', $user->id)->delete();
-            DB::table('restablecimientos_clave')->where('user_id', $user->id)->delete();
+            InstitucionActual::tabla('restablecimientos_clave')->where('user_id', $user->id)->delete();
 
             return $retiradas;
         });

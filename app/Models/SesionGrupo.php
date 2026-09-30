@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -17,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class SesionGrupo extends Model
 {
+    use DeLaInstitucion;
+
     /**
      * Los dias en que la casa abre, numerados como ISO-8601 (1 = lunes).
      *

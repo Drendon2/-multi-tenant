@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
+use App\Support\InstitucionActual;
 use App\Support\Permisos;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -22,6 +24,8 @@ use Illuminate\Support\Str;
  */
 class Promotoria extends Model
 {
+    use DeLaInstitucion;
+
     /**
      * Las promotorias que esta persona del personal puede ver.
      *
@@ -83,7 +87,18 @@ class Promotoria extends Model
             return null;
         }
 
-        return self::query()->with('area')->where('enlace_token', $token)->first();
+        // El enlace es publico y no sabe de que institucion es: se busca SIN
+        // el filtro y se adopta la de la fila. Si hay una sesion abierta de
+        // otra institucion, `adoptar()` da 404.
+        $promotoria = self::sinFiltroDeInstitucion()->where('enlace_token', $token)->first();
+
+        if ($promotoria === null) {
+            return null;
+        }
+
+        InstitucionActual::adoptar($promotoria->institucionId());
+
+        return $promotoria->load('area');
     }
 
     /** La direccion que se comparte. Null si nunca se encendio. */

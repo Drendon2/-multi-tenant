@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -39,6 +40,8 @@ use Illuminate\Support\Carbon;
  */
 class SesionActividad extends Model
 {
+    use DeLaInstitucion;
+
     protected $table = 'sesiones_actividad';
 
     protected $fillable = [

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Gestion;
 use App\Http\Controllers\Controller;
 use App\Models\Matricula;
 use App\Models\Periodo;
+use App\Support\Reglas;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -72,7 +73,7 @@ class MatriculasController extends Controller
 
     private function ponerEnCurso(Request $request): RedirectResponse
     {
-        $request->validate(['periodo_id' => ['required', 'exists:periodos,id']]);
+        $request->validate(['periodo_id' => ['required', Reglas::existe('periodos')]]);
 
         $anterior = Periodo::enCurso();
         $elegido = Periodo::findOrFail($request->input('periodo_id'));

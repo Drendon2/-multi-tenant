@@ -8,7 +8,6 @@ use App\Models\Matricula;
 use App\Models\Periodo;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Las cifras de la gente que pasa por la casa SIN matricula: cursos, talleres,
@@ -77,12 +76,11 @@ class ResumenActividades
         $inicio = Carbon::parse($periodo->fecha_inicio)->toDateString();
         $fin = Carbon::parse($periodo->fecha_fin)->toDateString();
 
-        return DB::table('actividades as a')
+        return InstitucionActual::tabla('actividades as a')
             ->where('a.periodo_id', $periodo->id)
             ->orWhere(fn (Builder $q) => $q
                 ->whereNull('a.periodo_id')
-                ->whereExists(fn (Builder $s) => $s
-                    ->from('sesiones_actividad as s')
+                ->whereExists(fn (Builder $s) => InstitucionActual::filtrar($s->from('sesiones_actividad as s'), 's')
                     ->whereColumn('s.actividad_id', 'a.id')
                     ->whereBetween('s.fecha', [$inicio, $fin])))
             ->pluck('a.tipo', 'a.id')
@@ -121,7 +119,7 @@ class ResumenActividades
                 ->whereNotNull('a.periodo_id')
                 ->orWhereBetween('s.fecha', [$inicio, $fin]));
 
-        $inscritos = DB::table('inscritos_actividad as i')
+        $inscritos = InstitucionActual::tabla('inscritos_actividad as i')
             ->join('actividades as a', 'a.id', '=', 'i.actividad_id')
             ->whereIn('i.actividad_id', $ids)
             ->groupBy('a.tipo')
@@ -132,7 +130,7 @@ class ResumenActividades
         // `iniciada_en`: es el mismo criterio que el certificado de actividad
         // (`AsistenciaDeActividad`). Una sesion iniciada sin marcas no dice
         // nada de nadie.
-        $marcas = DB::table('asistencias_actividad as x')
+        $marcas = InstitucionActual::tabla('asistencias_actividad as x')
             ->join('sesiones_actividad as s', 's.id', '=', 'x.sesion_id')
             ->join('actividades as a', 'a.id', '=', 's.actividad_id')
             ->where($sesionesDelPeriodo)
@@ -164,7 +162,7 @@ class ResumenActividades
             'verificacion' => isset($tipos[Actividad::EXTERNO])
                 ? self::verificacion($sesionesDelPeriodo)
                 : null,
-            'tambienMatriculados' => DB::table('inscritos_actividad')
+            'tambienMatriculados' => InstitucionActual::tabla('inscritos_actividad')
                 ->whereIn('actividad_id', $ids)
                 ->whereIn('perfil_id', Matricula::query()
                     ->where('periodo_id', $periodo->id)
@@ -188,7 +186,7 @@ class ResumenActividades
      */
     private static function verificacion(\Closure $sesionesDelPeriodo): array
     {
-        $porOrigen = DB::table('sesiones_actividad as s')
+        $porOrigen = InstitucionActual::tabla('sesiones_actividad as s')
             ->join('actividades as a', 'a.id', '=', 's.actividad_id')
             ->where('a.tipo', Actividad::EXTERNO)
             ->whereNotNull('s.iniciada_en')

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,6 +27,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class InstitucionExterna extends Model
 {
+    use DeLaInstitucion;
+
     protected $table = 'instituciones_externas';
 
     protected $fillable = [
@@ -56,7 +59,7 @@ class InstitucionExterna extends Model
      */
     public function programas(): HasMany
     {
-        return $this->hasMany(Actividad::class, 'institucion_id')
+        return $this->hasMany(Actividad::class, 'institucion_externa_id')
             ->where('tipo', Actividad::EXTERNO);
     }
 

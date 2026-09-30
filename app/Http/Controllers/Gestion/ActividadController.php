@@ -10,7 +10,6 @@ use App\Support\Reglas;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -162,7 +161,7 @@ abstract class ActividadController extends RecursoController
             'nombre' => Reglas::texto(80),
             'responsable_id' => [
                 'required',
-                Rule::exists('perfiles', 'id')->whereIn('rol', Perfil::ROLES_PERSONAL),
+                Reglas::existe('perfiles')->whereIn('rol', Perfil::ROLES_PERSONAL),
             ],
             // `nullable` y no `sometimes`: el campo SIEMPRE llega, vacio cuando
             // no hay tope, y un vacio tiene que valer.

@@ -7,7 +7,6 @@ use App\Models\Matricula;
 use App\Models\Perfil;
 use Closure;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Quien es companero de quien, en un solo sitio y en un numero fijo de
@@ -211,7 +210,7 @@ class Companeros
      */
     private static function paresDe(Perfil $perfil): array
     {
-        return DB::table('asignaciones_grupo')
+        return InstitucionActual::tabla('asignaciones_grupo')
             ->join('matriculas', 'matriculas.id', '=', 'asignaciones_grupo.matricula_id')
             ->where('matriculas.estudiante_id', $perfil->id)
             ->where('matriculas.estado', Matricula::ACTIVA)

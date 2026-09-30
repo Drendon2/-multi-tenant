@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -10,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Acudiente extends Model
 {
+    use DeLaInstitucion;
+
     protected $table = 'acudientes';
 
     protected $fillable = [

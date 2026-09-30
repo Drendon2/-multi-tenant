@@ -15,11 +15,11 @@ use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
 use App\Support\Csv;
+use App\Support\InstitucionActual;
 use App\Support\Permisos;
 use Generator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -364,22 +364,22 @@ class InformeController extends Controller
      */
     public function actividades(): StreamedResponse
     {
-        $sesionesConLista = DB::table('asistencias_actividad as x')
+        $sesionesConLista = InstitucionActual::tabla('asistencias_actividad as x')
             ->join('sesiones_actividad as s', 's.id', '=', 'x.sesion_id')
             ->groupBy('s.actividad_id')
             ->selectRaw('s.actividad_id, COUNT(DISTINCT s.id) as total')
             ->pluck('total', 'actividad_id');
 
-        $asistio = DB::table('asistencias_actividad')
+        $asistio = InstitucionActual::tabla('asistencias_actividad')
             ->where('estado', AsistenciaActividad::ASISTIO)
             ->groupBy('inscrito_id')
             ->selectRaw('inscrito_id, COUNT(*) as total')
             ->pluck('total', 'inscrito_id');
 
-        $filas = DB::table('inscritos_actividad as i')
+        $filas = InstitucionActual::tabla('inscritos_actividad as i')
             ->join('actividades as a', 'a.id', '=', 'i.actividad_id')
             ->leftJoin('perfiles as r', 'r.id', '=', 'a.responsable_id')
-            ->leftJoin('instituciones_externas as e', 'e.id', '=', 'a.institucion_id')
+            ->leftJoin('instituciones_externas as e', 'e.id', '=', 'a.institucion_externa_id')
             ->leftJoin('perfiles as fu', 'fu.id', '=', 'e.perfil_id')
             ->leftJoin('periodos as p', 'p.id', '=', 'a.periodo_id')
             ->select([

@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Gestion;
 use App\Models\Actividad;
 use App\Models\InstitucionExterna;
 use App\Models\Perfil;
+use App\Support\Reglas;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -70,7 +70,7 @@ class ProgramaExternoController extends ActividadController
                 ...$campos['nombre'],
                 'ayuda' => 'Cómo se llama lo que se va a dictar allá. Por ejemplo: «Guitarra — El Carmen».',
             ],
-            'institucion_id' => [
+            'institucion_externa_id' => [
                 'etiqueta' => 'Institución donde se dicta',
                 'tipo' => 'select',
                 'opciones' => InstitucionExterna::orderBy('nombre')->pluck('nombre', 'id')->all(),
@@ -93,7 +93,7 @@ class ProgramaExternoController extends ActividadController
         return [
             'nombre' => $reglas['nombre'],
             'responsable_id' => $reglas['responsable_id'],
-            'institucion_id' => ['required', Rule::exists('instituciones_externas', 'id')],
+            'institucion_externa_id' => ['required', Reglas::existe('instituciones_externas')],
         ];
     }
 

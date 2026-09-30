@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -22,6 +23,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Grupo extends Model
 {
+    use DeLaInstitucion;
+
     public const NIVELES = [
         'basico' => 'Básico',
         'intermedio' => 'Intermedio',
@@ -74,11 +77,12 @@ class Grupo extends Model
      * consulta; hay que escribir `matriculas.id`. Es la unica cosa que cambia
      * para quien la use, y no avisa hasta que corre.
      *
-     * @return BelongsToMany<Matricula, $this>
+     * @return BelongsToMany<Matricula, $this, AsignacionGrupo>
      */
     public function matriculas(): BelongsToMany
     {
         return $this->belongsToMany(Matricula::class, 'asignaciones_grupo')
+            ->using(AsignacionGrupo::class)
             ->withTimestamps();
     }
 

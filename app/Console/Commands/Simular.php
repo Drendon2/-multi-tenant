@@ -17,6 +17,7 @@ use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
 use App\Models\User;
+use App\Support\InstitucionActual;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -775,7 +776,9 @@ class Simular extends Command
 
             // Al borrar la cuenta se van en cascada el perfil, sus datos de
             // estudiante y su encuesta demografica.
-            User::where('username', 'like', self::PREFIJO_USUARIO.'%')->delete();
+            // Por `tabla()`: las cuentas no llevan el filtro de institucion
+            // (ver `User`) y sin el se borrarian las simuladas de todas.
+            InstitucionActual::tabla('users')->where('username', 'like', self::PREFIJO_USUARIO.'%')->delete();
 
             Acudiente::where('nombre', 'like', '%'.self::SUFIJO_CATALOGO)->delete();
             Periodo::where('nombre', 'like', '%'.self::SUFIJO_CATALOGO)->delete();
@@ -892,7 +895,7 @@ class Simular extends Command
         $this->newLine();
 
         $this->table(['Qué', 'Cuánto'], [
-            ['Usuarios', User::where('username', 'like', self::PREFIJO_USUARIO.'%')->count()],
+            ['Usuarios', InstitucionActual::tabla('users')->where('username', 'like', self::PREFIJO_USUARIO.'%')->count()],
             ['  · estudiantes', Perfil::whereHas('user', fn ($q) => $q->where('username', 'like', self::PREFIJO_USUARIO.'est%'))->count()],
             ['  · profesores', count($personal['profesores'])],
             ['  · directores', count($personal['directores'])],

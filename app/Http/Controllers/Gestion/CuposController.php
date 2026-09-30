@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CupoPromotoria;
 use App\Models\Periodo;
 use App\Models\Promotoria;
+use App\Support\InstitucionActual;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -128,6 +129,8 @@ class CuposController extends Controller
             }
 
             $conTope[] = [
+                // `upsert()` no dispara el evento que pone la institucion.
+                InstitucionActual::COLUMNA => InstitucionActual::id(),
                 'promotoria_id' => $promotoria->id,
                 'periodo_id' => $periodo->id,
                 'cupo_maximo' => $cupo,

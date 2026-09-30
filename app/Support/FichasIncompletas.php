@@ -11,7 +11,6 @@ use App\Models\Periodo;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 /**
  * A QUIEN LE FALTA ALGO: la tercera bandeja de Alertas.
@@ -213,7 +212,7 @@ class FichasIncompletas
         // `[]` y este `whereIn` no devuelve a nadie, que es lo correcto. La
         // tentacion al leerlo es «si esta vacia, no filtres»; eso le devolveria
         // la institucion entera.
-        return DB::table('perfiles')
+        return InstitucionActual::tabla('perfiles')
             ->when($soloEstos !== null, fn ($q) => $q->whereIn('perfiles.id', $soloEstos ?? []))
             // A quien se le suprimieron los datos le falta TODO, a proposito:
             // pedirselos seria volver a recogerlos.
@@ -387,7 +386,7 @@ class FichasIncompletas
 
         $mapa = [];
 
-        $filas = DB::table('documentos_estudiante')
+        $filas = InstitucionActual::tabla('documentos_estudiante')
             ->whereIn('requerido_id', $obligatorios)
             ->where('archivo', '!=', '')
             ->whereNotNull('archivo')
@@ -415,7 +414,7 @@ class FichasIncompletas
     {
         $campos = array_keys(EncuestaDemografica::CAMPOS_OBLIGATORIOS);
 
-        $filas = DB::table('encuestas_demograficas')
+        $filas = InstitucionActual::tabla('encuestas_demograficas')
             ->select(['perfil_id', ...$campos])
             ->get();
 
@@ -461,7 +460,7 @@ class FichasIncompletas
         $areas = $quienMira === null ? null : Permisos::areasVisiblesPara($quienMira);
 
         if ($periodo !== null) {
-            $matriculados = DB::table('matriculas')
+            $matriculados = InstitucionActual::tabla('matriculas')
                 ->join('promotorias', 'promotorias.id', '=', 'matriculas.promotoria_id')
                 ->when($areas !== null, fn ($q) => $q->whereIn('promotorias.area_id', $areas ?? []))
                 ->where('matriculas.periodo_id', $periodo->id)
@@ -481,7 +480,7 @@ class FichasIncompletas
         // El otro camino: quien la DICTA. No depende del periodo —el vinculo del
         // profesor con su promotoria no se acaba porque cambie el semestre— y
         // por eso va fuera del `if`.
-        $dictadas = DB::table('promotorias')
+        $dictadas = InstitucionActual::tabla('promotorias')
             ->when($areas !== null, fn ($q) => $q->whereIn('promotorias.area_id', $areas ?? []))
             ->whereNotNull('promotorias.profesor_id')
             ->select('promotorias.profesor_id as perfil_id', 'promotorias.id', 'promotorias.nombre')
@@ -534,8 +533,7 @@ class FichasIncompletas
             // no falla al compilar: se interpreta como una columna llamada
             // `doesnt_have` y revienta al correr.
             fn ($q) => $q->where('matriculas.estado', Matricula::ACTIVA)
-                ->whereNotExists(fn ($sub) => $sub
-                    ->from('asignaciones_grupo')
+                ->whereNotExists(fn ($sub) => InstitucionActual::filtrar($sub->from('asignaciones_grupo'), 'asignaciones_grupo')
                     ->whereColumn('asignaciones_grupo.matricula_id', 'matriculas.id')
                     ->selectRaw('1'))
         );
@@ -551,7 +549,7 @@ class FichasIncompletas
             return [];
         }
 
-        $consulta = DB::table('matriculas')
+        $consulta = InstitucionActual::tabla('matriculas')
             ->join('promotorias', 'promotorias.id', '=', 'matriculas.promotoria_id')
             ->where('matriculas.periodo_id', $periodo->id)
             ->select('matriculas.estudiante_id', 'promotorias.nombre')

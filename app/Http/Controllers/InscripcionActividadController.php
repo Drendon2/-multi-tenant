@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Actividad;
 use App\Models\InscritoActividad;
 use App\Support\ErrorDeBaseDeDatos;
+use App\Support\InstitucionActual;
 use App\Support\Reglas;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
@@ -154,9 +155,16 @@ class InscripcionActividadController extends Controller
      */
     private function buscar(string $token): Actividad
     {
-        return Actividad::where('token', $token)
+        // Enlace publico: se busca SIN el filtro de institucion y se adopta
+        // la de la fila (ver `InstitucionActual::adoptar()`).
+        $actividad = Actividad::sinFiltroDeInstitucion()
+            ->where('token', $token)
             ->whereIn('tipo', Actividad::TIPOS_CON_ENLACE)
             ->firstOrFail();
+
+        InstitucionActual::adoptar($actividad->institucionId());
+
+        return $actividad;
     }
 
     /** Por que esta cerrada, dicho para quien acaba de llegar por el enlace. */

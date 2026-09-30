@@ -10,7 +10,6 @@ use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Las estadisticas de un profesor sobre SUS promotorias, en un periodo.
@@ -49,7 +48,7 @@ class EstadisticasDeProfesor
         $promotorias = Promotoria::where('profesor_id', $profesor->id)->pluck('id');
 
         $ids = Matricula::whereIn('promotoria_id', $promotorias)->distinct()->pluck('periodo_id')
-            ->merge(DB::table('clases')
+            ->merge(InstitucionActual::tabla('clases')
                 ->join('grupos', 'grupos.id', '=', 'clases.grupo_id')
                 ->whereIn('grupos.promotoria_id', $promotorias)
                 ->distinct()->pluck('clases.periodo_id'))
@@ -77,7 +76,7 @@ class EstadisticasDeProfesor
             ->get(['id', 'nombre', 'nivel', 'promotoria_id']);
         $idsGrupos = $grupos->pluck('id');
 
-        $dadas = DB::table('clases')
+        $dadas = InstitucionActual::tabla('clases')
             ->where('periodo_id', $periodo->id)
             ->whereIn('grupo_id', $idsGrupos)
             ->selectRaw('grupo_id, COUNT(*) as n')
@@ -85,7 +84,7 @@ class EstadisticasDeProfesor
             ->pluck('n', 'grupo_id');
 
         // Las marcas de asistencia por grupo y estado, en una consulta.
-        $marcas = DB::table('asistencias')
+        $marcas = InstitucionActual::tabla('asistencias')
             ->join('clases', 'clases.id', '=', 'asistencias.clase_id')
             ->where('clases.periodo_id', $periodo->id)
             ->whereIn('clases.grupo_id', $idsGrupos)
@@ -195,7 +194,7 @@ class EstadisticasDeProfesor
      */
     private static function cancelaciones(array $promotorias, Periodo $periodo): array
     {
-        $fila = DB::table('matriculas')
+        $fila = InstitucionActual::tabla('matriculas')
             ->where('periodo_id', $periodo->id)
             ->whereIn('promotoria_id', $promotorias)
             ->selectRaw(

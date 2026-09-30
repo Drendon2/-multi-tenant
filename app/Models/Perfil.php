@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -63,6 +64,8 @@ use Illuminate\Support\Str;
  */
 class Perfil extends Model
 {
+    use DeLaInstitucion;
+
     /**
      * Los roles que existen, con su nombre de pantalla.
      *
@@ -165,11 +168,12 @@ class Perfil extends Model
      * quien dejo de ser director siguen en la tabla y no dicen nada, que es lo
      * correcto — si vuelve a serlo, recupera lo que tenia.
      *
-     * @return BelongsToMany<Area, $this>
+     * @return BelongsToMany<Area, $this, AreaDirigida>
      */
     public function areasDirigidas(): BelongsToMany
     {
         return $this->belongsToMany(Area::class, 'areas_dirigidas', 'perfil_id', 'area_id')
+            ->using(AreaDirigida::class)
             ->orderBy('nombre');
     }
 

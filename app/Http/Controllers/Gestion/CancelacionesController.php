@@ -14,6 +14,7 @@ use App\Support\Alertas;
 use App\Support\Auditoria;
 use App\Support\FichasIncompletas;
 use App\Support\Permisos;
+use App\Support\Reglas;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -174,7 +175,7 @@ class CancelacionesController extends Controller
     public function archivarOmision(Request $request): RedirectResponse
     {
         $datos = $request->validate([
-            'grupo_id' => ['required', 'exists:grupos,id'],
+            'grupo_id' => ['required', Reglas::existe('grupos')],
             'fecha' => ['required', 'date'],
         ]);
 

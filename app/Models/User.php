@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\InstitucionActual;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -22,6 +23,15 @@ use Illuminate\Notifications\Notifiable;
  * nada obliga a que una cuenta tenga perfil, y de hecho existe la ventana entre
  * crear la una y el otro. Quien lea `$user->perfil` tiene que contar con null.
  *
+ * LA CUENTA NO LLEVA EL FILTRO DE INSTITUCION, a proposito. Es la identidad
+ * con la que se entra, y el login todavia no sabe de que institucion es quien
+ * llega (eso lo dira el dominio): por eso `username` sigue siendo unico en
+ * toda la base. Lleva `institucion_id` y nace en la actual, y es de AQUI de
+ * donde `InstitucionActual` saca la de quien tiene sesion; con el filtro,
+ * resolver la cuenta pediria la institucion y la institucion pediria la
+ * cuenta. A los datos de la persona se llega por `Perfil`, que si se filtra.
+ *
+ * @property int $institucion_id
  * @property-read Perfil|null $perfil
  */
 class User extends Authenticatable
@@ -47,6 +57,13 @@ class User extends Authenticatable
             'password' => 'hashed',
             'activo' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $usuario) {
+            $usuario->institucion_id ??= InstitucionActual::id();
+        });
     }
 
     public function perfil(): HasOne

@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use App\Support\Color;
+use App\Support\InstitucionActual;
 use Illuminate\Database\Eloquent\Model;
 use RuntimeException;
 use Throwable;
@@ -10,7 +12,8 @@ use Throwable;
 /**
  * Ajustes de la institucion, editables sin tocar codigo.
  *
- * Fila unica (id = 1): el proyecto sirve a UNA institucion a la vez, pero
+ * Una fila por institucion (UNIQUE `institucion_id`). Nacio como fila unica
+ * (id = 1), cuando el sistema servia a una sola institucion; la idea sigue:
  * ninguno de estos datos deberia estar quemado en el codigo si se quiere
  * reinstalar para otra entidad sin tocar plantillas.
  *
@@ -26,6 +29,8 @@ use Throwable;
  */
 class ConfiguracionInstitucion extends Model
 {
+    use DeLaInstitucion;
+
     /**
      * Techo de ranuras GRABADO en el esquema (ver el CHECK `ranura_valida` de
      * `matriculas`). NO es la regla de negocio: esa es
@@ -228,12 +233,19 @@ class ConfiguracionInstitucion extends Model
      */
     public static function actual(): self
     {
-        if (app()->bound(self::MEMORIA)) {
-            return app()->make(self::MEMORIA);
+        // La memoria va atada a la institucion: una peticion que adopta la de
+        // un enlace (o un comando que trabaja para otra) no puede quedarse con
+        // la marca de la que se resolvio primero.
+        $memoria = self::MEMORIA.'.'.InstitucionActual::id();
+
+        if (app()->bound($memoria)) {
+            return app()->make($memoria);
         }
 
         try {
-            $configuracion = static::firstOrCreate(['id' => 1]);
+            // Una fila por institucion (UNIQUE institucion_id); el filtro de
+            // `DeLaInstitucion` la acota y el alta la crea en la actual.
+            $configuracion = static::firstOrCreate([]);
         } catch (Throwable) {
             // Tabla sin migrar. NO se memoriza: es un estado que se arregla
             // solo en cuanto alguien migre, y guardarlo obligaria a que la
@@ -241,25 +253,21 @@ class ConfiguracionInstitucion extends Model
             return new static;
         }
 
-        app()->instance(self::MEMORIA, $configuracion);
+        app()->instance($memoria, $configuracion);
 
         return $configuracion;
     }
 
-    /** Fila unica: cualquier guardado escribe sobre la misma. */
+    /** Una fila por institucion: la unicidad la garantiza la base. */
     protected static function booted(): void
     {
-        static::saving(function (self $configuracion) {
-            $configuracion->id = 1;
-        });
-
         // Cualquier guardado tira la copia de la peticion. Hoy todo el codigo
         // llega por `actual()` y guarda sobre ESA instancia, asi que la copia
         // ya saldria al dia; esto es para el dia que alguien cargue la fila por
         // su cuenta y la guarde, que entonces la copia memorizada quedaria
         // vieja y la pantalla seguiria pintando la marca anterior.
-        static::saved(function () {
-            app()->forgetInstance(self::MEMORIA);
+        static::saved(function (self $configuracion) {
+            app()->forgetInstance(self::MEMORIA.'.'.$configuracion->institucionId());
         });
 
         // Sin configuracion el sistema se quedaria sin marca.

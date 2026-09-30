@@ -3,6 +3,10 @@
 namespace App\Support;
 
 use App\Models\ConfiguracionInstitucion;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
+use Illuminate\Validation\Rules\Unique;
 
 /**
  * Las reglas de formato de todo lo que teclea una persona.
@@ -262,6 +266,34 @@ class Reglas
      *
      * @return array<string, string>
      */
+    /**
+     * `exists` acotado a la institucion actual.
+     *
+     * Un `Rule::exists('promotorias', 'id')` suelto va a la base sin pasar por
+     * los modelos, asi que aceptaria el id de una promotoria de OTRA
+     * institucion. El filtro no se escribe aqui: se le pide a
+     * `InstitucionActual::filtrar()`, que es el unico sitio donde existe.
+     */
+    public static function existe(string $tabla, string $columna = 'id'): Exists
+    {
+        return Rule::exists($tabla, $columna)
+            ->where(fn (Builder $consulta) => InstitucionActual::filtrar($consulta, $tabla));
+    }
+
+    /**
+     * `unique` acotado a la institucion actual: el nombre de un departamento
+     * o de un periodo se repite entre instituciones y no dentro de una. Casa
+     * con los unicos compuestos del guion `03-unicos-por-institucion.sql`.
+     *
+     * NO se usa para `users.username`, que sigue siendo unico en toda la base
+     * (ver `App\Models\User`).
+     */
+    public static function unica(string $tabla, string $columna): Unique
+    {
+        return Rule::unique($tabla, $columna)
+            ->where(fn (Builder $consulta) => InstitucionActual::filtrar($consulta, $tabla));
+    }
+
     public static function mensajes(): array
     {
         $celular = 'Escribe el número de celular con 10 dígitos, sin espacios ni guiones. Ejemplo: 3001112233.';

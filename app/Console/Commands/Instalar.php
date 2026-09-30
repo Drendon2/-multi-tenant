@@ -5,9 +5,11 @@ namespace App\Console\Commands;
 use App\Models\Area;
 use App\Models\ConfiguracionInstitucion;
 use App\Models\DocumentoRequerido;
+use App\Models\Institucion;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\User;
+use App\Support\InstitucionActual;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -51,20 +53,36 @@ use Illuminate\Validation\Rules\Password;
  *     php artisan instalar --ejemplo && php artisan simular
  *
  * Se niega a correr si la base ya tiene datos, y dice cuales encontro.
+ *
+ * Con varias instituciones en la misma base:
+ *
+ *     php artisan instalar                      # monta la institucion 1
+ *     php artisan instalar --nueva              # da de alta OTRA y la monta
+ *     php artisan instalar --nueva --subdominio=guarne
+ *
+ * «Tiene datos» se mira DENTRO de la institucion que se monta. `--nueva` crea
+ * la fila de `instituciones` en la misma transaccion que el resto: si algo
+ * falla, no queda una institucion vacia.
  */
 class Instalar extends Command
 {
     protected $signature = 'instalar
-        {--ejemplo : Siembra un catalogo de juguete con contrasenas conocidas, sin preguntar. Solo para desarrollo.}';
+        {--ejemplo : Siembra un catalogo de juguete con contrasenas conocidas, sin preguntar. Solo para desarrollo.}
+        {--nueva : Da de alta OTRA institucion en esta base y la monta.}
+        {--subdominio= : Con --nueva, el subdominio que tendra (se puede dejar vacio).}';
 
     protected $description = 'Monta una institución nueva: institución, documentos, departamentos, periodo en curso y dos administradores.';
 
     /** La contrasena de las cuentas que crea --ejemplo. Es publica a proposito. */
     private const CLAVE_DE_EJEMPLO = 'administrador';
 
+    /** La que crea `--nueva`, para el resumen. */
+    private ?Institucion $nueva = null;
+
     public function handle(): int
     {
-        $ocupada = $this->loQueYaHay();
+        // Una institucion que todavia no existe no tiene datos.
+        $ocupada = $this->option('nueva') ? [] : $this->loQueYaHay();
 
         if ($ocupada !== []) {
             return $this->rechazarBaseConDatos($ocupada);
@@ -106,7 +124,7 @@ class Instalar extends Command
         // medias --con institucion pero sin periodo, o con periodo y sin
         // administrador-- deja la base en el unico estado que este comando ya no
         // sabria retomar, porque la barrera de arriba le cerraria la puerta.
-        DB::transaction(fn () => $this->escribir($plan));
+        DB::transaction(fn () => $this->escribirEnSuInstitucion($plan));
 
         $this->resumen($plan);
 
@@ -127,7 +145,8 @@ class Instalar extends Command
     private function loQueYaHay(): array
     {
         $tablas = [
-            ['cuenta de usuario', 'cuentas de usuario', User::count()],
+            // Las cuentas no llevan el filtro de institucion (ver `User`).
+            ['cuenta de usuario', 'cuentas de usuario', InstitucionActual::tabla('users')->count()],
             ['departamento', 'departamentos', Area::count()],
             ['periodo', 'periodos', Periodo::count()],
             ['documento requerido', 'documentos requeridos', DocumentoRequerido::count()],
@@ -448,8 +467,28 @@ class Instalar extends Command
     // ----------------------------------------------------------------------
 
     /** @param  array<string, mixed>  $plan */
+    private function escribirEnSuInstitucion(array $plan): void
+    {
+        if (! $this->option('nueva')) {
+            $this->escribir($plan);
+
+            return;
+        }
+
+        $this->nueva = Institucion::create([
+            'nombre' => $plan['institucion']['nombre_institucion'],
+            'subdominio' => $this->option('subdominio') ?: null,
+        ]);
+
+        InstitucionActual::mientras($this->nueva->id, fn () => $this->escribir($plan));
+    }
+
+    /** @param  array<string, mixed>  $plan */
     private function escribir(array $plan): void
     {
+        // El registro de la institucion lleva el mismo nombre que su marca.
+        InstitucionActual::modelo()->update(['nombre' => $plan['institucion']['nombre_institucion']]);
+
         // `actual()` y no `create()`: la fila puede existir ya con los valores
         // por defecto, puesta por la primera visita a cualquier pagina.
         $configuracion = ConfiguracionInstitucion::actual();
@@ -532,6 +571,11 @@ class Instalar extends Command
         $this->newLine();
         $this->info('Listo. '.$plan['institucion']['nombre_institucion'].' está instalada.');
         $this->newLine();
+
+        if ($this->nueva !== null) {
+            $this->line('  · Institución número '.$this->nueva->id
+                .($this->nueva->subdominio ? ', subdominio «'.$this->nueva->subdominio.'»' : ', sin subdominio'));
+        }
 
         $this->line('  · Periodo «'.$plan['periodo']['nombre'].'» en curso, del '
             .$plan['periodo']['fecha_inicio'].' al '.$plan['periodo']['fecha_fin']);

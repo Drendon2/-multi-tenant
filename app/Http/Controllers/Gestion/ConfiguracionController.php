@@ -13,6 +13,7 @@ use App\Rules\PdfOImagen;
 use App\Support\CorreoDeLaInstitucion;
 use App\Support\Documento;
 use App\Support\Imagen;
+use App\Support\InstitucionActual;
 use App\Support\PoliticaDatos;
 use App\Support\Reglas;
 use Illuminate\Http\RedirectResponse;
@@ -61,7 +62,9 @@ class ConfiguracionController extends Controller
             // deduce de la palabra «obligatorio»: alcanza a quien ya esta, no
             // solo a quien se inscriba manana, y en produccion son 853 de 885.
             // Una consulta de conteo, no una lista.
-            'sinCorreo' => User::whereNull('email')->orWhere('email', '')->count(),
+            // Las cuentas no llevan el filtro de institucion (ver `User`): se
+            // cuentan por `tabla()`, o la cifra sumaria las de todas.
+            'sinCorreo' => InstitucionActual::tabla('users')->whereNull('email')->orWhere('email', '')->count(),
             // Si la recuperacion de contrasena funciona de verdad, y por donde.
             // Se pinta arriba del todo de la seccion porque es lo unico que hay
             // que ver de un vistazo: apagada no falla, no avisa y no se nota

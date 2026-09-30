@@ -398,7 +398,7 @@ class ResumenActividadesTest extends TestCase
         ];
 
         if ($tipo === Actividad::EXTERNO) {
-            $datos['institucion_id'] = InstitucionExterna::create([
+            $datos['institucion_externa_id'] = InstitucionExterna::create([
                 'nombre' => 'I. E. Rural El Carmen',
                 'telefono' => '604 546 1234 ext. 12',
                 'perfil_id' => $this->perfil('carmen', Perfil::INSTITUCION_EXTERNA)->id,

@@ -7,6 +7,7 @@ use App\Models\InscritoActividad;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\User;
+use App\Support\InstitucionActual;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -150,6 +151,9 @@ class IndicesActividadTest extends TestCase
         $filas = [];
         for ($i = 0; $i < $inscritos; $i++) {
             $filas[] = [
+                // Insercion en crudo: sin el evento del modelo, la institucion
+                // va a mano o la base rechaza la fila.
+                InstitucionActual::COLUMNA => InstitucionActual::id(),
                 'actividad_id' => $actividad->id,
                 // Nombres desordenados respecto al id: si se sembraran en orden
                 // alfabetico, ordenar por `id` daria el mismo resultado que

@@ -9,7 +9,6 @@ use App\Models\Periodo;
 use App\Models\Promotoria;
 use App\Models\SesionGrupo;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 /**
  * La rejilla semanal de una persona: donde tiene que estar cada dia.
@@ -86,7 +85,7 @@ class HorarioSemanal
         //
         // Esta rejilla ya sabia pintar VARIOS grupos, porque quien cursa tres
         // promotorias tiene tres; lo unico que cambia es de donde sale la lista.
-        $ids = DB::table('asignaciones_grupo')
+        $ids = InstitucionActual::tabla('asignaciones_grupo')
             ->join('matriculas', 'matriculas.id', '=', 'asignaciones_grupo.matricula_id')
             ->where('matriculas.estudiante_id', $perfil->id)
             ->where('matriculas.periodo_id', $periodo->id)

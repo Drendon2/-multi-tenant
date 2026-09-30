@@ -6,7 +6,6 @@ use App\Models\Periodo;
 use App\Support\Reglas;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 /**
  * Periodos semestrales.
@@ -75,7 +74,7 @@ class PeriodoController extends RecursoController
     protected function reglas(Request $request, ?Model $objeto): array
     {
         return [
-            'nombre' => [...Reglas::texto(20), Rule::unique('periodos', 'nombre')->ignore($objeto?->id)],
+            'nombre' => [...Reglas::texto(20), Reglas::unica('periodos', 'nombre')->ignore($objeto?->id)],
             'fecha_inicio' => ['required', 'date'],
             'fecha_fin' => ['required', 'date', 'after:fecha_inicio'],
         ];

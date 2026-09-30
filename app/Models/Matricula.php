@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use App\Support\Auditoria;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -28,6 +29,8 @@ use Illuminate\Validation\ValidationException;
  */
 class Matricula extends Model
 {
+    use DeLaInstitucion;
+
     public const PENDIENTE = 'pendiente';
 
     public const ACTIVA = 'activa';
@@ -265,11 +268,12 @@ class Matricula extends Model
      * ranuras, el certificado y la renovacion no se enteran de esto. Lo que se
      * multiplica son las sillas, no las inscripciones.
      *
-     * @return BelongsToMany<Grupo, $this>
+     * @return BelongsToMany<Grupo, $this, AsignacionGrupo>
      */
     public function grupos(): BelongsToMany
     {
         return $this->belongsToMany(Grupo::class, 'asignaciones_grupo')
+            ->using(AsignacionGrupo::class)
             ->withTimestamps();
     }
 
@@ -428,7 +432,7 @@ class Matricula extends Model
             return true;
         }
 
-        $anterior = static::withoutGlobalScopes()
+        $anterior = static::query()
             ->where('id', $this->id)
             ->first(['estado', 'promotoria_id', 'periodo_id']);
 

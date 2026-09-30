@@ -197,17 +197,17 @@ class InscripcionController extends Controller
             'telefono' => Reglas::celular(),
             'documento_identidad' => [
                 ...Reglas::documento(),
-                Rule::unique('datos_estudiante', 'documento_identidad'),
+                Reglas::unica('datos_estudiante', 'documento_identidad'),
             ],
             'acudiente_nombre' => Reglas::nombreDePersona(90, obligatorio: false),
             'acudiente_telefono' => Reglas::celularDeAcudiente(),
-            'promotoria' => ['required', Rule::exists('promotorias', 'id')],
+            'promotoria' => ['required', Reglas::existe('promotorias')],
         ];
 
         // Tantos cupos como permita la configuracion: subir el limite anade
         // selectores sin tocar el codigo. Solo el primero es obligatorio.
         for ($n = 2; $n <= $limite; $n++) {
-            $reglas["promotoria_{$n}"] = ['nullable', Rule::exists('promotorias', 'id')];
+            $reglas["promotoria_{$n}"] = ['nullable', Reglas::existe('promotorias')];
         }
 
         $validador = validator($request->all(), $reglas, Reglas::mensajes() + [

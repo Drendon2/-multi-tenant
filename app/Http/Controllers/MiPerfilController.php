@@ -467,7 +467,7 @@ class MiPerfilController extends Controller
         if ($esEstudiante) {
             $reglas['documento_identidad'] = [
                 ...Reglas::documento(),
-                Rule::unique('datos_estudiante', 'documento_identidad')->ignore($datos?->id),
+                Reglas::unica('datos_estudiante', 'documento_identidad')->ignore($datos?->id),
             ];
             $reglas['acudiente_nombre'] = Reglas::nombreDePersona(90, obligatorio: false);
             $reglas['acudiente_telefono'] = Reglas::celularDeAcudiente();
@@ -651,7 +651,7 @@ class MiPerfilController extends Controller
         abort_if($datos === null, 404);
 
         $request->validate([
-            'documento_id' => ['required', Rule::exists('documentos_requeridos', 'id')->where('activo', true)],
+            'documento_id' => ['required', Reglas::existe('documentos_requeridos')->where('activo', true)],
             // `ImagenProcesable` con `puedeNoSerImagen`, porque aqui vale
             // tambien un PDF. Sobre una imagen mide los lados leyendo la
             // cabecera y rechaza la que no quepa en la memoria de la maquina

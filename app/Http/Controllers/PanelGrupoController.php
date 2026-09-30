@@ -151,7 +151,7 @@ class PanelGrupoController extends Controller
             // llegue al campo y no como un error del motor.
             'nombre' => [
                 ...Reglas::texto(60),
-                Rule::unique('grupos', 'nombre')
+                Reglas::unica('grupos', 'nombre')
                     ->where('promotoria_id', $promotoria->id)
                     ->ignore($grupo?->id),
             ],

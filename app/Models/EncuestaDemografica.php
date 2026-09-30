@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -22,6 +23,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class EncuestaDemografica extends Model
 {
+    use DeLaInstitucion;
+
     /**
      * «No binario» y no «Otro», que es lo que decia el original.
      *
