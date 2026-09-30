@@ -214,9 +214,12 @@ class CarneController extends Controller
     {
         $solicitante = $request->user()?->perfil;
 
+        // Una persona suprimida no tiene carne: sacarlo le crearia un codigo
+        // nuevo, o sea un dato que la supresion acaba de borrar.
         return $solicitante !== null
             && $solicitante->rol === 'administrador'
-            && $usuario->rol === 'estudiante';
+            && $usuario->rol === 'estudiante'
+            && ! $usuario->estaSuprimido();
     }
 
     // -----------------------------------------------------------------------

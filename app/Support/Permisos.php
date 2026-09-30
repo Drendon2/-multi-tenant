@@ -367,6 +367,13 @@ class Permisos
             return false;
         }
 
+        // Quien pidio que se borraran sus datos no se vuelve a editar: la
+        // ficha se guardaria con un nombre, un telefono o un rol nuevos sobre
+        // una fila que la ley dejo vacia. Ver `SupresionDeDatos`.
+        if ($objetivo->estaSuprimido()) {
+            return false;
+        }
+
         if ($solicitante->rol === 'administrador') {
             return true;
         }

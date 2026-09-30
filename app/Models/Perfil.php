@@ -137,7 +137,19 @@ class Perfil extends Model
     {
         return [
             'fecha_nacimiento' => 'date',
+            'suprimido_en' => 'datetime',
         ];
+    }
+
+    /**
+     * ¿Se suprimieron sus datos a peticion suya? Ver `SupresionDeDatos`.
+     *
+     * Se pregunta por la COLUMNA y no por el nombre: «Persona suprimida» es un
+     * rotulo que cualquiera puede teclear en su propio perfil.
+     */
+    public function estaSuprimido(): bool
+    {
+        return $this->suprimido_en !== null;
     }
 
     public function user(): BelongsTo

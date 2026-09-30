@@ -104,12 +104,20 @@ class Matricula extends Model
 
     public const RETIRO_ABANDONO = 'abandono';
 
+    /**
+     * El titular pidio que se borraran sus datos (Ley 1581) y la matricula
+     * seguia viva. Solo lo llevan las que estaban en curso ese dia: una ya
+     * retirada conserva el motivo que tenia. Ver `SupresionDeDatos`.
+     */
+    public const RETIRO_SUPRESION = 'supresion';
+
     /** @var array<string, string> */
     public const MOTIVOS_RETIRO = [
         self::RETIRO_RECHAZO => 'La solicitud no fue aceptada',
         self::RETIRO_PROPIO => 'La retiró el propio estudiante',
         self::RETIRO_CANCELACION => 'Cancelación tramitada por la dirección',
         self::RETIRO_ABANDONO => 'Retirada por inasistencia',
+        self::RETIRO_SUPRESION => 'Datos suprimidos a petición del titular',
     ];
 
     protected $table = 'matriculas';

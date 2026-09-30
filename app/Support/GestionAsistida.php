@@ -69,6 +69,7 @@ class GestionAsistida
         return $quien->rol === 'administrador'
             && in_array($destino->rol, ['profesor', 'director', 'estudiante'], true)
             && $destino->id !== $quien->id
+            && ! $destino->estaSuprimido()
             && ! self::activa();
     }
 

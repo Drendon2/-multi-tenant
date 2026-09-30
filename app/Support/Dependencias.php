@@ -78,9 +78,13 @@ class Dependencias
          * asi que la base borra el historial academico de la persona SIN UNA
          * QUEJA —comprobado: un estudiante con una matricula se lleva la
          * matricula al borrar la cuenta—. Se declara como bloqueo porque es la
-         * decision del proyecto: una cuenta con historial no se borra, se
-         * DESACTIVA, que es lo que ya hacia `UsuarioController::alternarActivo`
-         * y lo que su comentario venia diciendo desde el principio.
+         * decision del proyecto: una cuenta con historial no se BORRA.
+         *
+         * Desde el 30/09/2026 tampoco se queda sin salida: si el titular pide
+         * que se borren sus datos (Ley 1581), `UsuarioController` pregunta con
+         * `salvo: ['matriculas']` y, si solo quedan matriculas, ANONIMIZA en
+         * vez de borrar (`SupresionDeDatos`). La fila se queda y el historial
+         * con ella; lo que se va es todo lo que dice quien era.
          *
          * Consecuencia que conviene tener presente: aqui el mapa no describe al
          * esquema, lo CORRIGE. Lo unico que separa un clic de perder anos de
@@ -136,11 +140,18 @@ class Dependencias
     ];
 
     /**
+     * `$salvo` deja fuera relaciones que bloquean en el mapa pero que quien
+     * pregunta sabe atender por otro camino: las matriculas de una persona, que
+     * desde el 30/09/2026 no impiden la supresion sino que la convierten en
+     * anonimizacion (ver `SupresionDeDatos`).
+     *
+     * @param  list<string>  $salvo
      * @return array{bloqueos: string, arrastre: string} frases ya armadas, vacias si no hay nada
      */
-    public static function de(Model $objeto): array
+    public static function de(Model $objeto, array $salvo = []): array
     {
         $config = self::MAPA[$objeto::class] ?? ['bloquean' => [], 'arrastran' => []];
+        $config['bloquean'] = array_diff_key($config['bloquean'], array_flip($salvo));
 
         return [
             'bloqueos' => self::enumerar(self::contar($objeto, $config['bloquean'])),
@@ -171,9 +182,10 @@ class Dependencias
      * pregunta a la base cuando no lo hay. Sin esa preferencia, pintar cincuenta
      * usuarios costaria ciento cincuenta consultas.
      */
-    public static function estaBloqueado(Model $objeto): bool
+    /** @param  list<string>  $salvo  como en `de()` */
+    public static function estaBloqueado(Model $objeto, array $salvo = []): bool
     {
-        foreach (self::nombresDeBloqueos($objeto::class) as $relacion) {
+        foreach (array_diff(self::nombresDeBloqueos($objeto::class), $salvo) as $relacion) {
             $yaContado = $objeto->getAttribute(Str::snake($relacion).'_count');
             $cuantos = $yaContado ?? $objeto->{$relacion}()->count();
 

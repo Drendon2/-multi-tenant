@@ -215,6 +215,9 @@ class FichasIncompletas
         // la institucion entera.
         return DB::table('perfiles')
             ->when($soloEstos !== null, fn ($q) => $q->whereIn('perfiles.id', $soloEstos ?? []))
+            // A quien se le suprimieron los datos le falta TODO, a proposito:
+            // pedirselos seria volver a recogerlos.
+            ->whereNull('perfiles.suprimido_en')
             ->leftJoin('datos_estudiante', 'datos_estudiante.perfil_id', '=', 'perfiles.id')
             ->leftJoin('acudientes', 'acudientes.id', '=', 'datos_estudiante.acudiente_id')
             ->select(

@@ -19,6 +19,7 @@ use App\Support\Imagen;
 use App\Support\Permisos;
 use App\Support\Reglas;
 use App\Support\Regreso;
+use App\Support\SupresionDeDatos;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -97,6 +98,10 @@ class UsuarioController extends Controller
             // `Permisos`, esto solo deja de ensenar lo que no lleva a ningun
             // sitio.
             ->where('rol', '!=', Perfil::INSTITUCION_EXTERNA)
+            // Quien pidio que se borraran sus datos ya no es nadie a quien
+            // gestionar: su fila solo existe para que sus matriculas sigan
+            // contando (ver `SupresionDeDatos`), y sus botones estan cerrados.
+            ->whereNull('suprimido_en')
             // Solo para el administrador, que es el unico que ve «Eliminar»: son
             // tres subconsultas correlacionadas mas y no hay por que cobrarselas
             // a un director que nunca va a usar el dato. Van DENTRO de la
@@ -510,13 +515,16 @@ class UsuarioController extends Controller
 
         // Una sola vez: `de()` son seis COUNT, y pedirlos aqui y otra vez dentro
         // de `impedimento()` eran doce para pintar una pagina.
-        $dependencias = Dependencias::de($usuario);
+        $dependencias = Dependencias::de($usuario, salvo: ['matriculas']);
 
         return view('gestion.confirma-borrado-usuario', [
             'usuario' => $usuario,
             'accion' => route('usuario-eliminar', $usuario),
             'impedimento' => $this->impedimento($request, $usuario, $dependencias),
             'arrastre' => $dependencias['arrastre'],
+            // Con matriculas no se borra: se anonimiza, y la pantalla tiene que
+            // decir la diferencia antes de pedir la contrasena.
+            'matriculas' => $usuario->matriculas()->count(),
             // El filtro y la pagina en que estaba quien mira. Sin esto, borrar a
             // uno de los «Pendiente de rol» devolvia a la lista entera por el
             // principio, y para borrar a cinco habia que filtrar cinco veces.
@@ -550,6 +558,23 @@ class UsuarioController extends Controller
         }
 
         $nombre = $usuario->nombre_completo;
+        $conHistorial = $usuario->matriculas()->exists();
+
+        // SIEMPRE se suprime primero, tambien sin historial. El borrado de la
+        // cuenta por si solo dejaba atras los archivos del disco (la foto y
+        // los papeles, cedulas de menores incluidas), el acudiente —la clave va
+        // de la ficha hacia el— y lo que la persona escribio en las listas de
+        // talleres, que guardan sus propios datos. Ninguna de las tres cosas
+        // la ve quien borra, y las tres son datos personales.
+        SupresionDeDatos::suprimir($usuario, $request->attributes->get('perfil'));
+
+        if ($conHistorial) {
+            return redirect($destino)->with(
+                'success',
+                "Se suprimieron los datos de {$nombre}. Sus matrículas siguen contando en las cifras, "
+                .'como «'.SupresionDeDatos::NOMBRE.'».'
+            );
+        }
 
         // Se borra la CUENTA, no el perfil: `perfiles.user_id` es CASCADE, asi
         // que el perfil se va con ella. Al reves quedaria una cuenta capaz de
@@ -587,7 +612,11 @@ class UsuarioController extends Controller
             return 'No puedes eliminar tu propia cuenta.';
         }
 
-        $bloqueos = ($dependencias ?? Dependencias::de($usuario))['bloqueos'];
+        // Las matriculas NO bloquean: con ellas se anonimiza (ver `eliminar`).
+        // Lo que sigue bloqueando es lo que la persona tiene A SU CARGO
+        // —promotorias, actividades, una institucion externa—, porque ahi
+        // borrarla deja a otros sin quien responda.
+        $bloqueos = ($dependencias ?? Dependencias::de($usuario, salvo: ['matriculas']))['bloqueos'];
 
         if ($bloqueos !== '') {
             return "No se puede eliminar a {$usuario->nombre_completo}: todavía tiene {$bloqueos}. "
@@ -633,6 +662,10 @@ class UsuarioController extends Controller
     {
         /** @var Perfil $perfil */
         $perfil = $request->attributes->get('perfil');
+
+        // Antes que el permiso, para que la respuesta no culpe a un rol:
+        // Permisos tambien la cierra, pero su mensaje habla de administradores.
+        abort_if($usuario->estaSuprimido(), 404);
 
         abort_unless(
             Permisos::puedeEditarUsuario($perfil, $usuario),

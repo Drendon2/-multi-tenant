@@ -1848,10 +1848,12 @@ class GestionTest extends TestCase
      * La barrera que sostiene todo lo demas.
      *
      * En el esquema `matriculas.estudiante_id` es CASCADE: la base borra el
-     * historial sin una queja. Esta comprobacion es lo unico que hay entre un
-     * clic y perder anos de matriculas.
+     * historial sin una queja. Desde el 30/09/2026 una cuenta con matriculas
+     * SI se puede «eliminar», pero lo que pasa es que se ANONIMIZA
+     * (`SupresionDeDatos`): el perfil y sus matriculas tienen que seguir ahi.
+     * El detalle de lo que se borra esta en `SupresionDeDatosTest`.
      */
-    public function test_una_cuenta_con_matriculas_no_se_elimina(): void
+    public function test_una_cuenta_con_matriculas_se_anonimiza_y_no_pierde_el_historial(): void
     {
         $estudiante = $this->crearEstudiante('conhistorial');
         $this->matricular($estudiante, $this->violin, Matricula::ACTIVA);
@@ -1860,7 +1862,7 @@ class GestionTest extends TestCase
             ->post(route('usuario-eliminar', $estudiante), ['password' => 'x'])
             ->assertRedirect(route('usuario-lista'));
 
-        $this->assertNotNull(Perfil::find($estudiante->id));
+        $this->assertNotNull(Perfil::find($estudiante->id)?->suprimido_en);
         $this->assertSame(1, Matricula::count());
     }
 
@@ -1980,11 +1982,13 @@ class GestionTest extends TestCase
      */
     public function test_la_pantalla_de_confirmacion_no_pregunta_cuando_no_se_puede(): void
     {
-        $estudiante = $this->crearEstudiante('conhistorial');
-        $this->matricular($estudiante, $this->violin, Matricula::ACTIVA);
+        // Lo que protege una cuenta ya no son sus matriculas (esas se
+        // anonimizan) sino lo que tiene A SU CARGO.
+        $this->violin->profesor_id = $this->profesor->id;
+        $this->violin->save();
 
         $this->actingAs($this->admin->user)
-            ->get(route('usuario-eliminar', $estudiante))
+            ->get(route('usuario-eliminar', $this->profesor))
             ->assertOk()
             ->assertSee('No se puede eliminar esta cuenta')
             ->assertDontSee('name="password"', false);
@@ -1993,8 +1997,8 @@ class GestionTest extends TestCase
     /** Y en el listado tampoco es un enlace, para no hacer perder el viaje. */
     public function test_el_listado_apaga_eliminar_en_una_cuenta_protegida(): void
     {
-        $estudiante = $this->crearEstudiante('conhistorial');
-        $this->matricular($estudiante, $this->violin, Matricula::ACTIVA);
+        $this->violin->profesor_id = $this->profesor->id;
+        $this->violin->save();
         $suelta = $this->cuentaPendiente();
 
         $html = $this->actingAs($this->admin->user)
@@ -2003,7 +2007,7 @@ class GestionTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString(route('usuario-eliminar', $suelta), $html);
-        $this->assertStringNotContainsString(route('usuario-eliminar', $estudiante), $html);
+        $this->assertStringNotContainsString(route('usuario-eliminar', $this->profesor), $html);
     }
 
     // -----------------------------------------------------------------------
@@ -2066,15 +2070,16 @@ class GestionTest extends TestCase
     /** Y tambien cuando se NIEGA: el viaje perdido no debe costar el filtro. */
     public function test_un_borrado_rechazado_tambien_vuelve_al_listado_filtrado(): void
     {
-        $estudiante = $this->crearEstudiante('conhistorial');
-        $this->matricular($estudiante, $this->violin, Matricula::ACTIVA);
+        $this->violin->profesor_id = $this->profesor->id;
+        $this->violin->save();
 
         $this->actingAs($this->admin->user)
-            ->post(route('usuario-eliminar', $estudiante), [
+            ->post(route('usuario-eliminar', $this->profesor), [
                 'password' => 'x',
-                'volver' => 'rol=estudiante',
+                'volver' => 'rol=profesor',
             ])
-            ->assertRedirect(route('usuario-lista', ['rol' => 'estudiante']));
+            ->assertRedirect(route('usuario-lista', ['rol' => 'profesor']))
+            ->assertSessionHas('error');
     }
 
     /**

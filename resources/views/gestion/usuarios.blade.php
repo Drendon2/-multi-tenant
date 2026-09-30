@@ -387,16 +387,20 @@
                   Es un enlace y no un formulario aunque borre: lleva a la
                   confirmación, que es la que pide la contraseña. Nada de este
                   listado borra nada por sí mismo.
+
+                  Las matrículas NO lo apagan desde el 30/09/2026: con ellas se
+                  anonimiza en vez de borrar (Ley 1581), y la confirmación lo
+                  explica. Lo apaga tener algo A SU CARGO.
                 --}}
                 ($soyAdministrador && $puedeTocarla && $perfil->user_id !== auth()->id())
                     ? [
                         'texto' => 'Eliminar',
-                        'url' => \App\Support\Dependencias::estaBloqueado($perfil)
+                        'url' => \App\Support\Dependencias::estaBloqueado($perfil, salvo: ['matriculas'])
                             ? null
                             : route('usuario-eliminar', $perfil),
                         'modal' => true,
                         'borrar' => true,
-                        'porque' => 'Tiene historial en el sistema. Desactívala en su lugar.',
+                        'porque' => 'Tiene promotorías, actividades o una institución a su cargo. Desactívala en su lugar.',
                     ]
                     : null,
             ],
