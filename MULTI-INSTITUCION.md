@@ -9,10 +9,10 @@ pase a PostgreSQL.
 Esta versión vive en la rama `multi-tenant`. El sistema de una sola institución
 que está en producción es la rama `main`, y **esta rama no se fusiona en ella**.
 
-> **Estado: paso 1 de 5, terminado.** `institucion_id` en todas las tablas de
-> datos, sobre MariaDB, con el filtro centralizado. El paso se ensayó sobre un
-> volcado de producción: la institución que ya existía funciona igual y una
-> segunda queda separada de ella. Ver [Hoja de ruta](#hoja-de-ruta).
+> **Estado: pasos 1 y 2 de 5, terminados.** `institucion_id` en todas las tablas
+> de datos, con el filtro centralizado (paso 1), y el sistema entero sobre
+> **PostgreSQL 18** (paso 2, contado en [`POSTGRES.md`](POSTGRES.md)). Los dos se
+> ensayaron sobre un volcado de producción. Ver [Hoja de ruta](#hoja-de-ruta).
 
 Para lo que no cambia (qué resuelve el sistema, sus pantallas, el stack), el
 [`README.md`](README.md) sigue valiendo. Este documento cuenta solo lo que
@@ -147,10 +147,17 @@ login, así que tiene sentido el día que cada institución llegue por su domini
 
 ### Cómo se aplica
 
-Los guiones SQL de `database/sql/multi-tenant/` son la fuente de verdad. Cada
-migración de Laravel corre **ese mismo archivo** (con
+> **Desde el paso a PostgreSQL**, el esquema entero, con todo lo de esta
+> sección, está en `database/sql/postgres/01-esquema.sql` (ver
+> [`POSTGRES.md`](POSTGRES.md)). Los cuatro guiones de abajo son los de
+> MariaDB: viven en `database/historico-mariadb/sql-multi-tenant/` y ya no se
+> ejecutan. Se dejan descritos porque cuentan cómo se llegó a este esquema
+> desde el de una sola institución.
+
+Los guiones SQL de `database/sql/multi-tenant/` eran la fuente de verdad. Cada
+migración de Laravel corría **ese mismo archivo** (con
 `App\Support\GuionSql`), así que el CI, las pruebas, `instalar` y cualquier
-despliegue ejecutan exactamente lo mismo que se corre a mano:
+despliegue ejecutaban exactamente lo mismo que se corría a mano:
 
 ```bash
 # Subir, en este orden
@@ -323,9 +330,12 @@ siempre.
 Van como guiones SQL en `database/sql/<tema>/NN-*.sql`, con su
 `NN-*.revertir.sql`. La migración de Laravel solo llama a `GuionSql::correr()`.
 
-- **Idempotentes los dos lados.** Con `IF [NOT] EXISTS`, y donde no alcanza,
-  bloques `BEGIN NOT ATOMIC … END` con `DELIMITER //`, que `GuionSql` entiende
-  igual que el cliente de consola.
+- **Idempotentes los dos lados.** Con `IF [NOT] EXISTS`, `CREATE OR REPLACE`
+  y, donde no alcanza, bloques `DO $$ … $$`, que `GuionSql` corta igual que
+  `psql`.
+- **Toda columna de texto nueva lleva `COLLATE insensible`.** Sin él, la
+  columna distingue mayúsculas y tildes, que es lo contrario de lo que el
+  sistema espera (ver [`POSTGRES.md`](POSTGRES.md#el-cotejo)).
 - **Ensayados sobre un volcado limpio**, dos veces arriba y dos abajo,
   comparando esquema y contenido.
 - **Una columna nueva pide su `@property` en el modelo.** Larastan deduce las
@@ -333,15 +343,11 @@ Van como guiones SQL en `database/sql/<tema>/NN-*.sql`, con su
 
 ### Pruebas
 
-Contra MariaDB, como siempre, con una base de pruebas propia:
+Contra PostgreSQL, con una base de pruebas propia que `phpunit.xml` ya fija:
 
 ```bash
-DB_DATABASE=test_matriculas_mt php vendor/bin/phpunit
+php vendor/bin/phpunit
 ```
-
-`phpunit.xml` fija `test_matriculas`. Si esta versión convive en la misma
-máquina con la de una institución, **la variable evita que las dos suites
-compartan base**.
 
 La verificación del esquema tiene ocho garantías nuevas: fila sin institución
 rechazada, nombre repetido entre instituciones pero no dentro de una, un
@@ -350,7 +356,7 @@ borra una institución con datos. Vacía la base a la que apunte el `.env`: se
 corre contra una desechable.
 
 ```bash
-php database/verificacion_esquema.php --borrar-datos
+DB_DATABASE=test_matriculas_mt php database/verificacion_esquema.php --borrar-datos
 ```
 
 ---
@@ -387,10 +393,10 @@ php database/verificacion_esquema.php --borrar-datos
 | Paso | Qué | Estado |
 |---|---|---|
 | 1 | `institucion_id` en MariaDB y el filtro en un solo punto | **Hecho** |
-| 2 | Enrutamiento por dominio o subdominio. Con él, `username` pasa a ser único por institución y las páginas públicas dejan de caer en la institución por defecto | Pendiente |
-| 3 | PostgreSQL | Pendiente |
-| 4 | Row Level Security: se vacía `InstitucionActual::filtrar()` y la guardia se reescribe | Pendiente |
-| 5 | Panel de administración de instituciones y suplantación | Pendiente |
+| 2 | PostgreSQL ([`POSTGRES.md`](POSTGRES.md)) | **Hecho** |
+| 3 | Row Level Security: se vacía `InstitucionActual::filtrar()` y la guardia se reescribe. Tiene que dejar sitio a las estadísticas globales del paso 5 | Pendiente |
+| 4 | Panel de administración de todas las instituciones y suplantación. Desde él se asignan los dominios o subdominios; con ellos, `username` pasa a ser único por institución y las páginas públicas dejan de caer en la institución por defecto | Pendiente |
+| 5 | Pruebas con varias instituciones y estadísticas globales de todas | Pendiente |
 
 **Abierto y sin decidir:**
 
@@ -399,8 +405,6 @@ php database/verificacion_esquema.php --borrar-datos
   saldría del filtro. Hoy no hay ninguna; está advertido en `tabla()`.
 - `instituciones.nombre` se pone al instalar y no sigue a un cambio de nombre
   hecho luego en Gestión → Institución, que es el que se pinta en pantalla.
-- El informe de estudiantes necesita un desempate en su `orderBy` si el orden
-  exacto importa.
 - `instituciones.estado = suspendida` todavía no impide nada.
 - Separar esta versión en un repositorio propio y privado, revisando el CI
   heredado, que despliega a producción.

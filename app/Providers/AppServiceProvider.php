@@ -31,12 +31,10 @@ class AppServiceProvider extends ServiceProvider
          * ocurrir antes de arrancar: la sesion se lee en el middleware, o sea
          * antes de que ningun `boot()` haya corrido.
          *
-         * Se registran las dos claves aunque este proyecto solo use `mariadb`:
-         * `mysql` esta en `config/database.php` y el dia que alguien cambie el
-         * `DB_CONNECTION` de un `.env` no perderia el reintento sin enterarse.
+         * Solo `pgsql`: desde el paso a PostgreSQL es el unico motor que hay
+         * en `config/database.php`.
          */
-        $this->app->bind('db.connector.mariadb', ConexionQueReintenta::class);
-        $this->app->bind('db.connector.mysql', ConexionQueReintenta::class);
+        $this->app->bind('db.connector.pgsql', ConexionQueReintenta::class);
     }
 
     public function boot(): void

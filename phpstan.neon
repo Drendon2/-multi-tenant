@@ -32,6 +32,17 @@ parameters:
     # sesion: el informe pedia 5.
     level: 5
 
+    # De donde saca Larastan las columnas de cada modelo. Las LEE de las
+    # migraciones de Laravel, y desde el paso a PostgreSQL el esquema vive en
+    # un guion SQL (`database/sql/postgres/01-esquema.sql`) que Larastan no
+    # entiende. Las migraciones de MariaDB archivadas describen las mismas
+    # columnas, y aqui solo se leen: no se ejecutan. Lo que se anadio por SQL
+    # (`institucion_id`, `institucion_externa_id`) sigue pidiendo su
+    # `@property` en el modelo, como ya pedia en el paso 1.
+    databaseMigrationsPath:
+        - database/migrations
+        - database/historico-mariadb/migrations
+
     # Los guiones de database/ son ejecutables sueltos, no clases: corren con
     # `php database/verificacion_esquema.php` y viven fuera del autoload de
     # Composer. `require` de un archivo que devuelve un PDO es un patron que
@@ -60,3 +71,10 @@ parameters:
         - database/verificacion_concurrencia.php
         - database/verificacion_concurrencia_a.php
         - database/verificacion_esquema.php
+        # El esquema de MariaDB, archivado al pasar a PostgreSQL: ya no se
+        # ejecuta, y sus migraciones hablan con un motor que no esta.
+        - database/historico-mariadb
+        # Los dos guiones del paso a PostgreSQL: ejecutables sueltos, como los
+        # de arriba. Lo que dice que sirven es correrlos.
+        - database/copiar_a_postgres.php
+        - database/comparar_motores.php

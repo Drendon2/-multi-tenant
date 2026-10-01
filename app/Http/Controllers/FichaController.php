@@ -15,6 +15,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -300,7 +301,10 @@ class FichaController extends Controller
 
         try {
             $matricula->validar();
-            $matricula->save();
+            // En su propia transaccion para que, si la base la rechaza (cupo,
+            // unico), se deshaga SOLO esto: en PostgreSQL una sentencia fallida
+            // deja inservible la transaccion que la envuelva.
+            DB::transaction(fn () => $matricula->save());
         } catch (ValidationException $e) {
             return $volver->with('error', implode(' ', Arr::flatten($e->errors())));
         } catch (QueryException $e) {
@@ -557,7 +561,8 @@ class FichaController extends Controller
 
         try {
             $matricula->validar();
-            $matricula->save();
+            // Ver `corregir()`: aislada, por si la base la rechaza.
+            DB::transaction(fn () => $matricula->save());
         } catch (ValidationException $e) {
             return $volver->with('error', implode(' ', Arr::flatten($e->errors())));
         } catch (QueryException $e) {

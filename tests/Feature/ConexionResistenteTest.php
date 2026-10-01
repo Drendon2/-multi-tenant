@@ -15,9 +15,12 @@ use Tests\TestCase;
  * Que un hipo del motor no tumbe una pantalla (08/09/2026).
  *
  * Salio de un 504 real: el hosting compartido rechaza la conexion al socket de
- * MariaDB en rafagas de un segundo con `[2002] Operation not permitted`, y la
+ * la base en rafagas de un segundo con `Operation not permitted`, y la
  * peticion que lo pillaba se quedaba colgada hasta que el CDN cortaba a los 60
- * segundos con una pagina en blanco.
+ * segundos con una pagina en blanco. Se midio con MariaDB; desde el paso a
+ * PostgreSQL los mensajes son los de `pdo_pgsql`, donde TODO fallo al
+ * conectar llega como `[08006] [7]` y lo que distingue un caso de otro es el
+ * texto (ver `ConexionQueReintenta`).
  *
  * NUEVE de las diez se ponen ROJAS al deshacer el arreglo, y esto se comprobo
  * quitandolo por partes en vez de suponerlo: sin registrar el conector cae 1,
@@ -37,8 +40,13 @@ use Tests\TestCase;
  */
 class ConexionResistenteTest extends TestCase
 {
-    /** El mensaje exacto que sale en el registro de produccion. */
-    private const ERROR_REAL = 'SQLSTATE[HY000] [2002] Operation not permitted';
+    /**
+     * El rechazo de produccion, con la forma en que lo envuelve `pdo_pgsql`.
+     * El EPERM del sistema operativo es el mismo que se midio con MariaDB; el
+     * envoltorio es el que da libpq (comprobado el 01/10/2026 con un servidor
+     * parado: el mismo envoltorio, con «Connection refused» como causa).
+     */
+    private const ERROR_REAL = 'SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: Operation not permitted';
 
     /**
      * La premisa: Laravel ya reintenta la conexion perdida, pero NO con este
@@ -57,7 +65,7 @@ class ConexionResistenteTest extends TestCase
         // Y el vecino que SI trae, para dejar claro que la lista existe y que lo
         // que falla es solo esta cadena.
         $this->assertTrue($detector->causedByLostConnection(
-            new PDOException('SQLSTATE[HY000] [2002] Operation now in progress')
+            new PDOException('SQLSTATE[08006] [7] server closed the connection unexpectedly')
         ));
     }
 
@@ -136,7 +144,7 @@ class ConexionResistenteTest extends TestCase
     public function test_no_reintenta_un_error_de_configuracion(): void
     {
         $conector = $this->conector([
-            new PDOException('SQLSTATE[HY000] [1049] Unknown database '."'no_existe'"),
+            new PDOException('SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "no_existe" does not exist'),
             null,
         ]);
 
@@ -152,19 +160,18 @@ class ConexionResistenteTest extends TestCase
 
     /**
      * El mismo fallo con el mensaje TRADUCIDO se sigue reconociendo, por el
-     * codigo del motor.
+     * numero de Winsock que libpq pega al final y que no se traduce.
      *
-     * No es un caso inventado: es el texto que devuelve PDO en un Windows en
-     * espanol, y salio al comprobar esto en el navegador el 08/09/2026. En el
-     * servidor de hoy el error llega en ingles, pero este producto se instala
-     * en casas ajenas y el idioma del sistema no lo elegimos nosotros.
+     * No es un caso inventado: es el texto que da un Windows en espanol. Este
+     * producto se instala en casas ajenas y el idioma del sistema no lo
+     * elegimos nosotros.
      */
     public function test_reconoce_el_fallo_aunque_el_mensaje_venga_traducido(): void
     {
         $traducido = new PDOException(
-            'SQLSTATE[HY000] [2002] No se puede establecer una conexion ya que el equipo de destino denego expresamente dicha conexion'
+            'SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: No se puede establecer una conexion ya que el equipo de destino denego expresamente dicha conexion. (0x0000274D/10061)'
         );
-        $traducido->errorInfo = ['HY000', 2002, 'No se puede establecer una conexion'];
+        $traducido->errorInfo = ['08006', 7, 'No se puede establecer una conexion (0x0000274D/10061)'];
 
         $this->assertTrue(
             ConexionQueReintenta::esTransitorio($traducido),
@@ -172,26 +179,30 @@ class ConexionResistenteTest extends TestCase
         );
     }
 
-    /** Un error de configuracion no se vuelve reintentable por traer codigo. */
+    /**
+     * Una contrasena mala llega con el MISMO codigo que una saturacion
+     * (`08006`): por eso no se decide por codigo, y esto vigila que no se
+     * vuelva a intentar.
+     */
     public function test_el_codigo_no_reintenta_una_contrasena_mala(): void
     {
-        $denegado = new PDOException('SQLSTATE[HY000] [1045] Access denied for user');
-        $denegado->errorInfo = ['HY000', 1045, 'Access denied for user'];
+        $denegado = new PDOException('SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: FATAL:  password authentication failed for user "matriculas"');
+        $denegado->errorInfo = ['08006', 7, 'password authentication failed for user'];
 
         $this->assertFalse(ConexionQueReintenta::esTransitorio($denegado));
     }
 
-    public function test_el_conector_registrado_para_mariadb_es_el_que_reintenta(): void
+    public function test_el_conector_registrado_para_pgsql_es_el_que_reintenta(): void
     {
         $this->assertInstanceOf(
             ConexionQueReintenta::class,
-            $this->app->make('db.connector.mariadb')
+            $this->app->make('db.connector.pgsql')
         );
     }
 
     public function test_la_conexion_lleva_tope_de_espera(): void
     {
-        $opciones = config('database.connections.mariadb.options');
+        $opciones = config('database.connections.pgsql.options');
 
         $this->assertArrayHasKey(
             PDO::ATTR_TIMEOUT,
@@ -206,13 +217,13 @@ class ConexionResistenteTest extends TestCase
      * que se esta usando.
      *
      * No se comprueba preguntandoselo al PDO —`getAttribute(ATTR_TIMEOUT)`
-     * lanza «driver does not support that attribute» en pdo_mysql— sino en la
+     * no lo devuelve el driver— sino en la
      * configuracion resuelta de la conexion viva, que es lo que Laravel le pasa
      * al constructor.
      */
     public function test_el_tope_de_espera_viaja_en_la_conexion_viva(): void
     {
-        $opciones = DB::connection('mariadb')->getConfig('options');
+        $opciones = DB::connection('pgsql')->getConfig('options');
 
         $this->assertArrayHasKey(PDO::ATTR_TIMEOUT, $opciones);
         $this->assertGreaterThan(0, $opciones[PDO::ATTR_TIMEOUT]);

@@ -59,19 +59,19 @@
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
         <!--
-            Las pruebas corren contra MariaDB, NO contra SQLite en memoria.
+            Las pruebas corren contra PostgreSQL, NO contra SQLite en memoria.
 
             No es una preferencia: buena parte de lo que hay que probar son las
             garantias que da el motor —columnas generadas con indice unico,
-            triggers con SIGNAL, SELECT ... FOR UPDATE— y SQLite no tiene
+            triggers que rechazan con su propio SQLSTATE, SELECT ... FOR UPDATE— y SQLite no tiene
             ninguna de las tres. Una suite verde sobre SQLite no diria nada
             sobre el sistema que se va a desplegar.
 
-            Es la misma decision del original, que corre sus pruebas contra
-            PostgreSQL y no contra SQLite.
+            Base propia de esta version (test_matriculas_mt): la del original
+            es test_matriculas, en MariaDB.
         -->
-        <env name="DB_CONNECTION" value="mariadb"/>
-        <env name="DB_DATABASE" value="test_matriculas"/>
+        <env name="DB_CONNECTION" value="pgsql"/>
+        <env name="DB_DATABASE" value="test_matriculas_mt"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

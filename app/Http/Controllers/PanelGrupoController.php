@@ -12,6 +12,7 @@ use App\Support\Reglas;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -125,7 +126,10 @@ class PanelGrupoController extends Controller
         $promotoria = $grupo->promotoria;
 
         try {
-            $grupo->delete();
+            // En su propia transaccion: si la base lo rechaza, en PostgreSQL
+            // la sentencia fallida dejaria inservible cualquier transaccion
+            // que la envolviera.
+            DB::transaction(fn () => $grupo->delete());
         } catch (QueryException $e) {
             if (! ErrorDeBaseDeDatos::esFilaEnUso($e)) {
                 throw $e;

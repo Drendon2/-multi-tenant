@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 /**
@@ -332,7 +333,10 @@ abstract class RecursoController extends Controller
         $destino = Regreso::url($this->urlExito($objeto), $request->input('volver'));
 
         try {
-            $objeto->delete();
+            // En su propia transaccion: si la base lo rechaza, en PostgreSQL
+            // la sentencia fallida dejaria inservible cualquier transaccion
+            // que la envolviera, y `avisoDeProtegido()` de abajo consulta.
+            DB::transaction(fn () => $objeto->delete());
         } catch (QueryException $e) {
             if (! ErrorDeBaseDeDatos::esFilaEnUso($e)) {
                 throw $e;

@@ -129,7 +129,7 @@ class ResumenInstitucion
             ->where(fn ($q) => $q
                 ->whereNull('perfil_id')
                 ->orWhereNotIn('perfil_id', $activos))
-            ->selectRaw('COUNT(DISTINCT documento) as con_documento, SUM(documento IS NULL) as sin_documento')
+            ->selectRaw('COUNT(DISTINCT documento) as con_documento, SUM(CASE WHEN documento IS NULL THEN 1 ELSE 0 END) as sin_documento')
             ->first();
 
         return $estudiantes + (int) ($fila->con_documento ?? 0) + (int) ($fila->sin_documento ?? 0);

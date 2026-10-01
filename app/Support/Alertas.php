@@ -184,8 +184,14 @@ class Alertas
         }
 
         // La mas reciente arriba: es la que todavia se puede recuperar hablando
-        // con quien dicta.
-        return $faltantes->sortByDesc(fn ($f) => $f['fecha']->timestamp)->values();
+        // con quien dicta. Entre las del mismo dia —un dia sin clases en toda
+        // la casa las iguala a todas—, por promotoria y grupo: la portada
+        // recorta a tres y sin desempate cada motor ensenaba otras (ver
+        // `OrdenPorNombre`).
+        return $faltantes->sort(fn (array $a, array $b) => $b['fecha']->timestamp <=> $a['fecha']->timestamp
+            ?: OrdenPorNombre::comparar((string) $a['grupo']->promotoria?->nombre, (string) $b['grupo']->promotoria?->nombre)
+            ?: OrdenPorNombre::comparar($a['grupo']->nombre, $b['grupo']->nombre)
+        )->values();
     }
 
     /**
@@ -263,7 +269,13 @@ class Alertas
                 'faltas' => $rachas[$m->id]['faltas'],
                 'desde' => Carbon::parse($rachas[$m->id]['desde']),
             ])
-            ->sortByDesc('faltas')
+            // Mas faltas arriba y, entre iguales, por nombre (ver
+            // `OrdenPorNombre`).
+            ->sort(fn (array $a, array $b) => $b['faltas'] <=> $a['faltas']
+                ?: OrdenPorNombre::comparar(
+                    (string) $a['matricula']->estudiante?->nombre_completo,
+                    (string) $b['matricula']->estudiante?->nombre_completo
+                ))
             ->values();
 
         return $casos;

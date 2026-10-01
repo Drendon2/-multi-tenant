@@ -2,28 +2,29 @@
 
 namespace App\Support;
 
-use Illuminate\Database\Connectors\MariaDbConnector;
-use PDOException;
+use Illuminate\Database\Connectors\PostgresConnector;
 use Throwable;
 
 /**
  * Vuelve a intentar la conexion cuando el motor la rechaza por saturacion.
  *
- * Existe por un fallo medido en produccion el 08/09/2026: el hosting compartido
- * rechaza la conexion al socket de MariaDB en rafagas de un segundo, con
- * `SQLSTATE[HY000] [2002] Operation not permitted`. Es el UNICO error de
- * produccion que aparece en el registro —todos los dias, entre las 9 y las 11 de
- * la manana, que es cuando la gente usa el sistema— y no lo provoca ninguna
- * pantalla: la base son 4,5 MB y las consultas contestan en 1-2 ms. Es la
- * maquina compartida, con una carga media de 26 a 35, frenando al contenedor.
+ * Existe por un fallo medido en produccion el 08/09/2026, todavia con MariaDB:
+ * el hosting compartido rechazaba la conexion al socket en rafagas de un
+ * segundo, con `Operation not permitted`. Era el UNICO error de produccion que
+ * aparecia en el registro —todos los dias, entre las 9 y las 11 de la manana,
+ * que es cuando la gente usa el sistema— y no lo provocaba ninguna pantalla:
+ * la base son 4,5 MB y las consultas contestan en 1-2 ms. Es la maquina
+ * compartida, con una carga media de 26 a 35, frenando al contenedor. Con
+ * PostgreSQL el rechazo del sistema operativo es el mismo; lo que cambia es
+ * como llega envuelto.
  *
  * LA TRAMPA QUE JUSTIFICA ESTE ARCHIVO: Laravel YA reintenta la conexion
  * perdida, en `Connector::createConnection()`, y por eso parece que aqui no
  * hace falta nada. Pero decide con la lista de `LostConnectionDetector`, que
- * trae `Operation now in progress` y `Operation in progress` y NO trae
- * `Operation not permitted`. O sea que el reintento que ya existe no se dispara
- * justamente con el unico error que este sistema tiene. Antes de borrar esta
- * clase «porque el framework ya lo hace», busca esa cadena en esa lista.
+ * NO trae `Operation not permitted`. O sea que el reintento que ya existe no
+ * se dispara justamente con el unico error que este sistema tiene. Antes de
+ * borrar esta clase «porque el framework ya lo hace», busca esa cadena en esa
+ * lista.
  *
  * Se reintenta y no se deja fallar porque el rechazo es INMEDIATO —es un EPERM,
  * no un tiempo de espera agotado— asi que un reintento cuesta lo que cueste la
@@ -33,7 +34,7 @@ use Throwable;
  * fallan a la primera, porque insistir no las va a arreglar y solo retrasaria
  * el mensaje que dice que hacer.
  */
-class ConexionQueReintenta extends MariaDbConnector
+class ConexionQueReintenta extends PostgresConnector
 {
     /**
      * Lo que se espera entre intentos, en milisegundos.
@@ -47,44 +48,43 @@ class ConexionQueReintenta extends MariaDbConnector
     public const ESPERAS_MS = [120, 360];
 
     /**
-     * Los rechazos que SI vale la pena reintentar.
+     * Los rechazos que SI vale la pena reintentar, por su texto.
      *
-     * Todos significan lo mismo: el motor esta ahi pero ahora mismo no puede
-     * atender. El primero es el de produccion; los demas son sus vecinos, y se
-     * escriben aunque hoy no aparezcan porque son el mismo caso y el dia que
-     * salgan nadie estara mirando esta lista.
+     * POR QUE NO POR CODIGO, que es lo que hacia la version de MariaDB: con
+     * `pdo_pgsql` TODO fallo al conectar llega como `SQLSTATE[08006] [7]`,
+     * tambien una contrasena mala o una base que no existe (medido el
+     * 01/10/2026 con los tres casos). El codigo no distingue nada.
      *
-     * OJO con lo que NO esta: `Access denied for user` y `Unknown database`
-     * quedan fuera a proposito. Son errores de configuracion, no de carga:
-     * reintentarlos no arregla nada y solo retrasa el mensaje que dice cual es
-     * el problema.
+     * Los textos vienen de dos sitios, y por eso hay dos clases de senal:
+     *
+     * - Del SISTEMA OPERATIVO, a traves de libpq: el rechazo de la red. En
+     *   Windows llega traducido («No se puede establecer una conexion...»)
+     *   pero lleva siempre el numero de Winsock, que no se traduce: 10061 es
+     *   «rechazada», 10060 «tiempo agotado», 10013 «sin permiso» (el EPERM de
+     *   produccion) y 10055 «sin bufer». En Linux llega el texto de
+     *   `strerror`, que en un servidor es ingles.
+     * - Del SERVIDOR: «too many clients», «starting up», «shutting down».
+     *   Salen en el idioma de su `lc_messages`.
+     *
+     * OJO con lo que NO esta: `password authentication failed` y `database
+     * ... does not exist` quedan fuera a proposito. Son errores de
+     * configuracion, no de carga.
      */
-    /**
-     * Los mismos rechazos, por CODIGO del motor.
-     *
-     * Existe porque los textos vienen traducidos: en Windows el mismo fallo de
-     * conexion llega como «No se puede establecer una conexion ya que el equipo
-     * de destino denego...», que no casa con ninguna cadena inglesa. Se vio
-     * probando esto el 08/09/2026. En el servidor de hoy el error llega en
-     * ingles —esta literal en el registro de produccion— pero esto es un
-     * producto que se instala en casas ajenas, y el idioma del sistema no lo
-     * elegimos nosotros.
-     *
-     * 2002 y 2003 son «no pude conectar»; 2006 y 2013 son «se cayo a mitad»;
-     * 1040 y 1203 son los dos topes de conexiones. Fuera quedan a proposito
-     * 1045 (contrasena mala) y 1049 (base inexistente), que son configuracion.
-     */
-    private const CODIGOS_TRANSITORIOS = [2002, 2003, 2006, 2013, 1040, 1203];
-
     private const TRANSITORIOS = [
         'Operation not permitted',
-        'Too many connections',
-        'max_user_connections',
-        'Resource temporarily unavailable',
-        "Can't create a new thread",
         'Connection refused',
         'Connection timed out',
-        'server has gone away',
+        'timeout expired',
+        'Resource temporarily unavailable',
+        'too many clients already',
+        'remaining connection slots are reserved',
+        'the database system is starting up',
+        'the database system is shutting down',
+        'could not fork new process',
+        '/10013)',
+        '/10055)',
+        '/10060)',
+        '/10061)',
     ];
 
     /** @param  array<string, mixed>  $config */
@@ -112,12 +112,6 @@ class ConexionQueReintenta extends MariaDbConnector
     /** ¿Este rechazo es de los que se arreglan solos volviendo a pedirlo? */
     public static function esTransitorio(Throwable $e): bool
     {
-        // El codigo primero: no depende del idioma del sistema.
-        if ($e instanceof PDOException
-            && in_array((int) ($e->errorInfo[1] ?? 0), self::CODIGOS_TRANSITORIOS, true)) {
-            return true;
-        }
-
         foreach (self::TRANSITORIOS as $senal) {
             if (str_contains($e->getMessage(), $senal)) {
                 return true;

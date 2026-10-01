@@ -198,9 +198,9 @@ class EstadisticasDeProfesor
             ->where('periodo_id', $periodo->id)
             ->whereIn('promotoria_id', $promotorias)
             ->selectRaw(
-                'SUM(estado = ? AND motivo_retiro = ?) as tramitadas,
-                 SUM(estado = ?) as en_tramite,
-                 SUM(estado <> ? AND NOT (estado = ? AND motivo_retiro <=> ?)) as matriculados',
+                'SUM(CASE WHEN estado = ? AND motivo_retiro = ? THEN 1 ELSE 0 END) as tramitadas,
+                 SUM(CASE WHEN estado = ? THEN 1 ELSE 0 END) as en_tramite,
+                 SUM(CASE WHEN estado <> ? AND NOT (estado = ? AND motivo_retiro IS NOT DISTINCT FROM ?) THEN 1 ELSE 0 END) as matriculados',
                 [
                     Matricula::RETIRADA, Matricula::RETIRO_CANCELACION,
                     Matricula::CANCELACION_SOLICITADA,

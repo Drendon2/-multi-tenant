@@ -9,6 +9,7 @@ use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
 use App\Support\Alertas;
+use App\Support\OrdenPorNombre;
 use App\Support\ResumenInstitucion;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -80,7 +81,10 @@ class InicioController extends Controller
         // lista: las alertas se calculan al abrir, asi que en cuanto una se
         // resuelve deja de salir y suben las que venian detras, sin que nadie
         // tenga que refrescar nada ni mantener una cola.
-        usort($ultimas, fn (array $a, array $b) => $b['fecha']->timestamp <=> $a['fecha']->timestamp);
+        // Entre las de la misma fecha, por lo que se lee (ver `OrdenPorNombre`):
+        // el corte a tres caia en medio de un empate y cada motor elegia otras.
+        usort($ultimas, fn (array $a, array $b) => $b['fecha']->timestamp <=> $a['fecha']->timestamp
+            ?: OrdenPorNombre::comparar($a['texto'], $b['texto']));
 
         return view('gestion.inicio', [
             'cancelacionesPendientes' => $cancelaciones,

@@ -56,3 +56,9 @@ Thumbs.db
 # antes de empujar nada.
 /reporte-auditoria.md
 /docs/auditoria/
+
+# Instalador de PostgreSQL para el entorno local (415 MB): nunca al repositorio.
+/postgresql-*.exe
+# Guiones del PostgreSQL local: llevan rutas de esta maquina.
+/arrancar-postgres.ps1
+/apagar-postgres.ps1

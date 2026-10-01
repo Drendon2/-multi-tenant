@@ -18,7 +18,7 @@ use Tests\TestCase;
  *
  * La primera prueba es la que vale, y NO comprueba que el indice exista sino
  * que el motor lo ELIJA: pide el plan de la consulta real de la ficha y exige
- * que no haya `filesort`. La diferencia importa porque la tabla ya tenia otro
+ * que no haya un nodo `Sort` (lo que en MariaDB era el `filesort`). La diferencia importa porque la tabla ya tenia otro
  * indice que empieza por `actividad_id` --el unico de `(actividad_id,
  * documento)`--, y ese sirve para FILTRAR igual de bien. Lo que decide entre
  * los dos es el `ORDER BY nombre_completo, id`: con el viejo, el motor filtra
@@ -83,14 +83,14 @@ class IndicesActividadTest extends TestCase
             [$suya->id]
         );
 
-        $this->assertStringNotContainsStringIgnoringCase(
-            'filesort',
-            $plan->Extra ?? '',
+        $this->assertNotContains(
+            'Sort',
+            $plan['nodos'],
             'La ficha ordena a los inscritos en memoria: el motor entro por otro '
-            ."indice o por ninguno (clave elegida: {$plan->key}, extra: {$plan->Extra})."
+            .'indice o por ninguno (nodos: '.implode(', ', $plan['nodos']).').'
         );
 
-        $this->assertSame('inscritos_por_actividad_y_nombre', $plan->key);
+        $this->assertContains('inscritos_por_actividad_y_nombre', $plan['indices']);
     }
 
     public function test_las_actividades_tienen_indice_por_tipo_y_nombre(): void
@@ -111,32 +111,65 @@ class IndicesActividadTest extends TestCase
 
     // -----------------------------------------------------------------------
 
-    /** La fila del plan de ejecucion que MariaDB elige para una consulta. */
-    private function plan(string $sql, array $enlaces = []): object
+    /**
+     * Los nodos y los indices del plan que PostgreSQL elige para una consulta.
+     *
+     * Antes se le pasa `ANALYZE` a la tabla: sin estadisticas el planificador
+     * supone un tamano por defecto y el plan no diria nada de la tabla de
+     * verdad. En PostgreSQL `ANALYZE` corre dentro de la transaccion de la
+     * prueba sin cerrarla (en MariaDB hacia commit implicito).
+     *
+     * @param  array<int, mixed>  $enlaces
+     * @return array{nodos: list<string>, indices: list<string>}
+     */
+    private function plan(string $sql, array $enlaces = []): array
     {
-        return DB::select('EXPLAIN '.$sql, $enlaces)[0];
+        DB::statement('ANALYZE inscritos_actividad');
+
+        $fila = (array) DB::select('EXPLAIN (FORMAT JSON) '.$sql, $enlaces)[0];
+        $raiz = json_decode((string) reset($fila), true)[0]['Plan'];
+
+        $plan = ['nodos' => [], 'indices' => []];
+        $recorrer = function (array $nodo) use (&$recorrer, &$plan): void {
+            $plan['nodos'][] = $nodo['Node Type'];
+
+            if (isset($nodo['Index Name'])) {
+                $plan['indices'][] = $nodo['Index Name'];
+            }
+
+            foreach ($nodo['Plans'] ?? [] as $hijo) {
+                $recorrer($hijo);
+            }
+        };
+        $recorrer($raiz);
+
+        return $plan;
     }
 
     /**
      * Las columnas de un indice, en su orden.
      *
-     * Por `information_schema` y no por el `Schema` de Laravel: hace falta el
-     * orden dentro del indice, que es lo que decide si sirve, y quien lo dice
-     * es `SEQ_IN_INDEX`. (`SHOW INDEX` tambien lo trae, pero no admite un
-     * `ORDER BY` detras de su `WHERE`.)
+     * Por el catalogo y no por el `Schema` de Laravel: hace falta el orden
+     * dentro del indice, que es lo que decide si sirve, y quien lo dice es la
+     * posicion en `pg_index.indkey`.
      *
      * @return list<string>
      */
     private function columnasDe(string $tabla, string $indice): array
     {
         $filas = DB::select(
-            'SELECT COLUMN_NAME FROM information_schema.STATISTICS'
-            .' WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?'
-            .' ORDER BY SEQ_IN_INDEX',
+            'SELECT a.attname AS columna
+               FROM pg_index x
+               JOIN pg_class i ON i.oid = x.indexrelid
+               JOIN pg_class t ON t.oid = x.indrelid
+               JOIN unnest(x.indkey) WITH ORDINALITY AS k(attnum, posicion) ON true
+               JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+              WHERE t.relname = ? AND i.relname = ?
+              ORDER BY k.posicion',
             [$tabla, $indice]
         );
 
-        return array_map(fn (object $f) => $f->COLUMN_NAME, $filas);
+        return array_map(fn (object $f) => $f->columna, $filas);
     }
 
     private function sembrarActividad(string $tipo, string $nombre, int $inscritos): Actividad

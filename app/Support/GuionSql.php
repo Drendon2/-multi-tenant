@@ -9,15 +9,15 @@ use RuntimeException;
  * Corre un guion de `database/sql/` sentencia a sentencia.
  *
  * Los guiones son la fuente de verdad: se pueden correr a mano con el cliente
- * de consola (`mysql base < guion.sql`) y las migraciones de Laravel corren
+ * de consola (`psql -f guion.sql`) y las migraciones de Laravel corren
  * EXACTAMENTE esos archivos, asi que no hay dos versiones que se separen.
  *
- * Entiende `DELIMITER`, igual que el cliente de consola, porque los bloques
- * `BEGIN NOT ATOMIC ... END` llevan `;` por dentro.
+ * Entiende los bloques entre `$$` (el cuerpo de una funcion o un `DO`), que
+ * llevan `;` por dentro: dentro de uno, un `;` al final de linea no cierra la
+ * sentencia. Es lo que en MariaDB hacia `DELIMITER`.
  *
- * No se manda el archivo entero en un solo `unprepared()`: con varias
- * sentencias en una llamada, PDO solo informa del error de la PRIMERA, y un
- * fallo en la veinte pasaria sin avisar.
+ * No se manda el archivo entero en un solo `unprepared()`: asi un fallo dice
+ * en que sentencia fue, y no deja a medias un guion que se creia corrido.
  */
 class GuionSql
 {
@@ -39,8 +39,8 @@ class GuionSql
      */
     public static function sentencias(string $sql): array
     {
-        $delimitador = ';';
         $actual = '';
+        $dentroDeBloque = false;
         $sentencias = [];
 
         foreach (preg_split('/\R/', $sql) ?: [] as $linea) {
@@ -50,16 +50,15 @@ class GuionSql
                 continue;
             }
 
-            if (preg_match('/^DELIMITER\s+(\S+)$/i', $limpia, $m)) {
-                $delimitador = $m[1];
-
-                continue;
-            }
-
             $actual .= $linea."\n";
 
-            if (str_ends_with($limpia, $delimitador)) {
-                $sentencias[] = trim(substr(rtrim($actual), 0, -strlen($delimitador)));
+            // Un numero impar de `$$` en la linea abre o cierra un bloque.
+            if (substr_count($linea, '$$') % 2 === 1) {
+                $dentroDeBloque = ! $dentroDeBloque;
+            }
+
+            if (! $dentroDeBloque && str_ends_with($limpia, ';')) {
+                $sentencias[] = trim(substr(rtrim($actual), 0, -1));
                 $actual = '';
             }
         }

@@ -223,12 +223,6 @@ parameters:
 			path: app/Http/Controllers/Gestion/PromotoriaController.php
 
 		-
-			message: '#^Dead catch \- Illuminate\\Database\\QueryException is never thrown in the try block\.$#'
-			identifier: catch.neverThrown
-			count: 1
-			path: app/Http/Controllers/Gestion/RecursoController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Matricula\:\:\$periodos\.$#'
 			identifier: property.notFound
 			count: 1
@@ -287,12 +281,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/MiPerfilController.php
-
-		-
-			message: '#^Dead catch \- Illuminate\\Database\\QueryException is never thrown in the try block\.$#'
-			identifier: catch.neverThrown
-			count: 1
-			path: app/Http/Controllers/PanelGrupoController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$estudiante\.$#'
@@ -461,18 +449,6 @@ parameters:
 			identifier: method.nonObject
 			count: 2
 			path: app/Support/ResumenAsistencia.php
-
-		-
-			message: '#^Offset 2 on list\{0\: non\-falsy\-string, 1\: numeric\-string, 2\: ''''\|\(non\-falsy\-string&numeric\-string\), 3\: string, 4\: numeric\-string, 5\?\: ''''\|\(non\-falsy\-string&numeric\-string\), 6\?\: non\-falsy\-string\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: database/migrations/2026_08_20_160100_convertir_horarios_a_sesiones.php
-
-		-
-			message: '#^Offset 3 on list\{0\: non\-falsy\-string, 1\: numeric\-string, 2\: ''''\|\(non\-falsy\-string&numeric\-string\), 3\: string, 4\: numeric\-string, 5\?\: ''''\|\(non\-falsy\-string&numeric\-string\), 6\?\: non\-falsy\-string\} on left side of \?\? always exists and is not nullable\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: database/migrations/2026_08_20_160100_convertir_horarios_a_sesiones.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$estado\.$#'

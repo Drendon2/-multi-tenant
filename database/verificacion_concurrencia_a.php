@@ -11,8 +11,8 @@
 $db = require __DIR__.'/conexion_verificacion.php';
 
 $db->beginTransaction();
-$db->exec("INSERT INTO matriculas (estudiante_id, promotoria_id, periodo_id, fecha, estado, ranura, created_at, updated_at)
-           VALUES (1, 1, 1, NOW(), 'pendiente', 1, NOW(), NOW())");
+$db->exec("INSERT INTO matriculas (institucion_id, estudiante_id, promotoria_id, periodo_id, fecha, estado, ranura, created_at, updated_at)
+           VALUES (1, 1, 1, 1, NOW(), 'pendiente', 1, NOW(), NOW())");
 
 file_put_contents(__DIR__.'/.cerrojo_tomado', '1');
 sleep(3);

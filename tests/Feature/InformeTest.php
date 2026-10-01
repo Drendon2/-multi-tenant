@@ -625,6 +625,68 @@ class InformeTest extends TestCase
     }
 
     /**
+     * La gemela de la de arriba, con todos los nombres IGUALES.
+     *
+     * `lazy()` pagina con LIMIT/OFFSET sobre un orden por departamento,
+     * promotoria y nombre. Con nombres repetidos ese orden tiene empates, y el
+     * motor no esta obligado a resolverlos igual en dos consultas: si el empate
+     * cae en el borde de una tanda, una persona sale dos veces y otra ninguna.
+     * Se vio el 01/10/2026 al pasar a PostgreSQL —dos «Mariangel» en Danza
+     * Folclorica, y la de 7 anos faltaba en la lista de su grupo—.
+     *
+     * COMO se siembra decide si la prueba ve algo, y costo tres intentos verla
+     * fallar sin el arreglo:
+     *
+     * - Con todos los nombres IGUALES PostgreSQL ve la entrada «ya ordenada» y
+     *   devuelve el orden fisico en todas las tandas: no hay fallo que ver.
+     * - Con PAREJAS de homonimos, ordenadas, una pareja ocupa las posiciones
+     *   99-100 o 101-102: ninguna queda partida por el borde 100|101.
+     * - Lo que lo destapa son TRIOS (cruzan los bordes 100, 200 y 400) y mas
+     *   de 400 filas, para que las dos primeras tandas ordenen con un
+     *   monticulo de los N primeros, de 100 y de 200, y cada uno deshaga los
+     *   empates a su manera. Es lo que se vio en el caso real: `top-N
+     *   heapsort` en las dos tandas, con N distinto.
+     *
+     * La semilla es fija para que no dependa de la suerte. Cada estudiante
+     * lleva su propio telefono para que cada fila se distinga: con dos filas
+     * iguales, `array_unique` no veria a quien falta.
+     */
+    public function test_no_se_pierde_nadie_cuando_hay_nombres_repetidos(): void
+    {
+        $cuantos = 450;
+
+        $nombres = [];
+        for ($n = 0; $n < $cuantos; $n++) {
+            $nombres[] = 'Persona '.str_pad((string) intdiv($n, 3), 3, '0', STR_PAD_LEFT);
+        }
+        mt_srand(20261001);
+        shuffle($nombres);
+        mt_srand();
+
+        foreach ($nombres as $n => $nombre) {
+            $estudiante = $this->crearEstudiante("homonimo{$n}");
+            $estudiante->update([
+                'nombre_completo' => $nombre,
+                'telefono' => '300'.str_pad((string) $n, 7, '0', STR_PAD_LEFT),
+            ]);
+            $this->matricular($estudiante, $this->violin);
+        }
+
+        $csv = $this->contenido(
+            $this->actingAs($this->admin->user)->get(route('informe-estudiantes'))
+        );
+
+        $lineas = array_filter(explode("\n", trim($csv)));
+
+        $this->assertCount($cuantos + 1, $lineas);
+        $this->assertCount(
+            $cuantos + 1,
+            array_unique($lineas),
+            'Hay filas repetidas, o sea que a alguien con el mismo nombre se lo comio el borde de una tanda.'
+        );
+    }
+
+    /**
      * Una celda con una barra invertida pegada a una comilla vuelve tal cual.
      *
      * Es el caso que estropeaba el escape por defecto de `fputcsv` --la barra

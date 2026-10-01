@@ -258,13 +258,13 @@ class FiltroDeInstitucionUnicoTest extends TestCase
     private function tablas(): array
     {
         return collect(DB::select("SELECT table_name AS t FROM information_schema.tables
-            WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'"))->pluck('t')->all();
+            WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'"))->pluck('t')->all();
     }
 
     /** @return list<string> */
     private function tablasConInstitucion(): array
     {
         return collect(DB::select("SELECT table_name AS t FROM information_schema.columns
-            WHERE table_schema = DATABASE() AND column_name = 'institucion_id'"))->pluck('t')->all();
+            WHERE table_schema = current_schema() AND column_name = 'institucion_id'"))->pluck('t')->all();
     }
 }

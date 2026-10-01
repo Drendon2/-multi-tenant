@@ -47,35 +47,100 @@
  *
  * Va aqui y no en cada guion para que los dos digan lo mismo, y para que el
  * tercero que se escriba lo tenga sin acordarse.
+ *
+ * Las tres funciones de este archivo van tras un `function_exists`: la prueba
+ * de concurrencia lo carga DOS veces (una conexion por cada lado de la
+ * carrera), y PHP no deja declarar dos veces la misma funcion.
  */
-function confirmarBorradoDeDatos(PDO $db): void
-{
-    if (in_array('--borrar-datos', $_SERVER['argv'] ?? [], true)) {
-        return;
-    }
-
-    $guion = basename($_SERVER['argv'][0] ?? 'el guion');
-
-    fwrite(STDERR, "\n{$guion} NO es solo una comprobacion: VACIA la base antes de empezar.\n\n");
-
-    // Se dice cuanto hay, no solo que se va a borrar: «11 tablas» no frena a
-    // nadie, «589 matriculas» si.
-    foreach (['perfiles', 'matriculas', 'promotorias', 'clases', 'asistencias'] as $tabla) {
-        try {
-            $cuantas = (int) $db->query("SELECT COUNT(*) FROM `{$tabla}`")->fetchColumn();
-        } catch (PDOException) {
-            continue;
+if (! function_exists('confirmarBorradoDeDatos')) {
+    function confirmarBorradoDeDatos(PDO $db): void
+    {
+        if (in_array('--borrar-datos', $_SERVER['argv'] ?? [], true)) {
+            return;
         }
 
-        if ($cuantas > 0) {
-            fwrite(STDERR, sprintf("  se perderian %6d %s\n", $cuantas, $tabla));
+        $guion = basename($_SERVER['argv'][0] ?? 'el guion');
+
+        fwrite(STDERR, "\n{$guion} NO es solo una comprobacion: VACIA la base antes de empezar.\n\n");
+
+        // Se dice cuanto hay, no solo que se va a borrar: «11 tablas» no frena a
+        // nadie, «589 matriculas» si.
+        foreach (['perfiles', 'matriculas', 'promotorias', 'clases', 'asistencias'] as $tabla) {
+            try {
+                $cuantas = (int) $db->query("SELECT COUNT(*) FROM {$tabla}")->fetchColumn();
+            } catch (PDOException) {
+                continue;
+            }
+
+            if ($cuantas > 0) {
+                fwrite(STDERR, sprintf("  se perderian %6d %s\n", $cuantas, $tabla));
+            }
+        }
+
+        fwrite(STDERR, "\nSi la base es desechable, vuelve a lanzarlo asi:\n");
+        fwrite(STDERR, "  php {$_SERVER['argv'][0]} --borrar-datos\n\n");
+
+        exit(1);
+    }
+}
+
+/**
+ * Vacia las tablas de DATOS, todas en una sentencia, y reinicia sus ids.
+ *
+ * La lista NO va escrita a mano: se pregunta al motor. Escrita a mano se quedo
+ * en agosto de 2025 y dejo fuera `sesiones_grupo` —que nacio despues— y las
+ * cuatro tablas de actividades: un escenario de prueba sucio es peor que
+ * ninguno, porque parece limpio.
+ *
+ * Se excluyen las de Laravel: `migrations` diria que no hay esquema, y las de
+ * sesion, cache y colas no son datos del dominio.
+ *
+ * En MariaDB esto era un TRUNCATE por tabla con las claves foraneas apagadas;
+ * PostgreSQL vacia el conjunto de una vez y no hace falta apagar nada.
+ */
+if (! function_exists('vaciarTablasDeDatos')) {
+    function vaciarTablasDeDatos(PDO $db): void
+    {
+        $deLaravel = ['migrations', 'sessions', 'cache', 'cache_locks', 'jobs',
+            'job_batches', 'failed_jobs', 'password_reset_tokens'];
+
+        $tablas = array_diff(
+            $db->query('SELECT tablename FROM pg_tables WHERE schemaname = current_schema()')->fetchAll(PDO::FETCH_COLUMN),
+            $deLaravel
+        );
+
+        if ($tablas === []) {
+            fwrite(STDERR, "La base no tiene tablas: corre antes las migraciones.\n");
+            exit(1);
+        }
+
+        $db->exec('TRUNCATE TABLE '.implode(', ', $tablas).' RESTART IDENTITY CASCADE');
+    }
+}
+
+/**
+ * Pone cada secuencia en el maximo de su tabla.
+ *
+ * Hace falta tras insertar filas con el id escrito a mano: MariaDB movia su
+ * AUTO_INCREMENT solo, PostgreSQL no, y la siguiente fila SIN id chocaria con
+ * una de las escritas.
+ */
+if (! function_exists('ajustarSecuencias')) {
+    function ajustarSecuencias(PDO $db): void
+    {
+        $identidades = $db->query(
+            "SELECT table_name, column_name FROM information_schema.columns
+              WHERE table_schema = current_schema() AND is_identity = 'YES'"
+        )->fetchAll(PDO::FETCH_NUM);
+
+        foreach ($identidades as [$tabla, $columna]) {
+            $db->query(
+                "SELECT setval(pg_get_serial_sequence('{$tabla}', '{$columna}'),
+                        COALESCE((SELECT MAX({$columna}) FROM {$tabla}), 1),
+                        (SELECT COUNT(*) > 0 FROM {$tabla}))"
+            );
         }
     }
-
-    fwrite(STDERR, "\nSi la base es desechable, vuelve a lanzarlo asi:\n");
-    fwrite(STDERR, "  php {$_SERVER['argv'][0]} --borrar-datos\n\n");
-
-    exit(1);
 }
 
 $env = dirname(__DIR__).'/.env';
@@ -112,8 +177,13 @@ if ($entorno !== 'local') {
 }
 
 $servidor = $leer('DB_HOST') ?: '127.0.0.1';
-$puerto = $leer('DB_PORT') ?: '3306';
-$base = $leer('DB_DATABASE');
+$puerto = $leer('DB_PORT') ?: '5432';
+// La BASE se puede dar por el entorno, como hace `phpunit`:
+//   DB_DATABASE=test_matriculas_mt php database/verificacion_esquema.php --borrar-datos
+// En esta version el `.env` apunta a una copia con datos reales, y sin esto la
+// unica forma de apuntar a una base desechable era editarlo. Las dos barreras
+// de arriba siguen igual: APP_ENV sale SIEMPRE del `.env`.
+$base = getenv('DB_DATABASE') ?: $leer('DB_DATABASE');
 $usuario = $leer('DB_USERNAME');
 $clave = $leer('DB_PASSWORD');
 
@@ -124,7 +194,7 @@ if ($base === '' || $usuario === '') {
 
 try {
     return new PDO(
-        "mysql:host={$servidor};port={$puerto};dbname={$base};charset=utf8mb4",
+        "pgsql:host={$servidor};port={$puerto};dbname={$base}",
         $usuario,
         $clave,
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]

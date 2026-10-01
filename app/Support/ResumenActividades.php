@@ -135,7 +135,7 @@ class ResumenActividades
             ->join('actividades as a', 'a.id', '=', 's.actividad_id')
             ->where($sesionesDelPeriodo)
             ->groupBy('a.tipo')
-            ->selectRaw('a.tipo, COUNT(DISTINCT s.id) as sesiones, SUM(x.estado = ?) as asistencias', [AsistenciaActividad::ASISTIO])
+            ->selectRaw('a.tipo, COUNT(DISTINCT s.id) as sesiones, SUM(CASE WHEN x.estado = ? THEN 1 ELSE 0 END) as asistencias', [AsistenciaActividad::ASISTIO])
             ->get()
             ->keyBy('tipo');
 

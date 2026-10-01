@@ -1,14 +1,15 @@
 <?php
 
 /**
- * Verificacion del esquema contra MariaDB.
+ * Verificacion del esquema contra PostgreSQL.
  *
  * No comprueba que las migraciones CORRAN —eso ya lo dice artisan—, sino que
  * las garantias que el esquema promete se cumplan de verdad: sobre todo las
- * que en el original daba PostgreSQL con indices parciales y un trigger, y que
- * aqui estan emuladas.
+ * que se apoyan en columnas generadas con indice unico, en el trigger de cupo y
+ * en el cotejo que no distingue mayusculas ni tildes.
  *
- * Se ejecuta con:  php database/verificacion_esquema.php
+ * VACIA la base. Se ejecuta contra una desechable:
+ *   DB_DATABASE=test_matriculas_mt php database/verificacion_esquema.php --borrar-datos
  */
 // La conexion sale del .env, no de credenciales escritas aqui: ver
 // `conexion_verificacion.php`.
@@ -57,45 +58,24 @@ function acepta(PDO $db, string $titulo, callable $op): void
 // ---------------------------------------------------------------------------
 confirmarBorradoDeDatos($db);
 
-$db->exec('SET FOREIGN_KEY_CHECKS = 0');
-// La lista NO va escrita a mano: se pregunta al motor.
-//
-// Escrita a mano se quedo en agosto de 2025, y dejo fuera `sesiones_grupo`
-// —que nacio despues— y las cuatro tablas de actividades. Como el TRUNCATE va
-// con las claves foraneas apagadas, el resultado no era «quedan datos de mas»
-// sino filas HUERFANAS: sesiones apuntando a grupos que ya no existen. Un
-// escenario de prueba sucio es peor que ninguno, porque parece limpio.
-//
-// Se excluyen las de Laravel: `migrations` diria que no hay esquema, y las de
-// sesion, cache y colas no son datos del dominio.
-$deLaravel = ['migrations', 'sessions', 'cache', 'cache_locks', 'jobs',
-    'job_batches', 'failed_jobs', 'password_reset_tokens'];
-
-$tablas = array_diff(
-    array_map(fn (array $f) => array_values($f)[0], $db->query('SHOW TABLES')->fetchAll(PDO::FETCH_ASSOC)),
-    $deLaravel
-);
-
-foreach ($tablas as $t) {
-    $db->exec("TRUNCATE TABLE $t");
-}
-$db->exec('SET FOREIGN_KEY_CHECKS = 1');
+vaciarTablasDeDatos($db);
 
 // Dos instituciones: casi todo ocurre en la 1, y la 2 esta para comprobar que
 // las restricciones unicas son POR institucion (ver el final).
 $db->exec("INSERT INTO instituciones (id, nombre) VALUES (1,'Casa A'), (2,'Casa B')");
 
 $db->exec("INSERT INTO users (id, institucion_id, username, password, activo, created_at, updated_at)
-           VALUES (1,1,'ana','x',1,NOW(),NOW()), (2,1,'beto','x',1,NOW(),NOW())");
+           VALUES (1,1,'ana','x',true,NOW(),NOW()), (2,1,'beto','x',true,NOW(),NOW())");
 $db->exec("INSERT INTO perfiles (id, institucion_id, user_id, rol, nombre_completo, fecha_nacimiento, telefono, created_at, updated_at)
            VALUES (1,1,1,'estudiante','Ana Ruiz','2000-05-01','3000000000',NOW(),NOW()),
                   (2,1,2,'profesor','Beto Diaz','1985-03-12','3000000001',NOW(),NOW())");
 $db->exec("INSERT INTO areas (id, institucion_id, nombre, created_at, updated_at) VALUES (1,1,'Musica',NOW(),NOW())");
 $db->exec("INSERT INTO periodos (id, institucion_id, nombre, fecha_inicio, fecha_fin, activo, matriculas_abiertas, created_at, updated_at)
-           VALUES (1,1,'2026-1','2026-01-15','2026-06-30',1,1,NOW(),NOW())");
+           VALUES (1,1,'2026-1','2026-01-15','2026-06-30',true,true,NOW(),NOW())");
 $db->exec("INSERT INTO promotorias (id, institucion_id, nombre, area_id, profesor_id, created_at, updated_at)
            VALUES (1,1,'Violin',1,2,NOW(),NOW()), (2,1,'Guitarra',1,2,NOW(),NOW()), (3,1,'Piano',1,2,NOW(),NOW()),
                   (4,1,'Flauta',1,2,NOW(),NOW()), (5,1,'Canto',1,2,NOW(),NOW())");
+ajustarSecuencias($db);
 
 $nuevaMatricula = fn ($est, $promo, $ranura, $estado = 'pendiente') => "INSERT INTO matriculas (institucion_id, estudiante_id, promotoria_id, periodo_id, fecha, estado, ranura, created_at, updated_at)
      VALUES (1, $est, $promo, 1, NOW(), '$estado', $ranura, NOW(), NOW())";
@@ -103,12 +83,12 @@ $nuevaMatricula = fn ($est, $promo, $ranura, $estado = 'pendiente') => "INSERT I
 echo "\n== Periodo: solo uno en curso (indice unico parcial emulado) ==\n";
 acepta($db, 'un segundo periodo INACTIVO entra', fn ($d) => $d->exec(
     "INSERT INTO periodos (institucion_id, nombre, fecha_inicio, fecha_fin, activo, matriculas_abiertas, created_at, updated_at)
-     VALUES (1,'2026-2','2026-07-01','2026-12-15',0,0,NOW(),NOW())"));
+     VALUES (1,'2026-2','2026-07-01','2026-12-15',false,false,NOW(),NOW())"));
 rechaza($db, 'un segundo periodo ACTIVO se rechaza', fn ($d) => $d->exec(
     "INSERT INTO periodos (institucion_id, nombre, fecha_inicio, fecha_fin, activo, matriculas_abiertas, created_at, updated_at)
-     VALUES (1,'2027-1','2027-01-15','2027-06-30',1,0,NOW(),NOW())"), 'un_periodo_activo_por_institucion');
+     VALUES (1,'2027-1','2027-01-15','2027-06-30',true,false,NOW(),NOW())"), 'un_periodo_activo_por_institucion');
 rechaza($db, 'activar por UPDATE un segundo periodo se rechaza', fn ($d) => $d->exec(
-    "UPDATE periodos SET activo = 1 WHERE nombre = '2026-2'"), 'un_periodo_activo_por_institucion');
+    "UPDATE periodos SET activo = true WHERE nombre = '2026-2'"), 'un_periodo_activo_por_institucion');
 
 echo "\n== Matricula: unicidad y ranuras ==\n";
 acepta($db, 'primera matricula de Ana (Violin, ranura 1)', fn ($d) => $d->exec($nuevaMatricula(1, 1, 1)));
@@ -136,11 +116,11 @@ $db->exec('DELETE FROM matriculas');
 $db->exec('INSERT INTO cupos_promotoria (institucion_id, promotoria_id, periodo_id, cupo_maximo, created_at, updated_at)
            VALUES (1, 5, 1, 2, NOW(), NOW())');
 acepta($db, 'cupo 2: entra la primera', fn ($d) => $d->exec($nuevaMatricula(1, 5, 1)));
-$db->exec("INSERT INTO users (id, institucion_id, username, password, activo, created_at, updated_at) VALUES (3,1,'caro','x',1,NOW(),NOW())");
+$db->exec("INSERT INTO users (id, institucion_id, username, password, activo, created_at, updated_at) VALUES (3,1,'caro','x',true,NOW(),NOW())");
 $db->exec("INSERT INTO perfiles (id, institucion_id, user_id, rol, nombre_completo, fecha_nacimiento, telefono, created_at, updated_at)
            VALUES (3,1,3,'estudiante','Caro Paz','2001-02-02','3000000002',NOW(),NOW())");
 acepta($db, 'cupo 2: entra la segunda', fn ($d) => $d->exec($nuevaMatricula(3, 5, 1)));
-$db->exec("INSERT INTO users (id, institucion_id, username, password, activo, created_at, updated_at) VALUES (4,1,'dani','x',1,NOW(),NOW())");
+$db->exec("INSERT INTO users (id, institucion_id, username, password, activo, created_at, updated_at) VALUES (4,1,'dani','x',true,NOW(),NOW())");
 $db->exec("INSERT INTO perfiles (id, institucion_id, user_id, rol, nombre_completo, fecha_nacimiento, telefono, created_at, updated_at)
            VALUES (4,1,4,'estudiante','Dani Gil','2002-03-03','3000000003',NOW(),NOW())");
 rechaza($db, 'cupo 2: la tercera se rechaza', fn ($d) => $d->exec($nuevaMatricula(4, 5, 1)),
@@ -164,9 +144,10 @@ acepta($db, 'reactivar una retirada cuando volvio a haber sitio',
 //   Dani entra y ocupa el unico sitio -> se retira -> Evi ocupa el sitio libre
 //   -> Dani ya no puede volver, y esa es exactamente la carrera que el trigger
 //   tiene que atajar tambien en el UPDATE, no solo en el INSERT.
-$db->exec("INSERT INTO users (id, institucion_id, username, password, activo, created_at, updated_at) VALUES (5,1,'evi','x',1,NOW(),NOW())");
+$db->exec("INSERT INTO users (id, institucion_id, username, password, activo, created_at, updated_at) VALUES (5,1,'evi','x',true,NOW(),NOW())");
 $db->exec("INSERT INTO perfiles (id, institucion_id, user_id, rol, nombre_completo, fecha_nacimiento, telefono, created_at, updated_at)
            VALUES (5,1,5,'estudiante','Evi Mora','2003-04-04','3000000004',NOW(),NOW())");
+ajustarSecuencias($db);
 $db->exec('INSERT INTO cupos_promotoria (institucion_id, promotoria_id, periodo_id, cupo_maximo, created_at, updated_at)
            VALUES (1, 3, 1, 1, NOW(), NOW())');
 acepta($db, 'Piano cupo 1: Dani toma el unico sitio', fn ($d) => $d->exec($nuevaMatricula(4, 3, 1)));
@@ -178,10 +159,11 @@ rechaza($db, 'Dani ya no puede volver: el sitio esta tomado',
 
 echo "\n== Sin cupo definido no hay tope ==\n";
 for ($i = 6; $i <= 10; $i++) {
-    $db->exec("INSERT INTO users (id, institucion_id, username, password, activo, created_at, updated_at) VALUES ($i,1,'u$i','x',1,NOW(),NOW())");
+    $db->exec("INSERT INTO users (id, institucion_id, username, password, activo, created_at, updated_at) VALUES ($i,1,'u$i','x',true,NOW(),NOW())");
     $db->exec("INSERT INTO perfiles (id, institucion_id, user_id, rol, nombre_completo, fecha_nacimiento, telefono, created_at, updated_at)
                VALUES ($i,1,$i,'estudiante','Persona $i','2000-01-01','300000000$i',NOW(),NOW())");
 }
+ajustarSecuencias($db);
 acepta($db, 'Violin no tiene fila de cupo: admite a los cinco', function ($d) use ($nuevaMatricula) {
     for ($i = 6; $i <= 10; $i++) {
         $d->exec($nuevaMatricula($i, 1, 1));
@@ -230,7 +212,7 @@ echo "\n== Carne QR: el codigo identifica a una sola persona ==\n";
 rechaza($db, 'dos perfiles con el mismo codigo de carne', function ($d) {
     $d->exec("UPDATE perfiles SET codigo_qr = 'abcdefghij012345' WHERE id = 1");
     $d->exec("UPDATE perfiles SET codigo_qr = 'abcdefghij012345' WHERE id = 2");
-}, 'Duplicate');
+}, 'duplicate key');
 acepta($db, 'varios perfiles SIN codigo conviven (nulo se repite)', function ($d) {
     $d->exec('UPDATE perfiles SET codigo_qr = NULL WHERE id IN (1, 2)');
     $n = $d->query('SELECT COUNT(*) FROM perfiles WHERE codigo_qr IS NULL')->fetchColumn();
@@ -249,7 +231,7 @@ echo "\n== Enlace de promotoria: el token apunta a una sola ==\n";
 rechaza($db, 'dos promotorias con el mismo enlace', function ($d) {
     $d->exec("UPDATE promotorias SET enlace_token = 'abcdefghij012345' WHERE id = 1");
     $d->exec("UPDATE promotorias SET enlace_token = 'abcdefghij012345' WHERE id = 2");
-}, 'Duplicate');
+}, 'duplicate key');
 acepta($db, 'varias promotorias SIN enlace conviven (nulo se repite)', function ($d) {
     $d->exec('UPDATE promotorias SET enlace_token = NULL WHERE id IN (1, 2)');
     $n = $d->query('SELECT COUNT(*) FROM promotorias WHERE enlace_token IS NULL')->fetchColumn();
@@ -292,16 +274,54 @@ rechaza($db, 'dos «Musica» en la MISMA institucion se rechaza', fn ($d) => $d-
     'areas_nombre_por_institucion');
 acepta($db, 'otra institucion tiene SU periodo «2026-1» en curso', fn ($d) => $d->exec(
     "INSERT INTO periodos (institucion_id, nombre, fecha_inicio, fecha_fin, activo, matriculas_abiertas, created_at, updated_at)
-     VALUES (2,'2026-1','2026-01-15','2026-06-30',1,0,NOW(),NOW())"));
+     VALUES (2,'2026-1','2026-01-15','2026-06-30',true,false,NOW(),NOW())"));
 rechaza($db, 'dos periodos en curso en la MISMA institucion se rechaza', fn ($d) => $d->exec(
     "INSERT INTO periodos (institucion_id, nombre, fecha_inicio, fecha_fin, activo, matriculas_abiertas, created_at, updated_at)
-     VALUES (2,'2026-2','2026-07-01','2026-12-15',1,0,NOW(),NOW())"), 'un_periodo_activo_por_institucion');
+     VALUES (2,'2026-2','2026-07-01','2026-12-15',true,false,NOW(),NOW())"), 'un_periodo_activo_por_institucion');
 rechaza($db, 'dos configuraciones para la misma institucion se rechaza', function ($d) {
     $d->exec('INSERT INTO configuracion_institucion (institucion_id, created_at, updated_at) VALUES (2, NOW(), NOW())');
     $d->exec('INSERT INTO configuracion_institucion (institucion_id, created_at, updated_at) VALUES (2, NOW(), NOW())');
 }, 'una_configuracion_por_institucion');
 rechaza($db, 'borrar una institucion con datos (RESTRICT)',
     fn ($d) => $d->exec('DELETE FROM instituciones WHERE id = 2'), 'foreign key');
+
+/*
+ * EL COTEJO (paso a PostgreSQL, 01/10/2026). En MariaDB `utf8mb4_unicode_ci`
+ * no distinguia mayusculas ni tildes, y de eso dependian cosas que no se ven:
+ * que `Ana` entre como `ana` y que no puedan existir dos departamentos
+ * «Música» y «musica». PostgreSQL distingue las dos cosas por defecto; aqui lo
+ * hace el cotejo `insensible`, puesto columna a columna. Si una columna nueva
+ * se crea sin el, esto no lo ve: lo ve el usuario que no puede entrar.
+ */
+echo "\n== Cotejo: ni mayusculas ni tildes distinguen ==\n";
+rechaza($db, '«música» choca con «Musica» en la misma institucion', fn ($d) => $d->exec(
+    "INSERT INTO areas (institucion_id, nombre, created_at, updated_at) VALUES (2,'música',NOW(),NOW())"),
+    'areas_nombre_por_institucion');
+rechaza($db, '«ANA» choca con el usuario «ana»', fn ($d) => $d->exec(
+    "INSERT INTO users (institucion_id, username, password, activo, created_at, updated_at) VALUES (1,'ANA','x',true,NOW(),NOW())"),
+    'users_username_unique');
+acepta($db, 'la busqueda con LIKE encuentra «Ana Ruiz» escribiendo «ana ruíz»', function ($d) {
+    $n = $d->query("SELECT COUNT(*) FROM perfiles WHERE nombre_completo LIKE '%ana ruíz%'")->fetchColumn();
+    if ($n != 1) {
+        throw new PDOException("se esperaba encontrar 1 perfil, salieron $n");
+    }
+});
+
+/*
+ * `restablecimientos_clave.created_at` llevaba en MariaDB `ON UPDATE
+ * CURRENT_TIMESTAMP`: un enlace renovado empieza a contar de nuevo. PostgreSQL
+ * no tiene esa clausula y lo hace un trigger.
+ */
+echo "\n== Enlace de restablecer la clave: renovarlo reinicia su hora ==\n";
+acepta($db, 'cambiar el token pone la hora de ahora', function ($d) {
+    $d->exec("INSERT INTO restablecimientos_clave (user_id, institucion_id, token, created_at)
+              VALUES (1, 1, repeat('a', 64), '2020-01-01 00:00:00')");
+    $d->exec("UPDATE restablecimientos_clave SET token = repeat('b', 64) WHERE user_id = 1");
+    $hora = $d->query('SELECT created_at FROM restablecimientos_clave WHERE user_id = 1')->fetchColumn();
+    if (str_starts_with((string) $hora, '2020')) {
+        throw new PDOException("la hora no se movio: $hora");
+    }
+});
 
 echo "\n".str_repeat('-', 60)."\n";
 echo "Pasadas: $pasadas   Fallidas: $fallidas\n";

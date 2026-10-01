@@ -9,7 +9,12 @@
  * fila de `cupos_promotoria`, esta prueba termina con dos matriculas en una
  * promotoria de cupo 1.
  *
- * Se ejecuta con:  php database/verificacion_concurrencia.php
+ * VACIA la base. Se ejecuta contra una desechable:
+ *   DB_DATABASE=test_matriculas_mt php database/verificacion_concurrencia.php --borrar-datos
+ *
+ * Estuvo roto del paso 1 de la multi-institucion (01/10/2026) hasta el paso a
+ * PostgreSQL: sus INSERT no llevaban `institucion_id` y la base los rechazaba.
+ * No lo corre el CI, asi que nadie lo vio.
  */
 // La conexion sale del .env: ver `conexion_verificacion.php`.
 $cerrojo = __DIR__.'/.cerrojo_tomado';
@@ -19,42 +24,22 @@ $db = require __DIR__.'/conexion_verificacion.php';
 // Escenario limpio: Violin con cupo 1 y nadie inscrito.
 confirmarBorradoDeDatos($db);
 
-$db->exec('SET FOREIGN_KEY_CHECKS = 0');
-// La lista NO va escrita a mano: se pregunta al motor.
-//
-// Escrita a mano se quedo en agosto de 2025, y dejo fuera `sesiones_grupo`
-// —que nacio despues— y las cuatro tablas de actividades. Como el TRUNCATE va
-// con las claves foraneas apagadas, el resultado no era «quedan datos de mas»
-// sino filas HUERFANAS: sesiones apuntando a grupos que ya no existen. Un
-// escenario de prueba sucio es peor que ninguno, porque parece limpio.
-//
-// Se excluyen las de Laravel: `migrations` diria que no hay esquema, y las de
-// sesion, cache y colas no son datos del dominio.
-$deLaravel = ['migrations', 'sessions', 'cache', 'cache_locks', 'jobs',
-    'job_batches', 'failed_jobs', 'password_reset_tokens'];
+vaciarTablasDeDatos($db);
 
-$tablas = array_diff(
-    array_map(fn (array $f) => array_values($f)[0], $db->query('SHOW TABLES')->fetchAll(PDO::FETCH_ASSOC)),
-    $deLaravel
-);
-
-foreach ($tablas as $t) {
-    $db->exec("TRUNCATE TABLE $t");
-}
-$db->exec('SET FOREIGN_KEY_CHECKS = 1');
-
-$db->exec("INSERT INTO users (id, username, password, activo, created_at, updated_at)
-           VALUES (1,'ana','x',1,NOW(),NOW()), (2,'beto','x',1,NOW(),NOW())");
-$db->exec("INSERT INTO perfiles (id, user_id, rol, nombre_completo, fecha_nacimiento, telefono, created_at, updated_at)
-           VALUES (1,1,'estudiante','Ana Ruiz','2000-05-01','3000000000',NOW(),NOW()),
-                  (2,2,'estudiante','Beto Diaz','2000-06-01','3000000001',NOW(),NOW())");
-$db->exec("INSERT INTO areas (id, nombre, created_at, updated_at) VALUES (1,'Musica',NOW(),NOW())");
-$db->exec("INSERT INTO periodos (id, nombre, fecha_inicio, fecha_fin, activo, matriculas_abiertas, created_at, updated_at)
-           VALUES (1,'2026-1','2026-01-15','2026-06-30',1,1,NOW(),NOW())");
-$db->exec("INSERT INTO promotorias (id, nombre, area_id, created_at, updated_at)
-           VALUES (1,'Violin',1,NOW(),NOW())");
-$db->exec('INSERT INTO cupos_promotoria (promotoria_id, periodo_id, cupo_maximo, created_at, updated_at)
-           VALUES (1,1,1,NOW(),NOW())');
+$db->exec("INSERT INTO instituciones (id, nombre) VALUES (1,'Casa A')");
+$db->exec("INSERT INTO users (id, institucion_id, username, password, activo, created_at, updated_at)
+           VALUES (1,1,'ana','x',true,NOW(),NOW()), (2,1,'beto','x',true,NOW(),NOW())");
+$db->exec("INSERT INTO perfiles (id, institucion_id, user_id, rol, nombre_completo, fecha_nacimiento, telefono, created_at, updated_at)
+           VALUES (1,1,1,'estudiante','Ana Ruiz','2000-05-01','3000000000',NOW(),NOW()),
+                  (2,1,2,'estudiante','Beto Diaz','2000-06-01','3000000001',NOW(),NOW())");
+$db->exec("INSERT INTO areas (id, institucion_id, nombre, created_at, updated_at) VALUES (1,1,'Musica',NOW(),NOW())");
+$db->exec("INSERT INTO periodos (id, institucion_id, nombre, fecha_inicio, fecha_fin, activo, matriculas_abiertas, created_at, updated_at)
+           VALUES (1,1,'2026-1','2026-01-15','2026-06-30',true,true,NOW(),NOW())");
+$db->exec("INSERT INTO promotorias (id, institucion_id, nombre, area_id, created_at, updated_at)
+           VALUES (1,1,'Violin',1,NOW(),NOW())");
+$db->exec('INSERT INTO cupos_promotoria (institucion_id, promotoria_id, periodo_id, cupo_maximo, created_at, updated_at)
+           VALUES (1,1,1,1,NOW(),NOW())');
+ajustarSecuencias($db);
 @unlink($cerrojo);
 
 echo "Escenario: Violin, cupo 1, nadie inscrito. Ana y Beto lo piden a la vez.\n\n";
@@ -73,15 +58,16 @@ if (! file_exists($cerrojo)) {
 echo "A (Ana): matricula escrita, transaccion ABIERTA, cerrojo tomado.\n";
 
 $b = require __DIR__.'/conexion_verificacion.php';
-$b->exec('SET innodb_lock_wait_timeout = 20');
+// Lo que espera B por el cerrojo antes de rendirse.
+$b->exec("SET lock_timeout = '20s'");
 $b->beginTransaction();
 
 echo "B (Beto): pide el mismo ultimo sitio...\n";
 $inicio = microtime(true);
 $sobreventa = false;
 try {
-    $b->exec("INSERT INTO matriculas (estudiante_id, promotoria_id, periodo_id, fecha, estado, ranura, created_at, updated_at)
-              VALUES (2, 1, 1, NOW(), 'pendiente', 1, NOW(), NOW())");
+    $b->exec("INSERT INTO matriculas (institucion_id, estudiante_id, promotoria_id, periodo_id, fecha, estado, ranura, created_at, updated_at)
+              VALUES (1, 2, 1, 1, NOW(), 'pendiente', 1, NOW(), NOW())");
     $b->commit();
     $sobreventa = true;
     printf("B: PASO tras %.2fs -> el cerrojo no sirvio.\n", microtime(true) - $inicio);

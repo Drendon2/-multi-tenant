@@ -82,8 +82,8 @@ class Companeros
      * juntos y repetido quien estuvo en los dos.
      *
      * El orden por nombre se deja en la BASE y no en PHP a proposito: la columna
-     * es `utf8mb4`, que ordena «Óscar» entre «Nicolás» y «Paula», donde una
-     * persona lo busca; `sortBy` de PHP lo mandaria detras de «Zulma».
+     * lleva un cotejo ICU, que ordena «Óscar» entre «Nicolás» y «Paula», donde
+     * una persona lo busca; `sortBy` de PHP lo mandaria detras de «Zulma».
      *
      * @param  Collection<int, Matricula>  $mias  las matriculas activas de $perfil
      *                                            LA CLAVE ES (MATRICULA, GRUPO) Y NO LA MATRICULA, desde el 10/09/2026,

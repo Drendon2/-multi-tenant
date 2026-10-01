@@ -145,10 +145,11 @@ class UsuarioController extends Controller
         //
         // El TELEFONO sigue fuera, y esa parte no se toco.
         //
-        // El cotejo de la base es utf8mb4_unicode_ci, o sea que ignora
-        // mayusculas Y tildes: «gomez» encuentra «Gómez» sin normalizar nada
-        // aqui. Si alguna vez se cambia el cotejo de estas dos columnas, esta
-        // busqueda deja de encontrar los nombres con tilde en silencio.
+        // El cotejo de estas columnas es `insensible` (ICU, el que hereda el
+        // `utf8mb4_unicode_ci` de MariaDB), o sea que ignora mayusculas Y
+        // tildes: «gomez» encuentra «Gómez» sin normalizar nada aqui. Si
+        // alguna vez se cambia el cotejo de estas dos columnas, esta busqueda
+        // deja de encontrar los nombres con tilde en silencio.
         if ($seleccion['buscar'] !== '') {
             $buscado = $seleccion['buscar'];
             $termino = '%'.$this->escaparLike($buscado).'%';

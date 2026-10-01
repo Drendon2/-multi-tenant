@@ -14,6 +14,7 @@ use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
 use App\Support\Grafica;
+use App\Support\OrdenPorNombre;
 use App\Support\ResumenActividades;
 use App\Support\ResumenAsistencia;
 use App\Support\ResumenInstitucion;
@@ -484,8 +485,8 @@ class EstadisticasController extends Controller
                 promotorias.nombre as promotoria,
                 areas.id as area_id,
                 areas.nombre as area,
-                SUM(matriculas.estado IN ({$huecos})) as continuan,
-                SUM(matriculas.estado = ?) as retirados
+                SUM(CASE WHEN matriculas.estado IN ({$huecos}) THEN 1 ELSE 0 END) as continuan,
+                SUM(CASE WHEN matriculas.estado = ? THEN 1 ELSE 0 END) as retirados
             ", [...Matricula::ESTADOS_INSCRITO, Matricula::RETIRADA])
             ->orderBy('areas.nombre')
             ->orderByDesc('continuan')
@@ -664,9 +665,15 @@ class EstadisticasController extends Controller
             }
         }
 
-        uasort($porProfesor, fn (array $a, array $b) => $b['clases'] <=> $a['clases']);
-
         $perfiles = Perfil::whereIn('id', array_keys($porProfesor))->get()->keyBy('id');
+
+        // Entre los que dieron las mismas clases, por nombre: la lista se
+        // recorta y el corte caia en medio de un empate (ver `OrdenPorNombre`).
+        uksort($porProfesor, fn ($a, $b) => $porProfesor[$b]['clases'] <=> $porProfesor[$a]['clases']
+            ?: OrdenPorNombre::comparar(
+                (string) $perfiles->get($a)?->nombre_completo,
+                (string) $perfiles->get($b)?->nombre_completo
+            ));
         $filas = [];
 
         foreach (array_slice($porProfesor, 0, $cuantos, true) as $id => $datos) {
@@ -721,9 +728,11 @@ class EstadisticasController extends Controller
             ->selectRaw('
                 matriculas.estudiante_id,
                 COUNT(*) as marcadas,
-                SUM(asistencias.estado = ?) as asistio
+                SUM(CASE WHEN asistencias.estado = ? THEN 1 ELSE 0 END) as asistio
             ', [Asistencia::ASISTIO])
-            ->having('marcadas', '>=', self::MINIMO_CLASES_CONSTANCIA)
+            // La expresion y no el alias `marcadas`: PostgreSQL no deja usar
+            // en el HAVING un alias del SELECT.
+            ->havingRaw('COUNT(*) >= ?', [self::MINIMO_CLASES_CONSTANCIA])
             ->get();
 
         if ($filas->isEmpty()) {
@@ -746,8 +755,11 @@ class EstadisticasController extends Controller
             })
             ->filter(fn (array $f) => $f['perfil'] !== null)
             // El desempate va por numero de clases: entre dos que no faltaron
-            // nunca, la lista encabeza quien lo sostuvo mas veces.
-            ->sortByDesc(fn (array $f) => [$f['pct'], $f['marcadas']])
+            // nunca, la lista encabeza quien lo sostuvo mas veces. Y si tambien
+            // empatan ahi, por nombre (ver `OrdenPorNombre`): la lista se
+            // recorta y el corte caia en medio de un empate.
+            ->sort(fn (array $a, array $b) => [$b['pct'], $b['marcadas']] <=> [$a['pct'], $a['marcadas']]
+                ?: OrdenPorNombre::comparar($a['perfil']->nombre_completo, $b['perfil']->nombre_completo))
             ->take($cuantos)
             ->values()
             ->all();

@@ -87,7 +87,10 @@ class AsistenciaDeActividad
             ->where('asistencias_actividad.estado', AsistenciaActividad::ASISTIO)
             ->groupBy('asistencias_actividad.inscrito_id')
             ->pluck(
-                DB::raw('COUNT(*)'),
+                // Con alias: sin el, cada motor bautiza la columna a su manera
+                // (MariaDB «COUNT(*)», PostgreSQL «count») y `pluck` la busca
+                // por ese nombre.
+                DB::raw('COUNT(*) as total'),
                 'asistencias_actividad.inscrito_id'
             );
 
