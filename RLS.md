@@ -81,7 +81,7 @@ cerrado: nunca enseña lo de otra institución.
 |---|---|---|
 | `matriculas_dueno` | Dueño de las tablas. Corre las migraciones y los guiones de `database/` (copiar, comparar, verificar), que trabajan con todas las instituciones a la vez. | No le aplica, por ser el dueño |
 | `matriculas` | **La aplicación.** Solo `SELECT`, `INSERT`, `UPDATE` y `DELETE`: ni crea, ni altera, ni vacía tablas. | Le aplica |
-| `matriculas_global` | Solo lectura de **todas** las instituciones, para las estadísticas globales (paso 5). Nada lo usa todavía. | `BYPASSRLS`, atributo del rol |
+| `matriculas_global` | Solo lectura de **todas** las instituciones. Pensado para las estadísticas globales, que al final se calculan institución por institución bajo RLS (paso 5, decisión del usuario). Queda de reserva; nada lo usa. | `BYPASSRLS`, atributo del rol |
 
 **Por qué la aplicación no es la dueña:** RLS no le aplica al dueño, y un dueño
 puede apagarlo con un `ALTER TABLE`. Con la aplicación como dueña, una

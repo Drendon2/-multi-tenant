@@ -126,6 +126,7 @@ class Promotoria extends Model
         $this->save();
     }
 
+    /** @return BelongsTo<Area, $this> */
     public function area(): BelongsTo
     {
         return $this->belongsTo(Area::class);

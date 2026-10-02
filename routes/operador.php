@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Operador\InstitucionesController;
+use App\Http\Controllers\Operador\ResumenController;
 use App\Http\Controllers\Operador\SesionController;
 use App\Http\Controllers\Operador\SuplantacionController;
 use App\Http\Middleware\OperadorActivo;
@@ -24,6 +25,15 @@ Route::post('/instituciones/entrar', [SesionController::class, 'entrar'])
 Route::middleware(['auth:operador', OperadorActivo::class])->group(function () {
     Route::post('/instituciones/salir', [SesionController::class, 'salir'])->name('operador.salir');
     Route::get('/instituciones', [InstitucionesController::class, 'index'])->name('operador.instituciones');
+
+    // El resumen de todas y sus descargas consolidadas (paso 5). Antes que
+    // `{institucion}`, aunque esa solo case con numeros.
+    Route::get('/instituciones/resumen', [ResumenController::class, 'index'])->name('operador.resumen');
+    Route::get('/instituciones/resumen/resumen.csv', [ResumenController::class, 'descargarResumen'])->name('operador.descarga.resumen');
+    Route::get('/instituciones/resumen/promotorias.csv', [ResumenController::class, 'descargarPromotorias'])->name('operador.descarga.promotorias');
+    Route::get('/instituciones/resumen/demografia.csv', [ResumenController::class, 'descargarDemografia'])->name('operador.descarga.demografia');
+    Route::get('/instituciones/resumen/personas.csv', [ResumenController::class, 'descargarPersonas'])->name('operador.descarga.personas');
+    Route::get('/instituciones/resumen/actividades.csv', [ResumenController::class, 'descargarActividades'])->name('operador.descarga.actividades');
     Route::get('/instituciones/{institucion}', [InstitucionesController::class, 'editar'])
         ->whereNumber('institucion')
         ->name('operador.institucion');

@@ -415,6 +415,42 @@ class InstitucionActual
     }
 
     /**
+     * `mientras()` para un GENERADOR: recorre lo que devuelve `$filas` como la
+     * institucion `$id`, y al terminar deja todo como estaba.
+     *
+     * Existe por las descargas del panel (paso 5), que van saliendo fila a fila
+     * mientras se escriben: con `mientras()` la institucion se fijaria al
+     * CREAR el generador y se soltaria antes de que corriera una sola
+     * consulta. Aqui se fija justo antes de pedir la primera fila y se suelta
+     * despues de la ultima. `$filas` se llama ya dentro, para que lo que
+     * prepare (una lista de papeles, unos agregados) tambien sea de esa
+     * institucion.
+     *
+     * @template T
+     *
+     * @param  callable(): iterable<T>  $filas
+     * @return \Generator<int, T>
+     */
+    public static function recorriendo(int $id, callable $filas): \Generator
+    {
+        $antes = app()->bound(self::FIJADA) ? app()->make(self::FIJADA) : null;
+        $deNinguna = app()->bound(self::NINGUNA);
+        self::usar($id);
+
+        try {
+            foreach ($filas() as $fila) {
+                yield $fila;
+            }
+        } finally {
+            match (true) {
+                $deNinguna => self::ninguna(),
+                $antes === null => self::olvidar(),
+                default => self::usar($antes),
+            };
+        }
+    }
+
+    /**
      * Un enlace publico con token dice de que institucion es: la de su fila.
      *
      * Si la peticion ya es de OTRA —en la web, la del dominio por el que se

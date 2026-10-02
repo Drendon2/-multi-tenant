@@ -175,12 +175,6 @@ parameters:
 			path: app/Http/Controllers/Gestion/GrupoController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nombre\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/Gestion/GrupoController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$promotoria_id\.$#'
 			identifier: property.notFound
 			count: 2
@@ -223,58 +217,10 @@ parameters:
 			path: app/Http/Controllers/Gestion/PromotoriaController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Matricula\:\:\$periodos\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/InformeController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Matricula\:\:\$primera\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/InformeController.php
-
-		-
-			message: '#^Cannot call method format\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Http/Controllers/InformeController.php
-
-		-
-			message: '#^Parameter \#1 \$encuesta of method App\\Http\\Controllers\\InformeController\:\:columnasDeEncuesta\(\) expects App\\Models\\EncuestaDemografica\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/InformeController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>nombre" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/InformeController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$autoriza_tratamiento_datos\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/MiPerfilController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$fecha_autorizacion\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/MiPerfilController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$perfil_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/MiPerfilController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$preguntas_faltantes\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/MiPerfilController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>preguntas_faltantes" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -373,12 +319,6 @@ parameters:
 			path: app/Models/InscritoActividad.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$esta_completa\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/Perfil.php
-
-		-
 			message: '#^Parameter \#1 \$nacimiento of static method App\\Models\\Perfil\:\:edadDe\(\) expects Illuminate\\Support\\Carbon, string given\.$#'
 			identifier: argument.type
 			count: 1
@@ -397,28 +337,10 @@ parameters:
 			path: app/Models/Promotoria.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nombre\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/Promotoria.php
-
-		-
 			message: '#^Parameter \#1 \$array \(list\<array\<string, mixed\>\>\) of array_values is already a list, call has no effect\.$#'
 			identifier: arrayValues.list
 			count: 1
 			path: app/Support/Grafica.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tag_color\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Support/HorarioSemanal.php
-
-		-
-			message: '#^Parameter \#1 \$array of function array_values contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Support/HorarioSemanal.php
 
 		-
 			message: '#^Parameter \#1 \$ocupaciones of static method App\\Support\\HorarioSemanal\:\:enFranjas\(\) expects list\<array\{sesion\: App\\Models\\SesionGrupo, grupo\: App\\Models\\Grupo\}\>, non\-empty\-list\<array\{sesion\: Illuminate\\Database\\Eloquent\\Model, grupo\: App\\Models\\Grupo\}\> given\.$#'

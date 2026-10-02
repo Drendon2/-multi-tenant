@@ -177,6 +177,7 @@ class Perfil extends Model
             ->orderBy('nombre');
     }
 
+    /** @return HasOne<EncuestaDemografica, $this> */
     public function encuesta(): HasOne
     {
         return $this->hasOne(EncuestaDemografica::class, 'perfil_id');

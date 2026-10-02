@@ -17,6 +17,7 @@ use App\Support\Grafica;
 use App\Support\OrdenPorNombre;
 use App\Support\ResumenActividades;
 use App\Support\ResumenAsistencia;
+use App\Support\ResumenDemografico;
 use App\Support\ResumenInstitucion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -76,27 +77,12 @@ class EstadisticasController extends Controller
 
         [$baseRenovacion, $noRenovaron] = $this->renovacion($periodoActual, $periodoPrevio);
 
-        // Solo las columnas que se cuentan, y como filas planas (`toBase`) en
-        // vez de modelos (C-02). Antes era `EncuestaDemografica::all()`: la
-        // tabla entera, con todas sus columnas, hidratada en un modelo de
-        // Eloquent por persona. Hoy son 227 filas y no se nota; crece con cada
-        // estudiante que llena la encuesta, y el techo lo pone la memoria de un
-        // hosting compartido.
-        //
-        // Lo que NO se hizo, y merece quedar escrito para no volver a
-        // plantearlo sin datos: dejarlo en nueve GROUP BY y no traer nada. Eso
-        // dejaria la memoria constante, que es mejor, pero cambia un recorrido
-        // de la tabla por nueve, y ya se decidio una vez ir en la direccion
-        // contraria por ese mismo motivo (ver `conteo()`). Lo que aquella
-        // decision daba por sentado --que la tabla se leia entera de todas
-        // formas, para las incompletas-- es justo lo que deja de ser cierto
-        // aqui abajo.
-        $encuestas = EncuestaDemografica::query()
-            ->select(array_keys(EncuestaDemografica::OPCIONES))
-            ->toBase()
-            ->get();
-
-        $totalEncuestas = $encuestas->count();
+        // La encuesta, CONTADA. Desde el paso 5 la cuenta `ResumenDemografico`,
+        // que es tambien lo que suma el panel de todas las instituciones: una
+        // pregunta contada en dos sitios acabaria con dos respuestas. Alli esta
+        // la historia de por que se cuenta asi (C-02).
+        $demografia = ResumenDemografico::deLaInstitucion();
+        $totalEncuestas = $demografia['total'];
 
         $cifras = ResumenInstitucion::cifras($periodoActual);
 
@@ -153,57 +139,7 @@ class EstadisticasController extends Controller
             'totalEncuestas' => $totalEncuestas,
             'encuestasIncompletas' => $this->encuestasIncompletas(),
             'totalConRol' => Perfil::where('rol', '!=', '')->count(),
-            // Genero y zona van en torta y no en barras: en las dos la pregunta
-            // es que parte del total es cada opcion, y son pocas (4 y 3). El
-            // resto de escalas sigue en barras, que es lo correcto para comparar
-            // magnitudes y para escalas con orden propio como el estrato o el
-            // nivel educativo, donde una torta obligaria a comparar angulos
-            // parecidos.
-            'generoTorta' => Grafica::torta(
-                // Sin `$totalEncuestas`: la torta pone su propio sector gris y
-                // contaria dos veces esa fila.
-                Grafica::porOpcion($this->conteo($encuestas, 'genero'), EncuestaDemografica::GENEROS),
-                $totalEncuestas
-            ),
-            'zonaTorta' => Grafica::torta(
-                Grafica::porOpcion($this->conteo($encuestas, 'zona'), EncuestaDemografica::ZONAS),
-                $totalEncuestas
-            ),
-            'estratoStats' => Grafica::porOpcion(
-                $this->conteo($encuestas, 'estrato'),
-                array_map(fn ($e) => "Estrato {$e}", EncuestaDemografica::ESTRATOS),
-                $totalEncuestas
-            ),
-            'nivelEducativoStats' => Grafica::porOpcion(
-                $this->conteo($encuestas, 'nivel_educativo'),
-                EncuestaDemografica::NIVELES_EDUCATIVOS,
-                $totalEncuestas
-            ),
-            'ocupacionStats' => Grafica::porOpcion(
-                $this->conteo($encuestas, 'ocupacion'),
-                EncuestaDemografica::OCUPACIONES,
-                $totalEncuestas
-            ),
-            'afiliacionSaludStats' => Grafica::porOpcion(
-                $this->conteo($encuestas, 'afiliacion_salud'),
-                EncuestaDemografica::AFILIACIONES_SALUD,
-                $totalEncuestas
-            ),
-            'grupoEtnicoStats' => Grafica::porOpcion(
-                $this->conteo($encuestas, 'grupo_etnico'),
-                EncuestaDemografica::GRUPOS_ETNICOS,
-                $totalEncuestas
-            ),
-            'discapacidadStats' => Grafica::porOpcion(
-                $this->conteo($encuestas, 'discapacidad'),
-                EncuestaDemografica::DISCAPACIDADES,
-                $totalEncuestas
-            ),
-            'victimaConflictoStats' => Grafica::porOpcion(
-                $this->conteo($encuestas, 'victima_conflicto_armado'),
-                EncuestaDemografica::VICTIMAS_CONFLICTO,
-                $totalEncuestas
-            ),
+            ...ResumenDemografico::graficas($demografia),
             ...$this->autorizacion($totalEncuestas),
             // El nombre de quien contesto solo lo ve el administrador, y solo
             // en las notas bajas. Ver `satisfaccion()`.
@@ -574,47 +510,6 @@ class EstadisticasController extends Controller
             ->get()
             ->map(fn ($fila) => ['etiqueta' => $fila->etiqueta, 'total' => (int) $fila->total])
             ->all();
-    }
-
-    /**
-     * Cuantas encuestas hay por cada valor de un campo.
-     *
-     * Cuenta sobre la coleccion que ya esta en memoria, no con un GROUP BY.
-     *
-     * Antes era una consulta por campo, y son nueve: la tabla entera se leia ya
-     * de todas formas —`$encuestas` hace falta para contar las incompletas, que
-     * no se puede resolver en SQL— y encima se recorria otras nueve veces en el
-     * motor. Diez pasadas por la misma tabla para pintar una pantalla.
-     *
-     * La alternativa contraria tambien valia: dejar los GROUP BY y contar las
-     * incompletas en SQL. Se eligio esta porque la de las incompletas parecia
-     * la que no tenia una version buena en SQL, y hacer las dos cosas a la vez
-     * es justo lo que estaba mal.
-     *
-     * De paso desaparece un `selectRaw` con el nombre de columna interpolado.
-     *
-     * ACTUALIZACION (C-02): aquella premisa era falsa. El motivo que se dio
-     * --«`estrato` es entero y los demas texto»-- no se sostiene: los cinco
-     * campos obligatorios son NOT NULL, asi que «sin responder» es la cadena
-     * vacia, y sobre un entero la comprobacion de cadena vacia no dispara nunca
-     * ni aqui ni antes. Las incompletas SI se cuentan en SQL, en
-     * `encuestasIncompletas()`.
-     *
-     * Lo que NO cambio es esto: se sigue contando en memoria y no con nueve
-     * GROUP BY, porque serian nueve recorridos de la tabla en vez de uno. Lo
-     * que cambio es lo que se trae: filas planas con las nueve columnas que se
-     * cuentan, en vez de la tabla entera hidratada en modelos. Nueve veces
-     * menos memoria, medido sobre los 227 registros de desarrollo.
-     *
-     * Por eso el parametro es una coleccion de `stdClass` y no de modelos: son
-     * las filas crudas de `toBase()`. `countBy` funciona igual sobre las dos.
-     *
-     * @param  Collection<int, \stdClass>  $encuestas
-     * @return array<int|string, int>
-     */
-    private function conteo(Collection $encuestas, string $campo): array
-    {
-        return $encuestas->countBy($campo)->all();
     }
 
     /**

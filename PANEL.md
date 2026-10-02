@@ -91,6 +91,64 @@ la marca del panel sobrevivía a la petición siguiente.
 
 ---
 
+## Resumen general y descargas consolidadas (paso 5)
+
+`/instituciones/resumen`, en el menú del panel. Lo que entra lo decidió el
+usuario el 02/10/2026: **población impactada, promotorías, datos demográficos y
+profesores por promotoría, y nada de asistencia a clase**. Y, «muy importante»,
+poder descargar todo consolidado.
+
+- **Una cinta** con los totales (instituciones, población impactada,
+  estudiantes activos, promotorías, profesores) y **una fila por institución**
+  con su periodo en curso y la fecha de su última matrícula, que dice si esa
+  casa se está usando.
+- **La encuesta demográfica de todas, sumada** opción a opción, con las mismas
+  gráficas que Estadísticas. Solo cifras: ningún nombre.
+- **Los profesores por promotoría** de cada institución, plegados por casa.
+
+**Cómo se calcula (decisión del usuario):** institución por institución, con
+`InstitucionActual::mientras()`, bajo RLS y con las MISMAS clases que pintan la
+cinta de Gestión (`ResumenInstitucion`) y la encuesta de Estadísticas
+(`ResumenDemografico`, que salió del controlador para esto). No con el rol
+`matriculas_global`: obligaba a reescribir esas cuentas en SQL propio, y una
+cifra calculada en dos sitios acaba diciendo dos cosas. Ese rol se queda
+creado, de reserva. Medido: 13 consultas y ~60 ms por institución.
+
+**Cada institución cuenta con su propio periodo en curso**, y los totales
+suman: una persona inscrita en dos municipios cuenta dos veces, porque el
+documento es único dentro de cada institución y no entre ellas. La pantalla lo
+dice.
+
+### Las cinco descargas
+
+Todas con el nombre de la institución en la primera columna. Cada descarga
+queda en la auditoría (`operador.descarga`) con el operador.
+
+| Archivo | Qué trae |
+|---|---|
+| Resumen por institución | Las cifras de cada una, con dirección y estado, y una fila «Todas». |
+| Promotorías y profesores | Cada promotoría con su departamento, profesor, teléfono y correo, inscritos del periodo y cupo. |
+| Datos demográficos, contados | Formato largo: institución, pregunta, respuesta, personas. Con «Todas». Sin nombres. |
+| Informe completo de personas | **Confidencial.** El informe de la institución de Gestión, de todas. |
+| Cursos y actividades sin matrícula | **Confidencial.** El de Gestión, de todas. |
+
+- **Los dos confidenciales son el MISMO informe que baja cada institución**:
+  sus filas salieron del controlador a `App\Support\InformeInstitucion` e
+  `InformeActividades`, que usan las dos descargas. Escrito dos veces, se
+  separarían sin que nada fallara.
+- **La única diferencia son los papeles.** Cada institución pide los suyos, así
+  que en su informe va una columna por papel («Entregó: …») y en el
+  consolidado van juntos en una sola, «Papeles entregados» («Cédula: Sí ·
+  Foto: No»).
+- **En el de actividades, «Institución» era la externa** donde se dicta un
+  programa. En el consolidado esas columnas pasan a «Institución externa», para
+  no repetir la cabecera de la primera.
+- **Las descargas van saliendo fila a fila**, y la institución se fija con
+  `InstitucionActual::recorriendo()`, que es `mientras()` para un generador: con
+  `mientras()` se soltaría antes de que corriera la primera consulta.
+- Medido sobre la copia local: el informe completo de personas, 1280 filas y
+  421 KB, en 1,7 s.
+
 ## Entrar como administrador (paso 4c)
 
 En la ficha de cada institución, el panel lista sus administradores activos

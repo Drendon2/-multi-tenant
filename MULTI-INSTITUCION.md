@@ -411,7 +411,7 @@ DB_DATABASE=test_matriculas_mt php database/verificacion_esquema.php --borrar-da
 | 4a | La institución la dice el dominio: `username` único por institución, `users` con RLS, las páginas públicas dejan de caer en la institución por defecto ([`DOMINIOS.md`](DOMINIOS.md)) | **Hecho** |
 | 4b | Panel de administración de todas las instituciones: dominios y estado ([`PANEL.md`](PANEL.md)) | **Hecho** |
 | 4c | Entrar como un administrador desde el panel ([`PANEL.md`](PANEL.md#entrar-como-administrador-paso-4c)) | **Hecho** |
-| 5 | Pruebas con varias instituciones y estadísticas globales de todas | Pendiente |
+| 5 | Pruebas con varias instituciones (la suite corre como la institución 2) y resumen de todas con descargas consolidadas ([`PANEL.md`](PANEL.md#resumen-general-y-descargas-consolidadas-paso-5)) | **Hecho** |
 
 **Abierto y sin decidir:**
 

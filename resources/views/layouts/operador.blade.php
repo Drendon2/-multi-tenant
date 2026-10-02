@@ -22,6 +22,8 @@
   </div>
   @auth('operador')
     <nav>
+      <a href="{{ route('operador.instituciones') }}">Instituciones</a>
+      <a href="{{ route('operador.resumen') }}">Resumen general</a>
       <form method="post" action="{{ route('operador.salir') }}">
         @csrf
         <button type="submit" class="btn btn-secundario btn-sm">Salir</button>

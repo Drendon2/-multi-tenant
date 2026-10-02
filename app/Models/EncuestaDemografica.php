@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Encuesta demografica. Obligatoria para todos, con los campos SENSIBLES
@@ -20,6 +21,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * que se guarda es el CODIGO, asi que renombrar un texto no obliga a migrar
  * datos. "ns" significa siempre "prefiero no responder", el mismo codigo en
  * todas las escalas que lo ofrecen.
+ *
+ * @property Carbon|null $fecha_autorizacion
  */
 class EncuestaDemografica extends Model
 {
