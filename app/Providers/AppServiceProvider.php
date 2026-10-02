@@ -81,6 +81,12 @@ class AppServiceProvider extends ServiceProvider
          * clonado y sin migrar no se cae aqui.
          */
         View::composer('*', function ($view) {
+            // El panel de todas las instituciones no es de ninguna (paso 4b):
+            // sus vistas no pintan marca, y pedirla lanzaria.
+            if (InstitucionActual::idSiSeSabe() === null) {
+                return;
+            }
+
             $view->with('configuracion', ConfiguracionInstitucion::actual());
         });
 
@@ -189,6 +195,19 @@ class AppServiceProvider extends ServiceProvider
      */
     private function limitarIntentos(): void
     {
+        // El login del panel de todas las instituciones (paso 4b), con los
+        // mismos dos topes que el de las instituciones y por la misma razon.
+        // Su propio nombre: un operador y una cuenta de una casa pueden
+        // llamarse igual y no comparten contador.
+        RateLimiter::for('operador-entrar', function (Request $request) {
+            $usuario = Str::lower(trim((string) $request->input('usuario')));
+
+            return [
+                Limit::perMinute(5)->by('operador|'.$usuario.'|'.$request->ip()),
+                Limit::perMinutes(15, 10)->by('operador-cuenta|'.$usuario),
+            ];
+        });
+
         RateLimiter::for('entrar', function (Request $request) {
             // En minusculas para que `Ana` y `ana` compartan contador: el login
             // no distingue mayusculas y dos contadores separados darian el doble

@@ -4,13 +4,22 @@ use App\Http\Middleware\CabecerasDeSeguridad;
 use App\Http\Middleware\CuentaActiva;
 use App\Http\Middleware\InstitucionPorDominio;
 use App\Http\Middleware\RequiereRol;
+use App\Http\Middleware\SoloEnElPanel;
+use App\Support\Panel;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\AuthenticateSession;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Session\TokenMismatchException;
+use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -18,6 +27,11 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        // El panel de todas las instituciones (paso 4b): su propio grupo, sin
+        // `InstitucionPorDominio`, porque su host no es de ninguna.
+        then: function () {
+            Route::middleware('operador')->group(base_path('routes/operador.php'));
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // El equivalente del decorador `@requiere_rol(...)` del original.
@@ -58,12 +72,30 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Sin sesion, todo lleva al login (Laravel apunta por defecto a una
         // ruta 'login' que aqui si existe, pero se deja explicito).
-        $middleware->redirectGuestsTo(fn () => route('login'));
+        // En el host del panel, al login de los operadores.
+        $middleware->redirectGuestsTo(fn (Request $request) => Panel::esLaPeticion($request)
+            ? route('operador.entrar')
+            : route('login'));
 
         // De que institucion es la peticion: la del host (paso 4a). El
         // PRIMERO del grupo, antes de la sesion: con `users` bajo RLS, cargar
         // la cuenta de la sesion ya necesita saberlo.
         $middleware->web(prepend: [InstitucionPorDominio::class]);
+
+        // El grupo del panel de todas las instituciones (paso 4b). Es el de
+        // `web` sin `InstitucionPorDominio`, `AuthenticateSession` ni
+        // `CuentaActiva`, que son de las cuentas de una institucion, y con
+        // `SoloEnElPanel` el primero: fuera de su host, 404.
+        $middleware->group('operador', [
+            SoloEnElPanel::class,
+            EncryptCookies::class,
+            AddQueuedCookiesToResponse::class,
+            StartSession::class,
+            ShareErrorsFromSession::class,
+            ValidateCsrfToken::class,
+            SubstituteBindings::class,
+            CabecerasDeSeguridad::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         /**

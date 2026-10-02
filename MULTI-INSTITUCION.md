@@ -409,7 +409,7 @@ DB_DATABASE=test_matriculas_mt php database/verificacion_esquema.php --borrar-da
 | 2 | PostgreSQL ([`POSTGRES.md`](POSTGRES.md)) | **Hecho** |
 | 3 | Row Level Security ([`RLS.md`](RLS.md)), con el rol global ya previsto para las estadísticas del paso 5 | **Hecho** |
 | 4a | La institución la dice el dominio: `username` único por institución, `users` con RLS, las páginas públicas dejan de caer en la institución por defecto ([`DOMINIOS.md`](DOMINIOS.md)) | **Hecho** |
-| 4b | Panel de administración de todas las instituciones: dominios y estado | Pendiente |
+| 4b | Panel de administración de todas las instituciones: dominios y estado ([`PANEL.md`](PANEL.md)) | **Hecho** |
 | 4c | Suplantación de un administrador desde el panel | Pendiente |
 | 5 | Pruebas con varias instituciones y estadísticas globales de todas | Pendiente |
 

@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Institucion;
 use App\Support\InstitucionActual;
+use App\Support\Panel;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\ViewErrorBag;
@@ -32,6 +33,12 @@ class InstitucionPorDominio
 
     public function handle(Request $request, Closure $next): Response
     {
+        // El host del panel no es de ninguna institucion: lo que se pida ahi
+        // fuera del panel (`/`, `/entrar`) lleva a su portada (paso 4b).
+        if (Panel::esLaPeticion($request)) {
+            return redirect()->route('operador.instituciones');
+        }
+
         $institucion = InstitucionActual::delHost($request->getHost());
 
         abort_if($institucion === null, 404);

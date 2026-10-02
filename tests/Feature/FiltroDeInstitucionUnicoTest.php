@@ -53,9 +53,13 @@ class FiltroDeInstitucionUnicoTest extends TestCase
      */
     private ?array $sinRls = null;
 
-    /** Tablas de Laravel y la de instituciones: no llevan institucion. */
+    /**
+     * Tablas de Laravel, la de instituciones y la de operadores: no llevan
+     * institucion. Los operadores del panel no son de ninguna (paso 4b,
+     * decision del usuario del 02/10/2026).
+     */
     private const DEL_FRAMEWORK = ['migrations', 'cache', 'cache_locks', 'jobs', 'job_batches',
-        'failed_jobs', 'sessions', 'password_reset_tokens', 'instituciones'];
+        'failed_jobs', 'sessions', 'password_reset_tokens', 'instituciones', 'operadores'];
 
     public function test_toda_tabla_de_datos_lleva_institucion_id(): void
     {

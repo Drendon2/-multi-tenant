@@ -48,6 +48,9 @@ class InstitucionActual
 {
     private const FIJADA = 'institucion.actual';
 
+    /** La peticion es del panel de todas: de ninguna institucion. */
+    private const NINGUNA = 'institucion.ninguna';
+
     /** Columna que llevan todas las tablas de datos. */
     public const COLUMNA = 'institucion_id';
 
@@ -94,6 +97,10 @@ class InstitucionActual
     /** Como `id()`, pero null en vez de lanzar. */
     public static function idSiSeSabe(): ?int
     {
+        if (app()->bound(self::NINGUNA)) {
+            return null;
+        }
+
         if (app()->bound(self::FIJADA)) {
             return app()->make(self::FIJADA);
         }
@@ -352,10 +359,26 @@ class InstitucionActual
     }
 
     /**
+     * Esta peticion no es de NINGUNA institucion: es la del panel de todas
+     * (paso 4b). Ni la cuenta ni la por defecto cuentan: `id()` lanza y la base
+     * no recibe institucion, asi que una tabla de datos no devuelve ninguna
+     * fila. Lo que el panel lee (`instituciones`, `operadores`) no tiene RLS.
+     */
+    public static function ninguna(): void
+    {
+        app()->forgetInstance(self::FIJADA);
+        app()->instance(self::NINGUNA, true);
+    }
+
+    /**
      * Fija la institucion para el resto de esta peticion o comando.
      */
     public static function usar(int $id): void
     {
+        // Las dos marcas se excluyen: una peticion es de una institucion o del
+        // panel. Sin esto, en las pruebas —que reutilizan el contenedor entre
+        // peticiones— la marca del panel sobrevivia a la peticion siguiente.
+        app()->forgetInstance(self::NINGUNA);
         app()->instance(self::FIJADA, $id);
     }
 

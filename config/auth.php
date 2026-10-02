@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Operador;
 use App\Models\User;
 
 return [
@@ -42,6 +43,14 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Los operadores del panel de todas las instituciones (paso 4b). Su
+        // propia tabla y su propia clave de sesion: entrar al panel no abre
+        // ninguna institucion, y al reves.
+        'operador' => [
+            'driver' => 'session',
+            'provider' => 'operadores',
+        ],
     ],
 
     /*
@@ -65,6 +74,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
+        ],
+
+        'operadores' => [
+            'driver' => 'eloquent',
+            'model' => Operador::class,
         ],
 
         // 'users' => [
