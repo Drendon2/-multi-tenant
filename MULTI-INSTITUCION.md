@@ -420,8 +420,10 @@ DB_DATABASE=test_matriculas_mt php database/verificacion_esquema.php --borrar-da
   saldría del filtro. Hoy no hay ninguna; está advertido en `tabla()`.
 - `instituciones.nombre` se pone al instalar y no sigue a un cambio de nombre
   hecho luego en Gestión → Institución, que es el que se pinta en pantalla.
-- Separar esta versión en un repositorio propio y privado, revisando el CI
-  heredado, que despliega a producción.
+- Separar esta versión en un repositorio propio y privado. El CI ya prueba
+  contra PostgreSQL 18 y tiene el despliegue APAGADO: el de los secretos
+  heredados es el servidor de producción, que corre la versión de una sola
+  institución sobre MariaDB.
 
 ---
 

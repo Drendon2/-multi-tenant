@@ -1,7 +1,11 @@
 # Prueba y despliega.
 #
-# En cada push a `main`: se levanta la suite entera contra MariaDB y, SOLO si
-# pasa, se entra por SSH al servidor y se ejecuta `desplegar.sh`.
+# En cada push a `main`: se levanta la suite entera contra PostgreSQL y, SOLO
+# si pasa, se entra por SSH al servidor y se ejecuta `desplegar.sh`.
+#
+# ESTA ES LA VERSION MULTI-INSTITUCION (rama `multi-tenant`, 02/10/2026): las
+# pruebas corren contra PostgreSQL 18 con los tres roles de `RLS.md`, y el
+# DESPLIEGUE ESTA APAGADO (ver el trabajo `desplegar`, abajo).
 #
 # Esa puerta es el motivo de que este archivo exista. Un `git pull` automático
 # sin pruebas publica el error en internet treinta segundos después de haberlo
@@ -24,7 +28,9 @@ name: Probar y desplegar
 
 on:
   push:
-    branches: [main]
+    # `multi-tenant` para que esta rama se pruebe si se empuja. NO despliega:
+    # el trabajo de despliegue esta apagado en esta version.
+    branches: [main, multi-tenant]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -37,24 +43,30 @@ jobs:
     # Ubuntu 26.04 poco a poco entre el 19/10 y el 19/11/2026, o sea que un push
     # cualquiera caeria en una maquina u otra al azar. Y este trabajo es la
     # puerta del despliegue: si la imagen nueva rompe `setup-php` (en sep/2026
-    # tenia incidencias abiertas con 26.04) o el servicio de MariaDB, lo que se
+    # tenia incidencias abiertas con 26.04) o el servicio de PostgreSQL, lo que se
     # para es publicar, el dia que menos convenga. Subir de version se hace
     # aposta, cambiando esta linea en una rama y mirando el CI, no por sorpresa.
     runs-on: ubuntu-24.04
 
-    # Las pruebas corren contra MariaDB y no contra SQLite, y no es preferencia:
-    # comprueban garantias del motor —columnas generadas con indice unico,
-    # triggers con SIGNAL, SELECT ... FOR UPDATE— que SQLite no tiene.
+    # Las pruebas corren contra PostgreSQL 18 y no contra SQLite, y no es
+    # preferencia: comprueban garantias del motor —Row Level Security, los
+    # roles que lo sostienen, triggers, indices unicos sobre expresiones,
+    # `SELECT ... FOR UPDATE`— que SQLite no tiene. La misma version mayor que
+    # en local (`POSTGRES.md`).
+    #
+    # El superusuario `postgres` solo sirve para PREPARAR: crear los roles y
+    # la base. Las pruebas entran como la APLICACION (`matriculas`), a la que
+    # RLS le aplica, y migran como el DUEÑO (`matriculas_dueno`); con el
+    # superusuario RLS no actuaria y la suite pasaria sin probar nada.
     services:
-      mariadb:
-        image: mariadb:10.5
+      postgres:
+        image: postgres:18
         env:
-          MARIADB_ROOT_PASSWORD: raiz
-          MARIADB_DATABASE: test_matriculas
+          POSTGRES_PASSWORD: raiz
         ports:
-          - 3306:3306
+          - 5432:5432
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -praiz"
+          --health-cmd="pg_isready -U postgres"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=15
@@ -67,7 +79,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: gd, exif, pdo_mysql, mbstring, intl, zip
+          extensions: gd, exif, pdo_pgsql, pgsql, mbstring, intl, zip
           coverage: none
 
       - name: Cachear las dependencias
@@ -85,20 +97,45 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
+      # Los tres roles y la base, como en una instalacion de verdad (`RLS.md`,
+      # «Instalar y operar»): `00-roles.sql` como superusuario, una contraseña
+      # para cada uno, y la base de las pruebas DEL DUEÑO, con el cotejo ICU
+      # del que depende `insensible`. El nombre es el que fija `phpunit.xml`.
+      # Las contraseñas son de este contenedor, que muere con la ejecucion.
+      - name: Preparar los roles y la base
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: raiz
+        run: |
+          psql -v ON_ERROR_STOP=1 -f database/sql/postgres/00-roles.sql
+          for rol in matriculas_dueno matriculas matriculas_global; do
+            psql -v ON_ERROR_STOP=1 -c "ALTER ROLE $rol PASSWORD 'clave-de-ci'"
+          done
+          psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE test_matriculas_mt OWNER matriculas_dueno TEMPLATE template0 LOCALE_PROVIDER icu ICU_LOCALE 'und' LOCALE 'C' ENCODING 'UTF8'"
+
       # Los datos de conexion se escriben en el .env y no como variables de
       # entorno: phpunit.xml ya define DB_CONNECTION y DB_DATABASE, y mezclar
       # las dos fuentes hace que cual gana dependa de detalles de PHPUnit.
-      - name: Apuntar a la MariaDB del contenedor
+      - name: Apuntar al PostgreSQL del contenedor
         run: |
-          sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/'   .env
-          sed -i 's/^DB_PORT=.*/DB_PORT=3306/'        .env
-          sed -i 's/^DB_USERNAME=.*/DB_USERNAME=root/' .env
-          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=raiz/' .env
+          sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=pgsql/'         .env
+          sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/'                 .env
+          sed -i 's/^DB_PORT=.*/DB_PORT=5432/'                      .env
+          sed -i 's/^DB_USERNAME=.*/DB_USERNAME=matriculas/'        .env
+          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=clave-de-ci/'       .env
+          sed -i 's/^DB_DUENO_PASSWORD=.*/DB_DUENO_PASSWORD=clave-de-ci/' .env
           # La base del contenedor se llama como la de las pruebas. No afecta a
           # `php artisan test` --phpunit.xml define DB_DATABASE y gana--, pero
           # los guiones de database/ solo leen el .env, y sin esto apuntarian a
           # `matriculas`, que en el contenedor no existe.
-          sed -i 's/^DB_DATABASE=.*/DB_DATABASE=test_matriculas/' .env
+          sed -i 's/^DB_DATABASE=.*/DB_DATABASE=test_matriculas_mt/' .env
+          # Que las sustituciones de verdad cayeron: un sed que no encuentra la
+          # linea no falla, y la suite acabaria contra lo que trajera el
+          # ejemplo.
+          grep -q '^DB_USERNAME=matriculas$' .env
+          grep -q '^DB_DUENO_PASSWORD=clave-de-ci$' .env
 
       - name: Pruebas
         run: php artisan test
@@ -158,8 +195,17 @@ jobs:
     needs: pruebas
     # Fija por lo mismo que la de las pruebas.
     runs-on: ubuntu-24.04
-    # Una rama de trabajo se prueba, pero no se publica.
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # APAGADO EN LA VERSION MULTI-INSTITUCION (02/10/2026). El servidor de los
+    # secretos HOSTINGER_* es PRODUCCION: corre `main` sobre MariaDB. Esta
+    # version necesita PostgreSQL con sus tres roles, y desplegarla alli
+    # correria las migraciones 2026_10_* sobre la base de verdad. Comparten
+    # repositorio y secretos, asi que la condicion de rama no basta: el dia
+    # que esto viva en su propio repositorio, con `main` siendo esta version,
+    # los secretos de produccion seguirian ahi.
+    #
+    # Se enciende quitando `false &&` cuando exista un servidor con PostgreSQL
+    # y unos secretos que apunten a EL, no antes.
+    if: false && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
 
     steps:
       # El contexto `secrets` no se puede consultar en el `if` de un trabajo,
