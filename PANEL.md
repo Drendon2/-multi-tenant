@@ -149,6 +149,22 @@ queda en la auditoría (`operador.descarga`) con el operador.
 - Medido sobre la copia local: el informe completo de personas, 1280 filas y
   421 KB, en 1,7 s.
 
+### El barrido de pantallas (5c)
+
+`tests/Feature/BarridoDePantallasTest.php` monta dos casas con el mismo
+catálogo y la marca «Señuelo» en lo que se ve de la otra, lee las rutas
+REALES (una pantalla nueva entra sola) y:
+
+1. con cada rol de una casa —administrador, director, profesor,
+   estudiante— abre por su dominio cada pantalla GET sin parámetros: ninguna
+   da 500 y en ninguna aparece la marca;
+2. como su administrador abre cada pantalla CON parámetros usando ids de la
+   otra casa: ninguna contesta 200.
+
+Medido el 02/10/2026: 80 visitas contestaron 200 (cada rol ve solo las
+suyas); la prueba exige más de 60, y más de 40 pantallas con parámetros. Con las políticas de RLS abiertas (`USING (true)`) caen las dos
+mitades.
+
 ## Entrar como administrador (paso 4c)
 
 En la ficha de cada institución, el panel lista sus administradores activos
