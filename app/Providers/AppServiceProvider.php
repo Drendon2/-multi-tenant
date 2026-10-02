@@ -193,7 +193,11 @@ class AppServiceProvider extends ServiceProvider
             // En minusculas para que `Ana` y `ana` compartan contador: el login
             // no distingue mayusculas y dos contadores separados darian el doble
             // de intentos por escribirlo distinto.
-            $usuario = Str::lower(trim((string) $request->input('username')));
+            //
+            // Con la institucion delante desde el paso 4a: el mismo usuario
+            // puede existir en dos casas, y sin ella equivocarse en una
+            // bloquearia al «admin» de la otra.
+            $usuario = InstitucionActual::idSiSeSabe().'|'.Str::lower(trim((string) $request->input('username')));
 
             return [
                 Limit::perMinute(5)->by($usuario.'|'.$request->ip()),

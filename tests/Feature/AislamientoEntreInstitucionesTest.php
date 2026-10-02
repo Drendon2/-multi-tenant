@@ -34,10 +34,17 @@ use Tests\TestCase;
  * Para mirar la OTRA institucion dentro de una prueba se usa
  * `InstitucionActual::mientras()`: RLS no se quita con un `withoutGlobalScope`,
  * y la conexion del dueño no veria las filas de la transaccion de la prueba.
+ *
+ * Desde el paso 4a cada casa se visita POR SU DOMINIO (`CASA` y `OTRA`): la
+ * institucion de una peticion la dice el host, no la cuenta.
  */
 class AislamientoEntreInstitucionesTest extends TestCase
 {
     use RefreshDatabase;
+
+    private const CASA = 'http://santuario.localhost';
+
+    private const OTRA = 'http://guarne.localhost';
 
     /** @var array<string, mixed> */
     private array $casa;
@@ -48,6 +55,9 @@ class AislamientoEntreInstitucionesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        config(['institucion.dominio_base' => 'localhost']);
+        Institucion::findOrFail(1)->update(['subdominio' => 'santuario']);
 
         ConfiguracionInstitucion::actual()->update(['nombre_institucion' => 'Casa de El Santuario']);
         $this->casa = $this->montar('santuario');
@@ -85,7 +95,7 @@ class AislamientoEntreInstitucionesTest extends TestCase
     public function test_las_filas_nuevas_nacen_en_la_institucion_de_la_sesion(): void
     {
         $this->actingAs($this->otra['admin']->user)
-            ->post('/gestion/areas/nueva', ['nombre' => 'Danza'])
+            ->post(self::OTRA.'/gestion/areas/nueva', ['nombre' => 'Danza'])
             ->assertSessionHasNoErrors();
 
         $danza = InstitucionActual::mientras(
@@ -102,7 +112,7 @@ class AislamientoEntreInstitucionesTest extends TestCase
     {
         // «Musica» ya existe en las dos (lo monta setUp); dentro de una, no.
         $this->actingAs($this->otra['admin']->user)
-            ->post('/gestion/areas/nueva', ['nombre' => 'Musica'])
+            ->post(self::OTRA.'/gestion/areas/nueva', ['nombre' => 'Musica'])
             ->assertSessionHasErrors('nombre');
     }
 
@@ -110,18 +120,18 @@ class AislamientoEntreInstitucionesTest extends TestCase
     {
         $admin = $this->actingAs($this->otra['admin']->user);
 
-        $admin->get('/gestion/promotorias/'.$this->casa['promotoria']->id.'/editar')->assertNotFound();
-        $admin->get('/gestion/areas/'.$this->casa['area']->id.'/editar')->assertNotFound();
-        $admin->post('/gestion/promotorias/'.$this->casa['promotoria']->id.'/eliminar')->assertNotFound();
+        $admin->get(self::OTRA.'/gestion/promotorias/'.$this->casa['promotoria']->id.'/editar')->assertNotFound();
+        $admin->get(self::OTRA.'/gestion/areas/'.$this->casa['area']->id.'/editar')->assertNotFound();
+        $admin->post(self::OTRA.'/gestion/promotorias/'.$this->casa['promotoria']->id.'/eliminar')->assertNotFound();
         $this->assertTrue(InstitucionActual::mientras(1, fn () => Promotoria::whereKey($this->casa['promotoria']->id)->exists()));
 
-        $admin->get('/gestion/promotorias/'.$this->otra['promotoria']->id.'/editar')->assertOk();
+        $admin->get(self::OTRA.'/gestion/promotorias/'.$this->otra['promotoria']->id.'/editar')->assertOk();
     }
 
     public function test_las_listas_de_gestion_solo_ensenan_lo_suyo(): void
     {
         $this->actingAs($this->otra['admin']->user)
-            ->get('/gestion/usuarios')
+            ->get(self::OTRA.'/gestion/usuarios')
             ->assertOk()
             ->assertSee('Estudiante guarne')
             ->assertDontSee('Estudiante santuario');
@@ -132,7 +142,7 @@ class AislamientoEntreInstitucionesTest extends TestCase
         // Crear un grupo en una promotoria AJENA: el `exists` suelto la
         // habria aceptado, porque la fila existe en la base.
         $this->actingAs($this->otra['admin']->user)
-            ->post('/gestion/grupos/nuevo', [
+            ->post(self::OTRA.'/gestion/grupos/nuevo', [
                 'promotoria_id' => $this->casa['promotoria']->id,
                 'nivel' => 'basico',
                 'nombre' => 'Intruso',
@@ -153,49 +163,49 @@ class AislamientoEntreInstitucionesTest extends TestCase
         );
     }
 
-    public function test_la_marca_es_la_de_la_institucion_de_la_sesion(): void
+    public function test_la_marca_es_la_del_dominio(): void
     {
         $this->actingAs($this->otra['admin']->user)
-            ->get('/mi-perfil')
+            ->get(self::OTRA.'/mi-perfil')
             ->assertOk()
             ->assertSee('Casa de Guarne')
             ->assertDontSee('Casa de El Santuario');
 
-        // Y la otra mitad, sin la cual esta prueba pasaba con el filtro
-        // apagado: sin sesion, la marca es la de la institucion por defecto.
+        // Y las dos mitades sin sesion, sin las cuales esta prueba pasaba con
+        // el filtro apagado: cada dominio pinta su casa.
         $this->flushSession();
         auth()->logout();
-        $this->get('/entrar')
+        $this->get(self::CASA.'/entrar')
             ->assertOk()
             ->assertSee('Casa de El Santuario')
             ->assertDontSee('Casa de Guarne');
-    }
-
-    public function test_el_enlace_publico_de_una_promotoria_trae_su_institucion(): void
-    {
-        $token = InstitucionActual::mientras($this->otra['institucion']->id, function () {
-            $this->otra['promotoria']->abrirEnlace(true);
-
-            return $this->otra['promotoria']->fresh()->enlace_token;
-        });
-
-        // Sin sesion, la institucion por defecto es la 1; el enlace manda.
-        $this->get('/unirse/'.$token)
+        $this->get(self::OTRA.'/entrar')
             ->assertOk()
             ->assertSee('Casa de Guarne')
             ->assertDontSee('Casa de El Santuario');
     }
 
-    public function test_el_enlace_de_otra_institucion_no_existe_para_quien_tiene_sesion_aqui(): void
+    public function test_el_enlace_publico_de_una_promotoria_se_abre_en_su_dominio(): void
     {
-        $token = InstitucionActual::mientras($this->otra['institucion']->id, function () {
-            $this->otra['promotoria']->abrirEnlace(true);
+        $this->get(self::OTRA.'/unirse/'.$this->enlaceDeLaOtra())
+            ->assertOk()
+            ->assertSee('Casa de Guarne')
+            ->assertDontSee('Casa de El Santuario');
+    }
 
-            return $this->otra['promotoria']->fresh()->enlace_token;
-        });
+    /**
+     * Decision del usuario (02/10/2026): un token de otra institucion abierto
+     * en este dominio no existe aqui. Ni se adopta su casa ni se redirige a
+     * la suya, que diria de quien es el token a quien lo prueba.
+     */
+    public function test_el_enlace_de_otra_institucion_no_existe_en_este_dominio(): void
+    {
+        $token = $this->enlaceDeLaOtra();
+
+        $this->get(self::CASA.'/unirse/'.$token)->assertNotFound();
 
         $this->actingAs($this->casa['estudiante']->user)
-            ->get('/unirse/'.$token)
+            ->get(self::CASA.'/unirse/'.$token)
             ->assertNotFound();
     }
 
@@ -205,7 +215,7 @@ class AislamientoEntreInstitucionesTest extends TestCase
         // modelos (`InstitucionActual::tabla()`), que es donde un filtro se
         // olvida sin que nada falle.
         $csv = $this->actingAs($this->otra['admin']->user)
-            ->get('/informes/institucion')
+            ->get(self::OTRA.'/informes/institucion')
             ->assertOk()
             ->streamedContent();
 
@@ -306,19 +316,147 @@ class AislamientoEntreInstitucionesTest extends TestCase
     }
 
     /**
-     * `users` NO tiene RLS (la institucion sale de la cuenta), asi que lo que
-     * la cuenta sin modelo sigue pasando por el filtro de PHP. Es la consulta
-     * de Configuracion, con su `orWhere`: sin agrupar, la rama del OR contaria
-     * las cuentas sin correo de todas las instituciones.
+     * `users` tiene RLS desde el paso 4a: una consulta suelta solo ve las
+     * cuentas de su casa. Es la consulta de Configuracion, con su `orWhere`.
      */
-    public function test_las_cuentas_sin_rls_siguen_filtradas_por_institucion(): void
+    public function test_las_cuentas_solo_se_ven_en_su_institucion(): void
     {
-        $sinCorreo = fn () => InstitucionActual::tabla('users')->whereNull('email')->orWhere('email', '')->count();
+        $sinCorreo = fn () => DB::table('users')->whereNull('email')->orWhere('email', '')->count();
 
         // Tres cuentas por casa, ninguna con correo.
         $this->assertSame(3, $sinCorreo());
         $this->assertSame(3, InstitucionActual::mientras($this->otra['institucion']->id, $sinCorreo));
-        $this->assertSame(6, DB::table('users')->count(), 'users no tiene RLS: sin el filtro se ven las dos casas.');
+        $this->assertNull(User::find($this->otra['admin']->user_id));
+    }
+
+    /**
+     * El nombre de usuario es unico DENTRO de cada casa: las dos pueden tener
+     * su «admin», y la base sigue negando dos en la misma.
+     */
+    public function test_el_nombre_de_usuario_se_repite_entre_instituciones_y_no_dentro_de_una(): void
+    {
+        InstitucionActual::mientras($this->otra['institucion']->id, fn () => $this->persona('admin.santuario', 'administrador', 'Tocayo'));
+
+        try {
+            DB::transaction(fn () => $this->persona('admin.santuario', 'administrador', 'Repetido'));
+            $this->fail('La base acepto dos cuentas con el mismo usuario en la misma casa.');
+        } catch (QueryException $e) {
+            $this->assertSame('23505', $e->getCode());
+        }
+    }
+
+    /**
+     * El tope de intentos del login es por cuenta, y una cuenta es de una
+     * casa: agotarlo contra el «tocayo» de Guarne no deja sin entrar al de El
+     * Santuario.
+     */
+    public function test_el_tope_de_intentos_no_cruza_de_una_institucion_a_otra(): void
+    {
+        $this->persona('tocayo', 'administrador', 'Tocayo santuario')->user->update(['password' => 'clave-buena']);
+        InstitucionActual::mientras($this->otra['institucion']->id, fn () => $this->persona('tocayo', 'administrador', 'Tocayo guarne'));
+
+        // Diez fallos desde IPs distintas: el tope POR CUENTA, no el de IP.
+        foreach (range(1, 10) as $i) {
+            $this->withServerVariables(['REMOTE_ADDR' => "10.0.0.$i"])
+                ->post(self::OTRA.'/entrar', ['username' => 'tocayo', 'password' => 'mala']);
+        }
+
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.99'])
+            ->post(self::OTRA.'/entrar', ['username' => 'tocayo', 'password' => 'mala'])
+            ->assertSessionHas('error');
+
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.99'])
+            ->post(self::CASA.'/entrar', ['username' => 'tocayo', 'password' => 'clave-buena'])
+            ->assertSessionHasNoErrors();
+        $this->assertAuthenticated();
+    }
+
+    /**
+     * Se entra por el dominio de SU casa. La misma cuenta, por el de la otra,
+     * no existe: el login ni la encuentra.
+     */
+    public function test_se_entra_solo_por_el_dominio_de_la_propia_casa(): void
+    {
+        $credenciales = ['username' => 'admin.guarne', 'password' => 'clave-de-guarne'];
+
+        $this->post(self::CASA.'/entrar', $credenciales)->assertSessionHasErrors();
+        $this->assertGuest();
+
+        $this->post(self::OTRA.'/entrar', $credenciales)->assertSessionHasNoErrors();
+        $this->assertAuthenticatedAs($this->otra['admin']->user);
+    }
+
+    /**
+     * Una sesion de otra casa no vale en este dominio: la cuenta de la sesion
+     * se carga con RLS, en la casa del dominio, y no aparece. En la vida real
+     * ni siquiera llega (las cookies son de cada host); esto cubre a quien
+     * copie la cookie. Con una sesion de verdad y no con `actingAs`, que pone
+     * la cuenta en el guard sin pasar por la base.
+     */
+    public function test_una_sesion_de_otra_institucion_no_vale_en_este_dominio(): void
+    {
+        $sesion = [auth()->guard()->getName() => $this->otra['admin']->user_id];
+
+        $this->withSession($sesion)
+            ->get(self::CASA.'/mi-perfil')
+            ->assertRedirect(route('login'));
+
+        // Y la otra mitad: la misma sesion, en su dominio, si entra.
+        $this->withSession($sesion)
+            ->get(self::OTRA.'/mi-perfil')
+            ->assertOk()
+            ->assertSee('Casa de Guarne');
+    }
+
+    public function test_un_dominio_que_no_es_de_nadie_da_404(): void
+    {
+        $this->get('http://otra.localhost/entrar')->assertNotFound();
+        $this->get('http://a.guarne.localhost/entrar')->assertNotFound();
+        $this->get('http://localhost/entrar')->assertNotFound();
+    }
+
+    public function test_una_institucion_con_dominio_propio_entra_por_el(): void
+    {
+        $this->otra['institucion']->update(['dominio_propio' => 'matriculas.guarne.gov.co']);
+
+        $this->get('http://matriculas.guarne.gov.co/entrar')
+            ->assertOk()
+            ->assertSee('Casa de Guarne');
+
+        // Y el subdominio sigue sirviendo.
+        $this->get(self::OTRA.'/entrar')->assertOk()->assertSee('Casa de Guarne');
+    }
+
+    /**
+     * Decision del usuario (02/10/2026): suspendida, todas sus pantallas dicen
+     * «servicio suspendido»; no se borra nada y la otra casa sigue igual.
+     */
+    public function test_una_institucion_suspendida_no_atiende_y_la_otra_si(): void
+    {
+        $this->otra['institucion']->update(['estado' => Institucion::SUSPENDIDA]);
+
+        $this->get(self::OTRA.'/entrar')->assertStatus(503)->assertSee('Servicio suspendido');
+        $this->post(self::OTRA.'/entrar', ['username' => 'admin.guarne', 'password' => 'clave-de-guarne'])->assertStatus(503);
+        $this->assertGuest();
+
+        // Su logo se sigue sirviendo: lo pide la propia pantalla.
+        $this->get(self::OTRA.'/logo')->assertOk();
+
+        $this->get(self::CASA.'/entrar')->assertOk()->assertDontSee('Servicio suspendido');
+    }
+
+    /**
+     * Sin dominio base, la instalacion es de una sola casa: todo host es de la
+     * institucion por defecto, y el token de otra no existe.
+     */
+    public function test_sin_dominio_base_todo_es_de_la_institucion_por_defecto(): void
+    {
+        config(['institucion.dominio_base' => null]);
+
+        $this->get('http://cualquiera.example/entrar')
+            ->assertOk()
+            ->assertSee('Casa de El Santuario');
+        $this->get('/unirse/'.$this->enlaceDeLaOtra())->assertNotFound();
     }
 
     /**
@@ -360,14 +498,27 @@ class AislamientoEntreInstitucionesTest extends TestCase
 
     private function persona(string $usuario, string $rol, string $nombre): Perfil
     {
-        $user = User::create(['username' => $usuario, 'password' => Str::random(12), 'activo' => true]);
+        // La clave del admin de Guarne es conocida: con ella se prueba el login.
+        $clave = $usuario === 'admin.guarne' ? 'clave-de-guarne' : Str::random(12);
+        $user = User::create(['username' => $usuario, 'password' => $clave, 'activo' => true]);
 
+        // La cuenta va puesta en el perfil: con RLS en `users`, cargarla
+        // despues, fuera de su casa, no la encontraria.
         return Perfil::create([
             'user_id' => $user->id,
             'rol' => $rol,
             'nombre_completo' => $nombre,
             'fecha_nacimiento' => Carbon::today()->subYears(30)->toDateString(),
             'telefono' => '3000000000',
-        ]);
+        ])->setRelation('user', $user);
+    }
+
+    private function enlaceDeLaOtra(): string
+    {
+        return InstitucionActual::mientras($this->otra['institucion']->id, function () {
+            $this->otra['promotoria']->abrirEnlace(true);
+
+            return $this->otra['promotoria']->fresh()->enlace_token;
+        });
     }
 }

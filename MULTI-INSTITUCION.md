@@ -40,9 +40,11 @@ añade esta versión.
                  petición
                     │
         ¿de qué institución es?  ──  InstitucionActual::id()
-                    │                  1. la fijada (enlace con token, comando)
-                    │                  2. la de la cuenta con sesión
-                    │                  3. INSTITUCION_POR_DEFECTO
+                    │                  1. la fijada: en la web, la del HOST
+                    │                     (paso 4a, DOMINIOS.md); un comando,
+                    │                     usar() o mientras()
+                    │                  2. la de la cuenta (solo pruebas)
+                    │                  3. INSTITUCION_POR_DEFECTO (consola)
                     │                  4. ninguna → error (nunca «todas»)
                     ▼
      ┌──────────── InstitucionActual::filtrar() ─────────────┐
@@ -121,26 +123,24 @@ Se niega si ya hay más de una institución, porque revertir mezclaría sus dato
 
 | Variable | Qué hace | Si falta |
 |---|---|---|
-| `INSTITUCION_POR_DEFECTO` | La institución de quien llega **sin sesión y sin token**: el login, `/inscripcion`, la política de datos, el logo. | `1` |
+| `DOMINIO_BASE` | Con varias instituciones, la de cada petición la dice el host: `<subdominio>.<DOMINIO_BASE>` o el dominio propio. Ver [`DOMINIOS.md`](DOMINIOS.md). | Una sola casa: todo es de `INSTITUCION_POR_DEFECTO` |
+| `INSTITUCION_POR_DEFECTO` | Solo sin `DOMINIO_BASE` (la institución de todas las peticiones) y en la consola. | `1` |
 
-Déjala vacía (`INSTITUCION_POR_DEFECTO=`) y una petición sin sesión ni token no
-tiene institución, así que el sistema se niega a consultar. Hoy eso rompería el
-login, así que tiene sentido el día que cada institución llegue por su dominio.
+Vacías las dos, una petición no tiene institución y el sistema se niega a
+consultar.
 
 ### Lo que cada institución ve y lo que comparte
 
 | Por institución | Compartido por todas |
 |---|---|
 | Todo el catálogo, las personas, las matrículas, la asistencia, las encuestas, los informes y las estadísticas | La instalación, el código y la base |
-| La marca: nombre, logo, color, política de datos, correo SMTP | El nombre de usuario: `username` es único en todo el sistema (ver abajo) |
-| Su periodo en curso y su ventana de matrículas | Los archivos subidos, en la misma carpeta con nombres únicos |
+| La marca: nombre, logo, color, política de datos, correo SMTP | Los archivos subidos, en la misma carpeta con nombres únicos |
+| Su periodo en curso y su ventana de matrículas | |
+| Sus cuentas: desde el paso 4a, `username` es único **por institución** | |
 
-**Mientras no haya enrutamiento por dominio:**
-
-- Las páginas públicas sin token enseñan la institución por defecto.
-- Los enlaces con token (`/unirse/…`, el de las actividades, el de «olvidé mi
-  contraseña») traen la suya.
-- Un nombre de usuario no se puede repetir entre instituciones.
+**Desde el paso 4a** ([`DOMINIOS.md`](DOMINIOS.md)) cada institución se visita
+por su dominio: sus páginas públicas, su login y sus enlaces con token. Un
+token abierto en el dominio de otra da 404.
 
 ---
 
@@ -186,8 +186,9 @@ superior.
 |---|---|
 | `id` | La 1 existe siempre. |
 | `nombre` | Toma el de Gestión → Institución al migrar y al instalar. |
-| `subdominio` | Único; vacío hasta que llegue el enrutamiento por dominio. |
-| `estado` | `activa` o `suspendida`. Todavía no cambia nada. |
+| `subdominio` | Único. Desde el paso 4a, `<subdominio>.<DOMINIO_BASE>` es esta institución. |
+| `dominio_propio` | Paso 4a. Único y opcional: el dominio de la entidad que trae el suyo. |
+| `estado` | `activa` o `suspendida`. Desde el paso 4a, suspendida no atiende. |
 | `fecha_alta` | Para la 1, la de la cuenta más antigua. |
 
 **Con `institucion_id`** (28 tablas):
@@ -228,8 +229,9 @@ tabla se queda sin la garantía.
 
 **No cambian, a propósito:**
 
-- **`users.username`**: el login todavía no sabe de qué institución es quien
-  entra. Pasará a ser único por institución con el enrutamiento por dominio.
+- **`users.username`**: el login todavía no sabía de qué institución era quien
+  entraba. Pasó a ser único por institución en el paso 4a
+  (`users_institucion_username_unique`, ver [`DOMINIOS.md`](DOMINIOS.md)).
 - **Los tokens** (`perfiles.codigo_qr`, `promotorias.enlace_token`,
   `actividades.token`, `restablecimientos_clave.token`): son lo que le dice a
   un enlace público de qué institución es.
@@ -265,7 +267,8 @@ se quita.
 
 > **Desde el paso 3 esto lo hace el motor** (ver [`RLS.md`](RLS.md)):
 > `filtrar()` queda vacía para las tablas con RLS y solo sigue filtrando en PHP
-> las de `InstitucionActual::SIN_RLS` (hoy, `users`). La guardia ya no lee el
+> las de `InstitucionActual::SIN_RLS` (vacía desde el paso 4a, en que `users`
+> recibió RLS). La guardia ya no lee el
 > código buscando consultas que rodeen el filtro: lee el esquema. Lo que sigue
 > describe el paso 1.
 
@@ -288,6 +291,9 @@ institucion_id` del código. Lo llaman tres caminos:
 4. **Ninguna: error.** Nunca «todas».
 
 ### `users` no lleva el filtro
+
+> **Ya no es así desde el paso 4a:** la institución la dice el dominio, `users`
+> tiene RLS y `User` usa `DeLaInstitucion`. Ver [`DOMINIOS.md`](DOMINIOS.md).
 
 Es la identidad con la que se entra, y la institución de la sesión sale de
 ella. Con el filtro, resolver la cuenta pediría la institución y la institución
@@ -402,7 +408,9 @@ DB_DATABASE=test_matriculas_mt php database/verificacion_esquema.php --borrar-da
 | 1 | `institucion_id` en MariaDB y el filtro en un solo punto | **Hecho** |
 | 2 | PostgreSQL ([`POSTGRES.md`](POSTGRES.md)) | **Hecho** |
 | 3 | Row Level Security ([`RLS.md`](RLS.md)), con el rol global ya previsto para las estadísticas del paso 5 | **Hecho** |
-| 4 | Panel de administración de todas las instituciones y suplantación. Desde él se asignan los dominios o subdominios; con ellos, `username` pasa a ser único por institución y las páginas públicas dejan de caer en la institución por defecto | Pendiente |
+| 4a | La institución la dice el dominio: `username` único por institución, `users` con RLS, las páginas públicas dejan de caer en la institución por defecto ([`DOMINIOS.md`](DOMINIOS.md)) | **Hecho** |
+| 4b | Panel de administración de todas las instituciones: dominios y estado | Pendiente |
+| 4c | Suplantación de un administrador desde el panel | Pendiente |
 | 5 | Pruebas con varias instituciones y estadísticas globales de todas | Pendiente |
 
 **Abierto y sin decidir:**
@@ -412,7 +420,6 @@ DB_DATABASE=test_matriculas_mt php database/verificacion_esquema.php --borrar-da
   saldría del filtro. Hoy no hay ninguna; está advertido en `tabla()`.
 - `instituciones.nombre` se pone al instalar y no sigue a un cambio de nombre
   hecho luego en Gestión → Institución, que es el que se pinta en pantalla.
-- `instituciones.estado = suspendida` todavía no impide nada.
 - Separar esta versión en un repositorio propio y privado, revisando el CI
   heredado, que despliega a producción.
 

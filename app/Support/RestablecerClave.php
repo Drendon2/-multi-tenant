@@ -65,6 +65,8 @@ final class RestablecerClave
             return null;
         }
 
+        // Solo en la institucion del dominio: `users` tiene RLS desde el paso
+        // 4a, y el mismo usuario puede existir en otra.
         $usuario = User::query()
             ->where('activo', true)
             // El cotejo de estas columnas no distingue mayusculas, asi que
@@ -90,10 +92,10 @@ final class RestablecerClave
     {
         $token = Str::random(64);
 
-        // Como la institucion de la CUENTA, no la de la pagina: quien lo pide
-        // llega sin sesion, a la institucion por defecto, y con RLS la fila de
-        // otra institucion ni se veria (`updateOrInsert` chocaria con la clave
-        // al no encontrar la anterior) ni se podria escribir.
+        // Como la institucion de la CUENTA. Desde el paso 4a es la misma que la
+        // de la pagina (la cuenta se busco con RLS, en la del dominio), pero
+        // esto no depende de quien llame: con otra, la fila ni se veria
+        // (`updateOrInsert` chocaria con la clave) ni se podria escribir.
         InstitucionActual::mientras($usuario->institucion_id, fn () => DB::table(self::TABLA)->updateOrInsert(
             ['user_id' => $usuario->id],
             [
@@ -116,10 +118,10 @@ final class RestablecerClave
      */
     public static function cuentaDelEnlace(string $token): ?User
     {
-        // El enlace llega por correo, sin sesion: la pagina que lo atiende es
-        // de la institucion de ESA cuenta, no de la de por defecto. Con RLS la
-        // fila no se puede buscar sin saberla, asi que primero la base dice de
-        // cual es la huella (ver `InstitucionActual::deEnlace()`).
+        // El enlace llega por correo, sin sesion, y apunta al dominio de la
+        // institucion de esa cuenta. La base dice de cual es la huella (ver
+        // `InstitucionActual::deEnlace()`) y `adoptar()` da 404 si no es la del
+        // dominio por el que se abrio.
         $institucion = InstitucionActual::deEnlace('restablecimiento', self::digerir($token));
 
         if ($institucion === null) {

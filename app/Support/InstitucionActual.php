@@ -24,16 +24,18 @@ use WeakMap;
  *
  * `filtrar()` queda VACIA para las tablas con RLS, como estaba previsto: era
  * el unico `where institucion_id` del codigo y ahora lo pone el motor. Sigue
- * filtrando, en PHP, las tablas que NO tienen RLS (`SIN_RLS`: hoy solo
- * `users`). El sitio sigue siendo uno solo.
+ * filtrando, en PHP, las tablas que NO tienen RLS (`SIN_RLS`, vacia desde el
+ * paso 4a). El sitio sigue siendo uno solo.
  *
  * Quien es la institucion, por orden:
  *
- * 1. La FIJADA en esta peticion: un enlace publico con token (`adoptar()`),
- *    o un comando que trabaja para una institucion concreta (`usar()`).
- * 2. La de la CUENTA con sesion abierta.
- * 3. La POR DEFECTO de la instalacion (`INSTITUCION_POR_DEFECTO`), para quien
- *    llega sin sesion a una pagina publica.
+ * 1. La FIJADA. En una peticion web la fija SIEMPRE el middleware
+ *    `InstitucionPorDominio` con la del host (`delHost()`), antes de que nada
+ *    consulte; un comando la fija con `usar()` o `mientras()`.
+ * 2. La de la CUENTA con sesion. En la web ya no se llega aqui; queda para
+ *    las pruebas que trabajan fuera de una peticion despues de `actingAs`.
+ * 3. La POR DEFECTO de la instalacion (`INSTITUCION_POR_DEFECTO`): la de la
+ *    consola cuando el comando no dice otra.
  *
  * Sin ninguna de las tres, `id()` LANZA y la base no recibe ninguna: sus
  * politicas dan NULL y no sale ninguna fila. Cerrar en falso es a proposito.
@@ -56,17 +58,18 @@ class InstitucionActual
      * Las tablas con `institucion_id` que NO tienen RLS, y que por eso siguen
      * filtrandose aqui.
      *
-     * `users` es la identidad con la que se entra y la institucion sale de
-     * ella: con RLS, el login solo dejaria entrar a la institucion por defecto
-     * hasta que llegue el enrutamiento por dominio (decision del usuario,
-     * 01/10/2026). Mientras tanto, lo que la cuenta sin modelo
-     * (`tabla('users')`) necesita este filtro: sin el, `simular` borraria las
-     * cuentas de prueba de otras instituciones.
+     * VACIA desde el paso 4a (02/10/2026). Hasta entonces estaba `users`, que
+     * se quedo fuera de RLS porque la institucion de la peticion salia de la
+     * cuenta. Desde que la dice el dominio, `users` tiene RLS como las demas
+     * (`03-dominios.sql`). El mecanismo se queda: es donde iria una tabla que
+     * algun dia tuviera que quedarse fuera.
      *
-     * Tiene que coincidir con lo que `02-rls.sql` deja fuera:
+     * Tiene que coincidir con lo que la base deja fuera:
      * `FiltroDeInstitucionUnicoTest` lo comprueba contra el catalogo.
+     *
+     * @var list<string>
      */
-    public const SIN_RLS = ['users'];
+    public const SIN_RLS = [];
 
     /**
      * Lo que ya se le dijo a cada conexion: la institucion, y el PDO al que se
@@ -113,6 +116,58 @@ class InstitucionActual
     public static function modelo(): Institucion
     {
         return Institucion::findOrFail(self::id());
+    }
+
+    /**
+     * La institucion de un host, o null si no es de ninguna.
+     *
+     * Sin dominio base la instalacion es de UNA sola casa y todos los hosts son
+     * de la institucion por defecto (decision del usuario, 02/10/2026). Con
+     * dominio base: el dominio propio de alguna, o `<subdominio>.<base>`. Un
+     * host que no es de nadie NO cae en la por defecto: eso enseñaria la
+     * pantalla de entrar de una casa a quien escribio mal el nombre de otra.
+     *
+     * `instituciones` no tiene RLS (es la que lo define), y la consulta va con
+     * el gancho apagado: todavia no hay institucion que decirle a la base, y
+     * averiguarla preguntaria por la cuenta antes de tiempo.
+     */
+    public static function delHost(string $host): ?Institucion
+    {
+        $host = strtolower(rtrim($host, '.'));
+        $base = strtolower(trim((string) config('institucion.dominio_base')));
+
+        self::$resolviendo = true;
+
+        try {
+            if ($base === '') {
+                $porDefecto = config('institucion.por_defecto');
+
+                return $porDefecto === null || $porDefecto === ''
+                    ? null
+                    : Institucion::find((int) $porDefecto);
+            }
+
+            $propia = Institucion::where('dominio_propio', $host)->first();
+
+            if ($propia !== null) {
+                return $propia;
+            }
+
+            if (! str_ends_with($host, '.'.$base)) {
+                return null;
+            }
+
+            $sub = substr($host, 0, -strlen('.'.$base));
+
+            // Un solo nivel: `a.b.<base>` no es de nadie.
+            if ($sub === '' || str_contains($sub, '.')) {
+                return null;
+            }
+
+            return Institucion::where('subdominio', $sub)->first();
+        } finally {
+            self::$resolviendo = false;
+        }
     }
 
     /**
@@ -194,7 +249,7 @@ class InstitucionActual
      */
     public static function filtrar(Builder $consulta, string $from): Builder
     {
-        if (! in_array(self::nombre($from), self::SIN_RLS, true)) {
+        if (! self::sinRls(self::nombre($from))) {
             return $consulta;
         }
 
@@ -218,7 +273,7 @@ class InstitucionActual
     {
         $consulta = self::filtrar(DB::table($tabla), $tabla);
 
-        if (! in_array(self::nombre($tabla), self::SIN_RLS, true)) {
+        if (! self::sinRls(self::nombre($tabla))) {
             return $consulta;
         }
 
@@ -240,6 +295,23 @@ class InstitucionActual
             $consulta->bindings['where'] = [$bindings[0]];
             $consulta->addNestedWhereQuery($grupo);
         });
+    }
+
+    /**
+     * ¿Esta tabla se queda fuera de RLS?
+     *
+     * Por un metodo y no leyendo `SIN_RLS` en linea: con la lista vacia, el
+     * analisis estatico da la rama del filtro por inalcanzable y cada
+     * `filtrar()` por una llamada sin efecto. El mecanismo tiene que seguir
+     * analizandose como lo que es, para el dia que la lista vuelva a tener algo.
+     * Por eso tambien la lista entra como argumento: leida aqui dentro, la
+     * misma deduccion se haria en este metodo.
+     *
+     * @param  list<string>|null  $lista  la lista a mirar; sin ella, `SIN_RLS`
+     */
+    public static function sinRls(string $tabla, ?array $lista = null): bool
+    {
+        return in_array($tabla, $lista ?? self::SIN_RLS, true);
     }
 
     /** El nombre de verdad de la tabla, sin alias: `clases as c` es `clases`. */
@@ -315,14 +387,19 @@ class InstitucionActual
     /**
      * Un enlace publico con token dice de que institucion es: la de su fila.
      *
-     * Si hay una sesion abierta de OTRA institucion, el enlace no existe para
-     * ella (404) en vez de mezclar las dos en la misma peticion.
+     * Si la peticion ya es de OTRA —en la web, la del dominio por el que se
+     * abrio—, el enlace no existe aqui (404, decision del usuario, 02/10/2026)
+     * en vez de mezclar las dos en la misma peticion. Tampoco se redirige al
+     * dominio bueno: diria de que institucion es un token a quien lo prueba
+     * en otra.
      */
     public static function adoptar(int $id): void
     {
-        $deLaCuenta = Auth::user()?->institucion_id;
+        $actual = app()->bound(self::FIJADA)
+            ? app()->make(self::FIJADA)
+            : Auth::user()?->institucion_id;
 
-        if ($deLaCuenta !== null && (int) $deLaCuenta !== $id) {
+        if ($actual !== null && (int) $actual !== $id) {
             throw new NotFoundHttpException;
         }
 

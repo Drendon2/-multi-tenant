@@ -25,7 +25,8 @@ use Tests\TestCase;
  * Antes de RLS esta guardia leia el CODIGO buscando consultas que rodearan
  * `InstitucionActual::filtrar()`. Ahora lee el ESQUEMA, que es donde vive el
  * aislamiento, y del codigo solo mira lo que RLS no cubre: las tablas que no
- * lo tienen (`InstitucionActual::SIN_RLS`) y la conexion del dueño.
+ * lo tienen (`InstitucionActual::SIN_RLS`, vacia desde el paso 4a) y la
+ * conexion del dueño.
  *
  * Lee el catalogo y el codigo reales, no una lista escrita a mano: una tabla o
  * un modelo nuevos entran solos en la comprobacion.
@@ -41,11 +42,16 @@ class FiltroDeInstitucionUnicoTest extends TestCase
     private const EXCEPCIONES = [
         // Donde vive el filtro que queda para las tablas sin RLS.
         'Support/InstitucionActual.php' => '*',
-        // «Olvide mi contrasena» llega sin sesion: la cuenta se busca por
-        // usuario o correo, o por el id de la fila del enlace, en TODAS las
-        // instituciones, y despues se adopta la suya.
-        'Support/RestablecerClave.php' => 'User::',
     ];
+
+    /**
+     * Las tablas sin RLS que vigila la guardia del codigo. Null es
+     * `InstitucionActual::SIN_RLS`; la autoprueba de la guardia finge una para
+     * ver que la regla caza aunque hoy la lista este vacia.
+     *
+     * @var list<string>|null
+     */
+    private ?array $sinRls = null;
 
     /** Tablas de Laravel y la de instituciones: no llevan institucion. */
     private const DEL_FRAMEWORK = ['migrations', 'cache', 'cache_locks', 'jobs', 'job_batches',
@@ -72,10 +78,9 @@ class FiltroDeInstitucionUnicoTest extends TestCase
             ->map(fn (string $clase) => (new $clase)->getTable())
             ->all();
 
-        // `users` es la identidad con la que se entra (ver `User`).
         // `restablecimientos_clave` se escribe sin modelo y con la institucion
         // de la cuenta (ver `RestablecerClave::crear()`).
-        $sinModelo = array_values(array_diff($this->tablasConInstitucion(), $conTrait, ['users', 'restablecimientos_clave']));
+        $sinModelo = array_values(array_diff($this->tablasConInstitucion(), $conTrait, ['restablecimientos_clave']));
 
         $this->assertSame([], $sinModelo, 'Tablas con institucion_id y sin modelo con DeLaInstitucion: '.implode(', ', $sinModelo));
     }
@@ -156,17 +161,10 @@ class FiltroDeInstitucionUnicoTest extends TestCase
                 }
 
                 // Las tablas SIN RLS solo se consultan por el filtro de PHP.
-                foreach (InstitucionActual::SIN_RLS as $tabla) {
+                foreach ($this->sinRls ?? InstitucionActual::SIN_RLS as $tabla) {
                     if (preg_match("/(DB::table|->from|->join)\\(\\s*'{$tabla}\\b/", $linea)) {
                         $fallos[] = "$sitio  '{$tabla}' no tiene RLS: usa InstitucionActual::tabla('{$tabla}')";
                     }
-                }
-
-                // `User` no lleva filtro: consultarlo suelto devuelve cuentas
-                // de todas. Se llega por Perfil o por `tabla('users')`.
-                if (preg_match('/\bUser::(where\w*|query|all|count|pluck|first\w*|find\w*|latest|oldest|chunk\w*|lazy\w*|cursor)\(/', $linea, $m)
-                    && ! ($permitido !== null && str_contains($linea, $permitido))) {
-                    $fallos[] = "$sitio  User::{$m[1]}() recorre todas las instituciones: usa InstitucionActual::tabla('users') o llega por Perfil";
                 }
 
                 // Nadie escribe su propio where por institucion: o lo pone el
@@ -189,9 +187,6 @@ class FiltroDeInstitucionUnicoTest extends TestCase
     {
         $trampas = [
             "DB::connection('pgsql_dueno')->table('matriculas')->get();",
-            "DB::table('users')->count();",
-            "\$q->join('users', 'users.id', '=', 'perfiles.user_id');",
-            "User::whereNull('email')->count();",
             "Area::where('institucion_id', 2)->get();",
         ];
 
@@ -199,10 +194,23 @@ class FiltroDeInstitucionUnicoTest extends TestCase
             $this->assertNotSame([], $this->fallosDe($trampa), "La guardia no caza: $trampa");
         }
 
+        // Una tabla sin RLS consultada suelta. Hoy no hay ninguna, asi que se
+        // finge una: sin esto, la regla podria romperse y nadie lo veria hasta
+        // el dia que hiciera falta.
+        $this->sinRls = ['tabla_sin_rls'];
+
+        try {
+            $this->assertNotSame([], $this->fallosDe("DB::table('tabla_sin_rls')->count();"));
+            $this->assertNotSame([], $this->fallosDe("\$q->join('tabla_sin_rls', 'a.id', '=', 'b.id');"));
+            $this->assertSame([], $this->fallosDe("InstitucionActual::tabla('tabla_sin_rls')->count();"));
+        } finally {
+            $this->sinRls = null;
+        }
+
         // Y no protesta por lo que ahora es correcto: una tabla CON RLS se
-        // consulta como sea.
+        // consulta como sea, `users` incluida desde el paso 4a.
         $this->assertSame([], $this->fallosDe("DB::table('matriculas')->get();"));
-        $this->assertSame([], $this->fallosDe("InstitucionActual::tabla('users')->count();"));
+        $this->assertSame([], $this->fallosDe("User::whereNull('email')->count();"));
     }
 
     // ------------------------------------------------------------------

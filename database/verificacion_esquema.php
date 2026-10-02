@@ -299,7 +299,11 @@ rechaza($db, '«música» choca con «Musica» en la misma institucion', fn ($d)
     'areas_nombre_por_institucion');
 rechaza($db, '«ANA» choca con el usuario «ana»', fn ($d) => $d->exec(
     "INSERT INTO users (institucion_id, username, password, activo, created_at, updated_at) VALUES (1,'ANA','x',true,NOW(),NOW())"),
-    'users_username_unique');
+    'users_institucion_username_unique');
+// Desde el paso 4a el usuario es unico POR institucion: la otra casa puede
+// tener su «ana».
+acepta($db, '«ana» existe tambien en otra institucion', fn ($d) => $d->exec(
+    "INSERT INTO users (institucion_id, username, password, activo, created_at, updated_at) VALUES (2,'ana','x',true,NOW(),NOW())"));
 acepta($db, 'la busqueda con LIKE encuentra «Ana Ruiz» escribiendo «ana ruíz»', function ($d) {
     $n = $d->query("SELECT COUNT(*) FROM perfiles WHERE nombre_completo LIKE '%ana ruíz%'")->fetchColumn();
     if ($n != 1) {
@@ -334,10 +338,10 @@ $app = conectarComoAplicacion();
 $fijar = fn (?int $id) => $app->prepare('SELECT set_config(\'app.institucion_id\', ?, false)')
     ->execute([$id === null ? '' : (string) $id]);
 
-acepta($db, 'cada tabla con institucion_id, menos users, tiene RLS y su politica', function ($d) {
+acepta($db, 'cada tabla con institucion_id, users incluida, tiene RLS y su politica', function ($d) {
     $sin = $d->query("SELECT c.relname FROM pg_class c
                        JOIN information_schema.columns k ON k.table_name = c.relname AND k.column_name = 'institucion_id'
-                      WHERE k.table_schema = current_schema() AND c.relkind = 'r' AND c.relname <> 'users'
+                      WHERE k.table_schema = current_schema() AND c.relkind = 'r'
                         AND (NOT c.relrowsecurity OR NOT EXISTS (
                              SELECT 1 FROM pg_policies p WHERE p.tablename = c.relname AND p.policyname = 'por_institucion'))")
         ->fetchAll(PDO::FETCH_COLUMN);

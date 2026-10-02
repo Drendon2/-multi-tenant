@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\CabecerasDeSeguridad;
 use App\Http\Middleware\CuentaActiva;
+use App\Http\Middleware\InstitucionPorDominio;
 use App\Http\Middleware\RequiereRol;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -58,6 +59,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Sin sesion, todo lleva al login (Laravel apunta por defecto a una
         // ruta 'login' que aqui si existe, pero se deja explicito).
         $middleware->redirectGuestsTo(fn () => route('login'));
+
+        // De que institucion es la peticion: la del host (paso 4a). El
+        // PRIMERO del grupo, antes de la sesion: con `users` bajo RLS, cargar
+        // la cuenta de la sesion ya necesita saberlo.
+        $middleware->web(prepend: [InstitucionPorDominio::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         /**

@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $id
  * @property string $nombre
  * @property string|null $subdominio
+ * @property string|null $dominio_propio
  * @property string $estado
  */
 class Institucion extends Model
@@ -29,7 +30,7 @@ class Institucion extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['nombre', 'subdominio', 'estado', 'fecha_alta'];
+    protected $fillable = ['nombre', 'subdominio', 'dominio_propio', 'estado', 'fecha_alta'];
 
     protected $attributes = ['estado' => self::ACTIVA];
 

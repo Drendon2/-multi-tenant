@@ -4,16 +4,39 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Dominio base
+    |--------------------------------------------------------------------------
+    |
+    | Con varias instituciones en la misma instalacion, la de cada peticion la
+    | dice el HOST: `guarne.<dominio base>` es la institucion con subdominio
+    | «guarne», y una entidad con dominio propio entra por el suyo. Un host que
+    | no es de ninguna da 404 (ver `App\Support\InstitucionActual::delHost()`).
+    |
+    | Sin puerto ni esquema: `matriculas.example.com`, o `localhost` para
+    | probar en local con `santuario.localhost:8001`.
+    |
+    | Vacio, la instalacion es de UNA sola casa y todas las peticiones son de la
+    | institucion por defecto.
+    |
+    */
+
+    'dominio_base' => env('DOMINIO_BASE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Institucion por defecto
     |--------------------------------------------------------------------------
     |
-    | La que atiende a quien llega SIN sesion: el login, la inscripcion, la
-    | politica de datos, el logo. Mientras no haya enrutamiento por dominio,
-    | las paginas publicas son de esta. Un enlace con token (promotoria,
-    | actividad, restablecer la clave) no la usa: trae la suya en la fila.
+    | Solo vale en dos sitios (decision del usuario, 02/10/2026):
     |
-    | Vacia, una peticion sin sesion ni token no tiene institucion y el
-    | sistema se niega a consultar (ver `App\Support\InstitucionActual`).
+    | - en una instalacion de UNA sola casa (sin `DOMINIO_BASE`), donde es la de
+    |   todas las peticiones;
+    | - en la consola, para el comando que no dice con cual trabaja.
+    |
+    | Con `DOMINIO_BASE`, una peticion web la saca del host y esta no se mira.
+    |
+    | Vacia, una peticion sin institucion no consulta nada (ver
+    | `App\Support\InstitucionActual`).
     |
     */
 

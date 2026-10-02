@@ -36,7 +36,8 @@ inyección de SQL ya no pueden ver ni escribir filas de otra institución.
      institucion_id = institucion_de_la_sesion()
 ```
 
-- **Cada tabla con `institucion_id`, menos `users`, tiene RLS** y la política
+- **Cada tabla con `institucion_id` tiene RLS** (`users` desde el paso 4a,
+  ver [`DOMINIOS.md`](DOMINIOS.md)) y la política
   `por_institucion`. `USING` filtra lo que se lee, actualiza y borra; `WITH
   CHECK` impide escribir una fila con la institución de otra.
 - **La condición vive en una sola función SQL**, `institucion_de_la_sesion()`.
@@ -135,6 +136,10 @@ idéntico).
 
 ## Lo que queda fuera de RLS, y por qué
 
+> **Desde el paso 4a `users` ya tiene RLS**: la institución la dice el dominio
+> antes de entrar ([`DOMINIOS.md`](DOMINIOS.md)) y `SIN_RLS` quedó vacía. Lo
+> que sigue sobre `users` explica cómo fue el paso 3.
+
 **`users`** (decisión del usuario, 01/10/2026). Es la identidad con la que se
 entra, y la institución de la petición sale de ella. Con RLS, el login solo
 dejaría entrar a la institución por defecto hasta que llegue el enrutamiento por
@@ -178,13 +183,12 @@ cualquier página. En PHP se llaman con `InstitucionActual::deEnlace()`.
 | Una tabla de datos | La columna `institucion_id` y volver a correr `02-rls.sql` (lo hace una migración nueva) | La guardia falla: tabla con institución y sin RLS |
 | Una tabla de datos **sin** RLS | Añadirla a `InstitucionActual::SIN_RLS` y excluirla en `02-rls.sql`, sabiendo que solo la protege PHP | La guardia falla |
 | Una migración | Correrla como el dueño: `--database=pgsql_dueno` | `permission denied` |
-| Un enlace público con token | Una función `SECURITY DEFINER` en `02-rls.sql` que devuelva solo la institución, y `InstitucionActual::deEnlace()` + `adoptar()` | La página no encuentra el token |
+| Un enlace público con token | Una función `SECURITY DEFINER` en `02-rls.sql` que devuelva solo la institución, y `InstitucionActual::deEnlace()` + `adoptar()` (que da 404 si no es la del dominio) | La página no encuentra el token |
 | Un guion que trabaje con todas las instituciones | En `database/`, como el dueño (`pgsql_dueno`) | Solo ve la institución por defecto |
 
 **Lo que no se hace:**
 
 - Usar la conexión `pgsql_dueno` desde `app/`. La guardia lo caza.
-- Consultar `users` suelto (`User::where`, `DB::table('users')`): no tiene RLS.
 
 ### En las pruebas
 
