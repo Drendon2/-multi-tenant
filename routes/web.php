@@ -29,6 +29,7 @@ use App\Http\Controllers\PanelController;
 use App\Http\Controllers\PanelGrupoController;
 use App\Http\Controllers\PoliticaDatosController;
 use App\Http\Controllers\RenovarController;
+use App\Http\Controllers\SuplantacionController;
 use App\Http\Controllers\TemaController;
 use Illuminate\Support\Facades\Route;
 
@@ -682,6 +683,19 @@ Route::post('/gestion/asistida/salir', [Gestion\AsistidaController::class, 'term
 Route::post('/gestion/asistida/{usuario}', [Gestion\AsistidaController::class, 'iniciar'])
     ->middleware(['auth', 'rol:administrador'])
     ->name('gestion-asistida-iniciar');
+
+// ENTRAR DESDE EL PANEL de todas las instituciones (paso 4c): el operador llega
+// con un token de un solo uso que dejo el panel. Ver `Support\Suplantacion`.
+// Las dos van fuera de `guest` y sin rol: la primera atiende a quien tenga
+// sesion abierta en este navegador (la cierra), y la segunda la usa quien sea
+// que el operador este mirando, tambien un profesor si abrio una gestion
+// asistida desde la cuenta del administrador.
+Route::get('/suplantacion/{token}', [SuplantacionController::class, 'entrar'])
+    ->middleware('throttle:10,1')
+    ->name('suplantacion.entrar');
+Route::post('/suplantacion/salir', [SuplantacionController::class, 'salir'])
+    ->middleware('auth')
+    ->name('suplantacion.salir');
 
 // La institucion y las estadisticas son SOLO del administrador: la primera es la
 // identidad de la entidad y una regla que gobierna las matriculas de todo el

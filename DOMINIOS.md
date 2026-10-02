@@ -43,7 +43,9 @@ recomendación delante.
   de otra.
 - **Suspendida:** todas sus pantallas dicen «Servicio suspendido» (503), sin
   decir por qué. No se borra nada; reactivarla la devuelve tal cual. Solo se
-  sirven el logo y los iconos, que pide la propia pantalla.
+  sirven el logo y los iconos, que pide la propia pantalla. Desde el paso 4c
+  lo decide `InstitucionSuspendida`, después de la sesión, porque quien entra
+  desde el panel sí la ve (ver [`PANEL.md`](PANEL.md)).
 
 ### Sin dominio base: una sola casa
 

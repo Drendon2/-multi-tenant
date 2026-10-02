@@ -631,6 +631,11 @@
       No se puede cambiar la contraseña de alguien desde una gestión asistida.
       Vuelve a tu cuenta para cambiar la tuya.
     </p>
+  @elseif (\App\Support\Suplantacion::activa())
+    <p class="campo-ayuda">
+      No se puede cambiar la contraseña de esta cuenta entrando desde el panel
+      de instituciones.
+    </p>
   @else
     <form method="post" action="{{ route('mi-perfil.guardar') }}" class="form-card">
       @csrf

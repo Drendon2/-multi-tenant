@@ -219,6 +219,32 @@
   una puerta de administrador en el botón de salir dejaría a quien entra
   encerrado hasta cerrar sesión.
 --}}
+{{--
+  LA BARRA DE «ENTRAR DESDE EL PANEL» (paso 4c). La misma idea que la de
+  gestión asistida de abajo, y por la misma razón va fuera de <main> y en
+  todas las pantallas: un operador del panel está dentro de la cuenta de un
+  administrador de esta institución. Si además abrió una gestión asistida,
+  salen las dos barras, y cada una deshace lo suyo. Una institución
+  suspendida solo se ve así, y la barra lo dice.
+--}}
+@php($operadorDelPanel = \App\Support\Suplantacion::operador())
+@if ($operadorDelPanel)
+@php($institucionSuspendida = request()->attributes->get(\App\Models\Institucion::class)?->estado === \App\Models\Institucion::SUSPENDIDA)
+<div class="barra-asistida" data-barra-suplantacion>
+  <span class="barra-asistida-texto">
+    <strong>Desde el panel de instituciones</strong>
+    {{ $operadorDelPanel }} está dentro de la cuenta de un administrador de esta institución.
+    @if ($institucionSuspendida)
+      <strong>La institución está suspendida:</strong> nadie más la ve.
+    @endif
+  </span>
+  <form action="{{ route('suplantacion.salir') }}" method="post" data-recarga-completa>
+    @csrf
+    <button type="submit" class="btn btn-blanco btn-sm">Volver al panel</button>
+  </form>
+</div>
+@endif
+
 @php($asistiendo = \App\Support\GestionAsistida::administrador())
 @if ($asistiendo)
 <div class="barra-asistida">

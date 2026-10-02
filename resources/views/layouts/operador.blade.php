@@ -32,6 +32,7 @@
 <main>
   @include('partials.mensajes')
   @yield('content')
+  @yield('despues')
 </main>
 </body>
 </html>

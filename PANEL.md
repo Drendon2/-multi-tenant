@@ -1,9 +1,10 @@
 # El panel de todas las instituciones
 
-Paso 4b de la versión multi-institución (ver
+Pasos 4b y 4c de la versión multi-institución (ver
 [`MULTI-INSTITUCION.md`](MULTI-INSTITUCION.md)). Es la pantalla de quien
-**presta el servicio**: desde aquí se le pone la dirección a cada institución y
-se la suspende o reactiva. Las decisiones son del usuario, del 02/10/2026.
+**presta el servicio**: desde aquí se le pone la dirección a cada institución,
+se la suspende o reactiva, y se entra a ella como uno de sus administradores
+para darle soporte. Las decisiones son del usuario, del 02/10/2026.
 
 ---
 
@@ -13,7 +14,8 @@ se la suspende o reactiva. Las decisiones son del usuario, del 02/10/2026.
 |---|---|
 | Lista todas las instituciones con su dirección, estado y fecha de alta | Crear una institución: `php artisan instalar --nueva`, que monta catálogo, periodo y dos administradores |
 | Edita el **subdominio** y el **dominio propio** | Las cifras de cada una (personas, matrículas): paso 5, con el rol global |
-| **Suspende** y **reactiva** | Entrar como un administrador: suplantación, paso 4c |
+| **Suspende** y **reactiva** | |
+| **Entra como uno de sus administradores** (paso 4c, ver abajo) | |
 | | Crear operadores: `php artisan operador:crear`, por consola |
 
 ---
@@ -89,12 +91,62 @@ la marca del panel sobrevivía a la petición siguiente.
 
 ---
 
+## Entrar como administrador (paso 4c)
+
+En la ficha de cada institución, el panel lista sus administradores activos
+con un botón **«Entrar como»**. Decisión del usuario: solo administradores;
+desde esa cuenta, si hace falta, la gestión asistida lleva a un profesor,
+director o estudiante, con sus propios cortes.
+
+```
+ panel.<base>                                   guarne.<base>
+ «Entrar como Ana» ──► token de un solo uso ──► /suplantacion/{token}
+                       (60 s, en SHA-256,        canjea: Auth::login(Ana)
+                        en `suplantaciones`)     + marca en la sesión
+```
+
+- **Por qué un token y no la sesión del panel:** la cookie es de su host, y el
+  panel no puede abrir una sesión en el de la institución. El panel deja el
+  token y redirige; la institución lo canjea y abre una sesión de verdad con
+  `Auth::login`, como la gestión asistida.
+- **La fila tiene `institucion_id` y RLS**: el token solo se encuentra en el
+  dominio de SU institución. En el de otra no existe, y no se gasta.
+- **Un solo uso y 60 segundos.** Gastarlo es un `UPDATE … WHERE usado_en IS
+  NULL … RETURNING`, así que dos pestañas que lo abren a la vez no entran las
+  dos. Si la cuenta dejó de ser administradora o se desactivó en ese minuto, no
+  se entra.
+- **La comprobación vive en `App\Support\Suplantacion`**, no en el
+  controlador: es la función que abre la puerta.
+- **Mientras dura, una barra lo dice en todas las pantallas** («Desde el panel
+  de instituciones»), con el nombre del operador y un botón **«Volver al
+  panel»** que cierra la sesión de la institución y lleva al panel. Si además
+  se abre una gestión asistida, salen las dos barras.
+- **La contraseña de la cuenta no se cambia** desde aquí, igual que en la
+  gestión asistida.
+- **Funciona aunque la institución esté suspendida**: es para dar soporte. Por
+  eso la comprobación de «suspendida» pasó a su propio middleware,
+  `InstitucionSuspendida`, que corre DESPUÉS de la sesión (que es donde se sabe
+  quién viene del panel); la barra avisa de que nadie más la ve.
+- **Queda registrado dos veces**: la fila de `suplantaciones` (quién, como
+  quién, cuándo emitido y cuándo usado), que no se borra, y el canal de
+  auditoría (`suplantacion.inicio` y `suplantacion.fin`).
+- `InstitucionActual::mientras()` deja al panel otra vez en «ninguna
+  institución» al terminar: el panel la usa para leer los administradores.
+
+**Lo que esto permite y se asumió:** dentro de la cuenta del administrador, el
+operador puede todo lo que puede ese administrador (también restablecer la
+contraseña de otras cuentas desde Gestión → Usuarios). Es lo que se necesita
+para dar soporte, y queda escrito quién entró.
+
 ## Aplicar y revertir
 
 ```bash
-php artisan migrate --database=pgsql_dueno       # 2026_10_05_100000
+php artisan migrate --database=pgsql_dueno       # 2026_10_05 y 2026_10_06
 php artisan operador:crear <usuario>
 ```
+
+`05-suplantaciones.sql` crea la tabla con su RLS; revertirlo borra el registro
+de quién entró desde el panel.
 
 `04-panel.sql` es idempotente, y su reversión también. Revertir **borra los
 operadores**. Los permisos de la aplicación sobre la tabla nueva los da el
@@ -141,3 +193,26 @@ En local: `http://panel.localhost:8001`.
 - `tests/Feature/PanelDeInstitucionesTest.php`,
   `tests/Feature/FiltroDeInstitucionUnicoTest.php` (`operadores` entre las
   tablas sin institución)
+
+**Paso 4c**
+
+- `database/sql/postgres/05-suplantaciones.sql` y `.revertir.sql`,
+  `database/migrations/2026_10_06_100000_suplantaciones.php`
+- `app/Support/Suplantacion.php`, `app/Models/Suplantacion.php`
+- `app/Http/Controllers/Operador/SuplantacionController.php` (el panel deja el
+  token), `app/Http/Controllers/SuplantacionController.php` (la institución lo
+  canjea y devuelve al panel), rutas en `routes/operador.php` y
+  `routes/web.php`
+- `app/Http/Middleware/InstitucionSuspendida.php` (la comprobación de
+  suspendida, ahora después de la sesión)
+- `app/Support/Panel.php` (`urlDe()`, `urlDelPanel()`),
+  `app/Support/InstitucionActual.php` (`mientras()` respeta «ninguna»)
+- `resources/views/layouts/app.blade.php` (la barra),
+  `resources/views/operador/institucion.blade.php` (los administradores),
+  `app/Http/Controllers/MiPerfilController.php` y
+  `resources/views/perfil/mi-perfil.blade.php` (la contraseña no se cambia)
+- `tests/Feature/SuplantacionTest.php`: entrar y verlo dicho, un solo uso, solo
+  en su dominio, caduca, solo administradores, cuenta desactivada en medio,
+  institución suspendida, contraseña, volver al panel, la barra solo cuando
+  toca, la lista del panel y `mientras()`. Las once piezas se vieron fallar
+  quitándolas, el RLS de la tabla incluido.

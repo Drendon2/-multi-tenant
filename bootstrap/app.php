@@ -3,6 +3,7 @@
 use App\Http\Middleware\CabecerasDeSeguridad;
 use App\Http\Middleware\CuentaActiva;
 use App\Http\Middleware\InstitucionPorDominio;
+use App\Http\Middleware\InstitucionSuspendida;
 use App\Http\Middleware\RequiereRol;
 use App\Http\Middleware\SoloEnElPanel;
 use App\Support\Panel;
@@ -69,6 +70,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // 27/09/2026). En el grupo `web` y no global porque lo que protegen son
         // las pantallas: la ruta de salud `/up` no lleva nada que enmarcar.
         $middleware->web(append: [CabecerasDeSeguridad::class]);
+
+        // Una institucion suspendida no atiende, salvo a quien entra desde el
+        // panel (paso 4c). Despues de la sesion, que es donde eso se sabe, y
+        // despues de las cabeceras, que asi tambien envuelven al 503.
+        $middleware->web(append: [InstitucionSuspendida::class]);
 
         // Sin sesion, todo lleva al login (Laravel apunta por defecto a una
         // ruta 'login' que aqui si existe, pero se deja explicito).

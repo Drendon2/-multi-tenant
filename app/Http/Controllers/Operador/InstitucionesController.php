@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Institucion;
 use App\Support\Auditoria;
 use App\Support\Panel;
+use App\Support\Suplantacion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -44,6 +45,8 @@ class InstitucionesController extends Controller
         return view('operador.institucion', [
             'institucion' => $institucion,
             'base' => config('institucion.dominio_base'),
+            'administradores' => Suplantacion::administradoresDe($institucion),
+            'conDireccion' => Panel::urlDe($institucion, '/') !== null,
         ]);
     }
 

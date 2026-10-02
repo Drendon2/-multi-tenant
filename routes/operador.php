@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Operador\InstitucionesController;
 use App\Http\Controllers\Operador\SesionController;
+use App\Http\Controllers\Operador\SuplantacionController;
 use App\Http\Middleware\OperadorActivo;
 use Illuminate\Support\Facades\Route;
 
@@ -29,4 +30,7 @@ Route::middleware(['auth:operador', OperadorActivo::class])->group(function () {
     Route::post('/instituciones/{institucion}', [InstitucionesController::class, 'guardar'])
         ->whereNumber('institucion')
         ->name('operador.institucion.guardar');
+    Route::post('/instituciones/{institucion}/entrar-como/{perfil}', [SuplantacionController::class, 'emitir'])
+        ->whereNumber(['institucion', 'perfil'])
+        ->name('operador.suplantar');
 });

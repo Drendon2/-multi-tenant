@@ -22,6 +22,7 @@ use App\Support\HorarioSemanal;
 use App\Support\Imagen;
 use App\Support\Reglas;
 use App\Support\ResumenAsistencia;
+use App\Support\Suplantacion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -259,6 +260,15 @@ class MiPerfilController extends Controller
                 'error',
                 'No se puede cambiar la contraseña de alguien desde una gestión asistida. '
                 .'Vuelve a tu cuenta para cambiar la tuya.'
+            );
+        }
+
+        // Lo mismo entrando desde el panel de instituciones (paso 4c): la
+        // contraseña es de la persona, no de quien le da soporte.
+        if (Suplantacion::activa()) {
+            return redirect()->route('mi-perfil')->with(
+                'error',
+                'No se puede cambiar la contraseña de esta cuenta entrando desde el panel de instituciones.'
             );
         }
 

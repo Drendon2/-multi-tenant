@@ -41,3 +41,40 @@
     <button type="submit" class="btn">Guardar</button>
   </form>
 @endsection
+
+@section('despues')
+  <h3>Entrar como administrador</h3>
+  <p class="campo-ayuda">
+    Abre la institución con la cuenta de uno de sus administradores, para darle
+    soporte. Una barra lo dice en todas las pantallas mientras dura, la
+    contraseña de esa cuenta no se puede cambiar, y queda registrado quién
+    entró y cuándo. Funciona aunque la institución esté suspendida.
+  </p>
+
+  @if (! $conDireccion)
+    <p class="vacio">Esta institución no tiene dirección todavía: ponle un subdominio arriba.</p>
+  @elseif ($administradores->isEmpty())
+    <p class="vacio">No tiene ningún administrador activo.</p>
+  @else
+    <table class="tabla-personas tabla-catalogo">
+      <thead>
+        <tr><th>Administrador</th><th>Usuario</th><th></th></tr>
+      </thead>
+      <tbody>
+        @foreach ($administradores as $administrador)
+        <tr>
+          <td data-celda="nombre">{{ $administrador->nombre_completo }}</td>
+          <td data-label="Usuario">{{ $administrador->user->username }}</td>
+          <td data-celda="accion">
+            <form method="post" action="{{ route('operador.suplantar', [$institucion, $administrador->id]) }}">
+              @csrf
+              <button type="submit" class="btn btn-sm"
+                      aria-label="Entrar como {{ $administrador->nombre_completo }}">Entrar como</button>
+            </form>
+          </td>
+        </tr>
+        @endforeach
+      </tbody>
+    </table>
+  @endif
+@endsection

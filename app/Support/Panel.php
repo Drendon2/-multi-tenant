@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Institucion;
 use Illuminate\Http\Request;
 
 /**
@@ -22,6 +23,35 @@ final class Panel
         $base = strtolower(trim((string) config('institucion.dominio_base')));
 
         return $base === '' ? null : 'panel.'.$base;
+    }
+
+    /**
+     * La URL de `$ruta` en el dominio de una institucion, o null si no tiene
+     * ninguno. Con el esquema y el puerto de la peticion actual: en local el
+     * panel y las instituciones comparten `:8001`.
+     */
+    public static function urlDe(Institucion $institucion, string $ruta): ?string
+    {
+        $base = strtolower(trim((string) config('institucion.dominio_base')));
+        $host = $institucion->dominio_propio
+            ?? ($institucion->subdominio !== null && $base !== '' ? $institucion->subdominio.'.'.$base : null);
+
+        return $host === null ? null : self::url($host, $ruta);
+    }
+
+    /** La URL de `$ruta` en el host del panel. */
+    public static function urlDelPanel(string $ruta): string
+    {
+        return self::url((string) self::host(), $ruta);
+    }
+
+    private static function url(string $host, string $ruta): string
+    {
+        $peticion = request();
+        $puerto = $peticion->getPort();
+        $estandar = ($peticion->getScheme() === 'https' && $puerto === 443) || ($peticion->getScheme() === 'http' && $puerto === 80);
+
+        return $peticion->getScheme().'://'.$host.($estandar || $puerto === null ? '' : ':'.$puerto).'/'.ltrim($ruta, '/');
     }
 
     public static function esLaPeticion(Request $request): bool

@@ -398,12 +398,19 @@ class InstitucionActual
     public static function mientras(int $id, callable $trabajo): mixed
     {
         $antes = app()->bound(self::FIJADA) ? app()->make(self::FIJADA) : null;
+        // El panel trabaja asi con una institucion (paso 4c), y al acabar
+        // tiene que volver a ser de NINGUNA: `usar()` le quita esa marca.
+        $deNinguna = app()->bound(self::NINGUNA);
         self::usar($id);
 
         try {
             return $trabajo();
         } finally {
-            $antes === null ? self::olvidar() : self::usar($antes);
+            match (true) {
+                $deNinguna => self::ninguna(),
+                $antes === null => self::olvidar(),
+                default => self::usar($antes),
+            };
         }
     }
 

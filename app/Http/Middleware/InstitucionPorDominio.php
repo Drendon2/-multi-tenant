@@ -7,7 +7,6 @@ use App\Support\InstitucionActual;
 use App\Support\Panel;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\ViewErrorBag;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -19,18 +18,13 @@ use Symfony\Component\HttpFoundation\Response;
  * esconde) y la peticion sigue como la de alguien sin sesion; las cookies,
  * ademas, son de cada host (`SESSION_DOMAIN` vacio).
  *
- * - Un host que no es de nadie: 404, sin caer en la institucion por defecto.
- * - Una institucion suspendida: «servicio suspendido» en todas sus pantallas.
- *   No se borra nada; reactivarla la devuelve tal cual.
+ * Un host que no es de nadie da 404, sin caer en la institucion por defecto.
+ * Lo que pasa con una institucion SUSPENDIDA lo decide `InstitucionSuspendida`,
+ * que corre despues de la sesion porque necesita saber si quien llega viene
+ * del panel (paso 4c).
  */
 class InstitucionPorDominio
 {
-    /**
-     * Lo que la propia pantalla de «suspendido» pide: el logo y los iconos de
-     * la marca. Sin esto saldria con la imagen rota.
-     */
-    private const ABIERTAS_SI_SUSPENDIDA = ['logo-institucion', 'icono-institucion', 'manifiesto'];
-
     public function handle(Request $request, Closure $next): Response
     {
         // El host del panel no es de ninguna institucion: lo que se pida ahi
@@ -44,12 +38,7 @@ class InstitucionPorDominio
         abort_if($institucion === null, 404);
 
         InstitucionActual::usar($institucion->id);
-
-        if ($institucion->estado === Institucion::SUSPENDIDA && ! $request->routeIs(self::ABIERTAS_SI_SUSPENDIDA)) {
-            // Antes de la sesion no hay bolsa de errores compartida, y el
-            // envoltorio publico pinta los mensajes.
-            return response()->view('publico.suspendida', ['errors' => new ViewErrorBag], 503);
-        }
+        $request->attributes->set(Institucion::class, $institucion);
 
         return $next($request);
     }
