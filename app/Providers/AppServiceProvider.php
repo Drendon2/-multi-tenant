@@ -6,12 +6,17 @@ use App\Models\ConfiguracionInstitucion;
 use App\Models\Periodo;
 use App\Support\ClasesPendientes;
 use App\Support\ConexionQueReintenta;
+use App\Support\InstitucionActual;
 use App\Support\Recurso;
 use App\Support\Tema;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Connection;
+use Illuminate\Database\Events\TransactionRolledBack;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
@@ -39,6 +44,23 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        /**
+         * Row Level Security: antes de cada consulta, la base se entera de que
+         * institucion es la peticion. Sin esto las politicas no reciben
+         * institucion y NO SALE NINGUNA FILA de ninguna tabla de datos: el
+         * fallo es ruidoso, que es lo que se quiere. Ver
+         * `InstitucionActual::alConsultar()`.
+         *
+         * Solo en la conexion de la aplicacion: la del dueño no pasa por RLS.
+         */
+        DB::connection('pgsql')->beforeExecuting(
+            fn (string $sql, array $enlaces, Connection $conexion) => InstitucionActual::alConsultar($conexion)
+        );
+        Event::listen(
+            TransactionRolledBack::class,
+            fn (TransactionRolledBack $evento) => InstitucionActual::olvidarLoDicho($evento->connection)
+        );
+
         /**
          * La marca de la institucion, disponible en TODAS las plantillas.
          *

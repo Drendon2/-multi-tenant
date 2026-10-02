@@ -10,11 +10,16 @@ use Illuminate\Database\Eloquent\Model;
  * El modelo vive en una institucion: solo ve las filas de la actual y las
  * nuevas nacen en ella.
  *
- * El filtro no se escribe aqui: se le pide a `InstitucionActual::filtrar()`,
- * que es el unico sitio donde existe. El alcance se registra con nombre para
- * que un `withoutGlobalScope` de OTRO alcance no se lo lleve; quitarlo a
- * proposito es `sinFiltroDeInstitucion()`, y solo para leer una fila por su
- * token antes de saber de quien es.
+ * Lo que ve lo decide la BASE desde el paso 3 (Row Level Security, ver
+ * `InstitucionActual`): el alcance global sigue pasando por
+ * `InstitucionActual::filtrar()`, que esta vacia, para que el sitio siga
+ * siendo uno solo. Lo que SI hace este trait es poner la institucion a las
+ * filas nuevas: la columna no tiene valor por defecto a proposito, y RLS
+ * rechaza una fila con la institucion de otra.
+ *
+ * Ya no hay forma de leer «sin el filtro» desde aqui: RLS no se quita con un
+ * `withoutGlobalScope`. Un enlace con token pregunta de que institucion es con
+ * `InstitucionActual::deEnlace()`.
  */
 trait DeLaInstitucion
 {
@@ -23,10 +28,7 @@ trait DeLaInstitucion
     public static function bootDeLaInstitucion(): void
     {
         static::addGlobalScope(self::ALCANCE_INSTITUCION, function (Builder $consulta) {
-            InstitucionActual::filtrar(
-                $consulta->getQuery(),
-                InstitucionActual::alias((string) $consulta->getQuery()->from)
-            );
+            InstitucionActual::filtrar($consulta->getQuery(), (string) $consulta->getQuery()->from);
         });
 
         static::creating(function (Model $modelo) {
@@ -34,18 +36,6 @@ trait DeLaInstitucion
                 $modelo->setAttribute(InstitucionActual::COLUMNA, InstitucionActual::id());
             }
         });
-    }
-
-    /**
-     * Sin el filtro: SOLO para resolver un enlace publico (token) antes de
-     * saber de que institucion es. Quien lo llame tiene que adoptar despues la
-     * institucion de la fila (`InstitucionActual::adoptar()`).
-     *
-     * @return Builder<static>
-     */
-    public static function sinFiltroDeInstitucion(): Builder
-    {
-        return static::query()->withoutGlobalScope(self::ALCANCE_INSTITUCION);
     }
 
     /** La institucion duena de esta fila. */

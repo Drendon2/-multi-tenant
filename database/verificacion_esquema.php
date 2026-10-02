@@ -323,6 +323,56 @@ acepta($db, 'cambiar el token pone la hora de ahora', function ($d) {
     }
 });
 
+/*
+ * ROW LEVEL SECURITY (paso 3, 01/10/2026). El aislamiento entre instituciones
+ * lo hace el motor, y se mira como la APLICACION, que es a quien le aplica: el
+ * dueño de las tablas —este guion— se lo salta por serlo. A estas alturas hay
+ * filas de las dos instituciones (las dos «Musica» de arriba).
+ */
+echo "\n== RLS: la aplicacion solo ve y escribe su institucion ==\n";
+$app = conectarComoAplicacion();
+$fijar = fn (?int $id) => $app->prepare('SELECT set_config(\'app.institucion_id\', ?, false)')
+    ->execute([$id === null ? '' : (string) $id]);
+
+acepta($db, 'cada tabla con institucion_id, menos users, tiene RLS y su politica', function ($d) {
+    $sin = $d->query("SELECT c.relname FROM pg_class c
+                       JOIN information_schema.columns k ON k.table_name = c.relname AND k.column_name = 'institucion_id'
+                      WHERE k.table_schema = current_schema() AND c.relkind = 'r' AND c.relname <> 'users'
+                        AND (NOT c.relrowsecurity OR NOT EXISTS (
+                             SELECT 1 FROM pg_policies p WHERE p.tablename = c.relname AND p.policyname = 'por_institucion'))")
+        ->fetchAll(PDO::FETCH_COLUMN);
+    if ($sin !== []) {
+        throw new PDOException('sin RLS: '.implode(', ', $sin));
+    }
+});
+acepta($db, 'el rol de la aplicacion no es superusuario ni se salta RLS', function () use ($app) {
+    $r = $app->query('SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user')->fetch(PDO::FETCH_NUM);
+    if ($r[0] || $r[1]) {
+        throw new PDOException('el rol de la aplicacion se salta RLS');
+    }
+});
+acepta($db, 'sin institucion puesta no ve ninguna fila', function () use ($app, $fijar) {
+    $fijar(null);
+    $n = $app->query('SELECT COUNT(*) FROM areas')->fetchColumn();
+    if ($n != 0) {
+        throw new PDOException("vio $n departamentos sin saber de que institucion es");
+    }
+});
+acepta($db, 'desde la 1 no ve las filas de la 2', function () use ($app, $fijar) {
+    $fijar(1);
+    $ajenas = $app->query('SELECT COUNT(*) FROM areas WHERE institucion_id = 2')->fetchColumn();
+    $suyas = $app->query('SELECT COUNT(*) FROM areas WHERE institucion_id = 1')->fetchColumn();
+    if ($ajenas != 0 || $suyas == 0) {
+        throw new PDOException("ajenas: $ajenas, suyas: $suyas");
+    }
+});
+rechaza($db, 'desde la 2 no escribe una fila de la 1', function () use ($app, $fijar) {
+    $fijar(2);
+    $app->exec("INSERT INTO areas (institucion_id, nombre, created_at, updated_at) VALUES (1,'Colada',NOW(),NOW())");
+}, 'row-level security');
+rechaza($db, 'la aplicacion no puede apagar RLS', fn () => $app->exec('ALTER TABLE areas DISABLE ROW LEVEL SECURITY'),
+    'must be owner');
+
 echo "\n".str_repeat('-', 60)."\n";
 echo "Pasadas: $pasadas   Fallidas: $fallidas\n";
 exit($fallidas > 0 ? 1 : 0);

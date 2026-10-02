@@ -10,6 +10,33 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 abstract class TestCase extends BaseTestCase
 {
     /**
+     * Las migraciones de `RefreshDatabase` corren como el DUEÑO de las tablas;
+     * las pruebas, como la APLICACION.
+     *
+     * Es el reparto de produccion desde el paso 3 (RLS): la aplicacion no puede
+     * crear ni alterar tablas, y RLS no le aplicaria si fuera la dueña. Si las
+     * pruebas corrieran como el dueño, RLS no actuaria en ninguna y la suite
+     * pasaria en verde sin probar el aislamiento que de verdad hay.
+     *
+     * Se engancha en `artisan()` y NO en `migrateFreshUsing()`, que es lo que
+     * parece el sitio: ese metodo lo trae el trait `RefreshDatabase`, y un
+     * trait usado en la clase de cada prueba TAPA el metodo de esta clase
+     * madre. Se escribio primero ahi, se registro sin una queja y la suite
+     * entera fallo con «must be owner of table».
+     *
+     * @param  string  $command
+     * @param  array<string, mixed>  $parameters
+     */
+    public function artisan($command, $parameters = [])
+    {
+        if ($command === 'migrate:fresh' && ! isset($parameters['--database'])) {
+            $parameters['--database'] = 'pgsql_dueno';
+        }
+
+        return parent::artisan($command, $parameters);
+    }
+
+    /**
      * Cada `actingAs` empieza con la sesion vacia: otra persona es otro
      * navegador.
      *

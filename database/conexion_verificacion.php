@@ -184,12 +184,33 @@ $puerto = $leer('DB_PORT') ?: '5432';
 // unica forma de apuntar a una base desechable era editarlo. Las dos barreras
 // de arriba siguen igual: APP_ENV sale SIEMPRE del `.env`.
 $base = getenv('DB_DATABASE') ?: $leer('DB_DATABASE');
-$usuario = $leer('DB_USERNAME');
-$clave = $leer('DB_PASSWORD');
+// Como el DUEÑO de las tablas (DB_DUENO_*): estos guiones vacian tablas y
+// escriben en varias instituciones, y RLS no le aplica al dueño. Para mirar
+// como la APLICACION, `conectarComoAplicacion()`.
+$usuario = $leer('DB_DUENO_USERNAME');
+$clave = $leer('DB_DUENO_PASSWORD');
 
 if ($base === '' || $usuario === '') {
-    fwrite(STDERR, "El .env no trae DB_DATABASE o DB_USERNAME.\n");
+    fwrite(STDERR, "El .env no trae DB_DATABASE o DB_DUENO_USERNAME.\n");
     exit(1);
+}
+
+// Para comprobar RLS hace falta mirar como la APLICACION (DB_USERNAME), que es
+// a quien le aplica. Mismo servidor y misma base.
+$GLOBALS['verificacion_aplicacion'] = [
+    "pgsql:host={$servidor};port={$puerto};dbname={$base}",
+    $leer('DB_USERNAME'),
+    $leer('DB_PASSWORD'),
+];
+
+if (! function_exists('conectarComoAplicacion')) {
+    /** Una conexion como la aplicacion, para mirar lo que RLS le deja ver. */
+    function conectarComoAplicacion(): PDO
+    {
+        [$dsn, $usuario, $clave] = $GLOBALS['verificacion_aplicacion'];
+
+        return new PDO($dsn, $usuario, $clave, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    }
 }
 
 try {

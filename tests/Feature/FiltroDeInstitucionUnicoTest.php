@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Concerns\DeLaInstitucion;
+use App\Support\InstitucionActual;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -12,40 +13,41 @@ use Symfony\Component\Finder\Finder;
 use Tests\TestCase;
 
 /**
- * El filtro por institucion vive en UN solo sitio, y nada lo rodea.
+ * El aislamiento entre instituciones lo sostiene el MOTOR, y nada lo rodea.
  *
- * `App\Support\InstitucionActual::filtrar()` es el unico `where
- * institucion_id` del codigo. Lo llaman el alcance de los modelos, `tabla()`
- * y las reglas `Reglas::existe()`/`unica()`. Ese punto unico es lo que se
- * reemplazara por Row Level Security, y solo sirve si de verdad es unico:
- * una consulta escrita por fuera no falla, no avisa y devuelve lo de todas
- * las instituciones.
+ * Desde el paso 3 (01/10/2026) cada tabla de datos tiene Row Level Security:
+ * una politica que solo deja ver y escribir las filas de la institucion de la
+ * sesion. Eso solo vale si de verdad esta en TODAS las tablas y si la
+ * aplicacion entra con un rol al que le aplica: una tabla sin politica, o un
+ * rol dueño de las tablas, no fallan ni avisan, y devuelven lo de todas las
+ * instituciones.
  *
- * Estas pruebas leen el CODIGO y el ESQUEMA real, no una lista escrita a
- * mano: una tabla o un modelo nuevos entran solos en la comprobacion.
+ * Antes de RLS esta guardia leia el CODIGO buscando consultas que rodearan
+ * `InstitucionActual::filtrar()`. Ahora lee el ESQUEMA, que es donde vive el
+ * aislamiento, y del codigo solo mira lo que RLS no cubre: las tablas que no
+ * lo tienen (`InstitucionActual::SIN_RLS`) y la conexion del dueño.
+ *
+ * Lee el catalogo y el codigo reales, no una lista escrita a mano: una tabla o
+ * un modelo nuevos entran solos en la comprobacion.
  */
 class FiltroDeInstitucionUnicoTest extends TestCase
 {
     use RefreshDatabase;
 
     /**
-     * Las unicas excepciones, cada una con su porque. Clave: archivo relativo
-     * a app/; valor: el patron permitido ahi.
+     * Las unicas excepciones del codigo, cada una con su porque. Clave:
+     * archivo relativo a app/; valor: el patron permitido ahi.
      */
     private const EXCEPCIONES = [
-        // Donde vive el filtro.
+        // Donde vive el filtro que queda para las tablas sin RLS.
         'Support/InstitucionActual.php' => '*',
-        // Corre los guiones de migracion; no consulta datos.
-        'Support/GuionSql.php' => 'DB::unprepared',
-        // El token de «olvide mi contrasena» llega por correo SIN sesion y no
-        // dice de que institucion es: se busca en toda la tabla y despues se
-        // adopta la de la cuenta (`InstitucionActual::adoptar`).
-        'Support/RestablecerClave.php' => 'DB::table(self::TABLA)',
-        // `sessions` es de Laravel, no tiene institucion.
-        'Support/SupresionDeDatos.php' => "DB::table('sessions')",
+        // «Olvide mi contrasena» llega sin sesion: la cuenta se busca por
+        // usuario o correo, o por el id de la fila del enlace, en TODAS las
+        // instituciones, y despues se adopta la suya.
+        'Support/RestablecerClave.php' => 'User::',
     ];
 
-    /** Tablas de Laravel: no llevan institucion. */
+    /** Tablas de Laravel y la de instituciones: no llevan institucion. */
     private const DEL_FRAMEWORK = ['migrations', 'cache', 'cache_locks', 'jobs', 'job_batches',
         'failed_jobs', 'sessions', 'password_reset_tokens', 'instituciones'];
 
@@ -59,25 +61,82 @@ class FiltroDeInstitucionUnicoTest extends TestCase
         $this->assertSame([], $sin, 'Tablas de datos sin institucion_id: '.implode(', ', $sin));
     }
 
-    public function test_toda_tabla_con_institucion_tiene_un_modelo_filtrado(): void
+    /**
+     * Las filas nuevas nacen en la institucion actual por el trait: la columna
+     * no tiene valor por defecto, a proposito.
+     */
+    public function test_toda_tabla_con_institucion_tiene_un_modelo_que_la_pone(): void
     {
-        $filtradas = collect($this->modelos())
+        $conTrait = collect($this->modelos())
             ->filter(fn (string $clase) => in_array(DeLaInstitucion::class, class_uses_recursive($clase), true))
             ->map(fn (string $clase) => (new $clase)->getTable())
             ->all();
 
-        // `users` es la identidad con la que se entra: se resuelve ANTES de
-        // saber la institucion y por eso no lleva el filtro (ver `User`).
-        // `restablecimientos_clave` se lee por un token que llega SIN sesion
-        // (ver EXCEPCIONES): tampoco puede llevar el filtro de lectura.
-        $sinModelo = array_values(array_diff($this->tablasConInstitucion(), $filtradas, ['users', 'restablecimientos_clave']));
+        // `users` es la identidad con la que se entra (ver `User`).
+        // `restablecimientos_clave` se escribe sin modelo y con la institucion
+        // de la cuenta (ver `RestablecerClave::crear()`).
+        $sinModelo = array_values(array_diff($this->tablasConInstitucion(), $conTrait, ['users', 'restablecimientos_clave']));
 
         $this->assertSame([], $sinModelo, 'Tablas con institucion_id y sin modelo con DeLaInstitucion: '.implode(', ', $sinModelo));
     }
 
-    public function test_ninguna_consulta_se_salta_el_filtro(): void
+    /**
+     * LA GUARDIA: cada tabla con `institucion_id` tiene RLS activo y su
+     * politica, con la condicion de siempre. Y las que NO lo tienen son
+     * exactamente las que `InstitucionActual` sigue filtrando en PHP: si
+     * alguna se quedara sin ninguna de las dos cosas, enseñaria lo de todas.
+     */
+    public function test_toda_tabla_con_institucion_tiene_rls_menos_las_que_filtra_php(): void
     {
-        $datos = $this->tablasConInstitucion();
+        $conRls = collect(DB::select(
+            "SELECT c.relname AS t FROM pg_class c
+               JOIN pg_namespace n ON n.oid = c.relnamespace
+              WHERE n.nspname = current_schema() AND c.relkind = 'r' AND c.relrowsecurity"
+        ))->pluck('t')->all();
+
+        $sinRls = array_values(array_diff($this->tablasConInstitucion(), $conRls));
+        sort($sinRls);
+
+        $this->assertSame(
+            InstitucionActual::SIN_RLS,
+            $sinRls,
+            'Las tablas con institucion_id SIN RLS tienen que ser las de InstitucionActual::SIN_RLS.'
+        );
+
+        $politicas = collect(DB::select(
+            "SELECT tablename AS t, qual, with_check FROM pg_policies
+              WHERE schemaname = current_schema() AND policyname = 'por_institucion'"
+        ))->keyBy('t');
+
+        foreach (array_diff($this->tablasConInstitucion(), InstitucionActual::SIN_RLS) as $tabla) {
+            $politica = $politicas->get($tabla);
+
+            $this->assertNotNull($politica, "La tabla {$tabla} tiene RLS pero no la politica por_institucion.");
+            $this->assertStringContainsString('institucion_de_la_sesion()', (string) $politica->qual, "{$tabla}: la politica no filtra por la institucion de la sesion.");
+            $this->assertStringContainsString('institucion_de_la_sesion()', (string) $politica->with_check, "{$tabla}: la politica no impide escribir filas de otra institucion.");
+        }
+    }
+
+    /**
+     * RLS no le aplica a un superusuario, a un rol con BYPASSRLS ni al DUEÑO
+     * de la tabla. La aplicacion no puede ser ninguno de los tres.
+     */
+    public function test_la_aplicacion_entra_con_un_rol_al_que_rls_le_aplica(): void
+    {
+        $rol = DB::selectOne('SELECT current_user AS nombre, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user');
+
+        $this->assertFalse($rol->rolsuper, 'La aplicacion entra como superusuario: RLS no le aplica.');
+        $this->assertFalse($rol->rolbypassrls, 'La aplicacion entra con BYPASSRLS.');
+
+        $suyas = collect(DB::select(
+            'SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND tableowner = current_user'
+        ))->pluck('tablename')->all();
+
+        $this->assertSame([], $suyas, "La aplicacion ({$rol->nombre}) es dueña de: ".implode(', ', $suyas));
+    }
+
+    public function test_el_codigo_no_rodea_lo_que_rls_no_cubre(): void
+    {
         $fallos = [];
 
         foreach ($this->archivos() as $relativo => $codigo) {
@@ -90,82 +149,60 @@ class FiltroDeInstitucionUnicoTest extends TestCase
             foreach ($this->lineas($codigo) as $n => $linea) {
                 $sitio = "app/$relativo:$n";
 
-                // DB::table / DB::select / DB::statement... en crudo.
-                if (preg_match('/DB::(table|select|selectOne|statement|insert|update|delete|unprepared|scalar|cursor)\b/', $linea, $m)
-                    && ! ($permitido !== null && str_contains($linea, $permitido))) {
-                    $fallos[] = "$sitio  DB::{$m[1]} en crudo";
+                // La aplicacion NUNCA usa la conexion del dueño: con ella RLS
+                // no aplica y se ven todas las instituciones.
+                if (str_contains($linea, 'pgsql_dueno')) {
+                    $fallos[] = "$sitio  la conexion del dueño se salta RLS: la aplicacion no la usa";
                 }
 
-                // Reglas de validacion que van a la base sin el filtro.
-                if (preg_match("/'(exists|unique):/", $linea)) {
-                    $fallos[] = "$sitio  regla '...:' en texto: usa Reglas::existe()/unica()";
-                }
-                if (preg_match("/Rule::(exists|unique)\\(\\s*'([a-z_]+)'/", $linea, $m)
-                    && ! ($m[2] === 'users' && str_contains($linea, "'username'"))
-                    && $relativo !== 'Support/Reglas.php') {
-                    $fallos[] = "$sitio  Rule::{$m[1]}('{$m[2]}') sin filtro: usa Reglas::existe()/unica()";
+                // Las tablas SIN RLS solo se consultan por el filtro de PHP.
+                foreach (InstitucionActual::SIN_RLS as $tabla) {
+                    if (preg_match("/(DB::table|->from|->join)\\(\\s*'{$tabla}\\b/", $linea)) {
+                        $fallos[] = "$sitio  '{$tabla}' no tiene RLS: usa InstitucionActual::tabla('{$tabla}')";
+                    }
                 }
 
-                // Subconsultas sobre una tabla de datos que no pasan por filtrar().
-                if (preg_match("/->from\\(\\s*'([a-z_]+)/", $linea, $m)
-                    && in_array($m[1], $datos, true)
-                    && ! str_contains($linea, 'InstitucionActual::filtrar(')) {
-                    $fallos[] = "$sitio  ->from('{$m[1]}') sin InstitucionActual::filtrar()";
-                }
-
-                // Nadie escribe su propio where por institucion.
-                if (preg_match("/where\\w*\\(\\s*['\"](\\w+\\.)?institucion_id['\"]/", $linea)) {
-                    $fallos[] = "$sitio  where institucion_id escrito a mano: el filtro vive en InstitucionActual::filtrar()";
-                }
-
-                // `User` no lleva el filtro (es la identidad con la que se
-                // entra): consultarlo suelto devuelve cuentas de todas. Solo
-                // se permite donde se resuelve una cuenta SIN sesion.
+                // `User` no lleva filtro: consultarlo suelto devuelve cuentas
+                // de todas. Se llega por Perfil o por `tabla('users')`.
                 if (preg_match('/\bUser::(where\w*|query|all|count|pluck|first\w*|find\w*|latest|oldest|chunk\w*|lazy\w*|cursor)\(/', $linea, $m)
-                    && $relativo !== 'Support/RestablecerClave.php') {
+                    && ! ($permitido !== null && str_contains($linea, $permitido))) {
                     $fallos[] = "$sitio  User::{$m[1]}() recorre todas las instituciones: usa InstitucionActual::tabla('users') o llega por Perfil";
                 }
 
-                // Quitar TODOS los alcances se lleva el de institucion.
-                if (str_contains($linea, 'withoutGlobalScopes(')) {
-                    $fallos[] = "$sitio  withoutGlobalScopes() quita tambien el filtro de institucion";
-                }
-
-                // Quitar el de institucion solo esta permitido para resolver
-                // un enlace por token, y quien lo haga tiene que adoptar.
-                if (str_contains($linea, 'sinFiltroDeInstitucion(') && ! str_contains($relativo, 'Concerns/')
-                    && ! str_contains($codigo, 'InstitucionActual::adoptar(')) {
-                    $fallos[] = "$sitio  sinFiltroDeInstitucion() sin InstitucionActual::adoptar() en el mismo archivo";
+                // Nadie escribe su propio where por institucion: o lo pone el
+                // motor, o `InstitucionActual::filtrar()`.
+                if (preg_match("/where\\w*\\(\\s*['\"](\\w+\\.)?institucion_id['\"]/", $linea)) {
+                    $fallos[] = "$sitio  where institucion_id escrito a mano: lo pone RLS (o InstitucionActual::filtrar())";
                 }
             }
         }
 
-        $this->assertSame([], $fallos, "Consultas que rodean el filtro de institucion:\n  ".implode("\n  ", $fallos));
+        $this->assertSame([], $fallos, "Codigo que rodea el aislamiento:\n  ".implode("\n  ", $fallos));
     }
 
     /**
      * La guardia de arriba tiene que ver lo que dice ver. Se le pasa codigo
-     * con cada forma de saltarse el filtro y tiene que cazarlas todas: sin
+     * con cada forma de rodear el aislamiento y tiene que cazarlas todas: sin
      * esto, un patron mal escrito la deja en verde para siempre.
      */
-    public function test_la_guardia_caza_cada_forma_de_saltarse_el_filtro(): void
+    public function test_la_guardia_caza_cada_forma_de_rodear_el_aislamiento(): void
     {
         $trampas = [
-            "DB::table('matriculas')->get();",
-            "'grupo_id' => ['required', 'exists:grupos,id'],",
-            "Rule::unique('areas', 'nombre'),",
-            "\$q->from('asignaciones_grupo')->whereColumn('a', 'b');",
-            "Area::where('institucion_id', 2)->get();",
-            'Matricula::withoutGlobalScopes()->get();',
+            "DB::connection('pgsql_dueno')->table('matriculas')->get();",
+            "DB::table('users')->count();",
+            "\$q->join('users', 'users.id', '=', 'perfiles.user_id');",
             "User::whereNull('email')->count();",
+            "Area::where('institucion_id', 2)->get();",
         ];
 
         foreach ($trampas as $trampa) {
             $this->assertNotSame([], $this->fallosDe($trampa), "La guardia no caza: $trampa");
         }
 
-        $this->assertSame([], $this->fallosDe("Rule::unique('users', 'username'),"));
-        $this->assertSame([], $this->fallosDe("InstitucionActual::tabla('matriculas')->get();"));
+        // Y no protesta por lo que ahora es correcto: una tabla CON RLS se
+        // consulta como sea.
+        $this->assertSame([], $this->fallosDe("DB::table('matriculas')->get();"));
+        $this->assertSame([], $this->fallosDe("InstitucionActual::tabla('users')->count();"));
     }
 
     // ------------------------------------------------------------------
@@ -177,7 +214,7 @@ class FiltroDeInstitucionUnicoTest extends TestCase
         $this->archivosFalsos = ['Falso.php' => "<?php\n$linea\n"];
 
         try {
-            $this->test_ninguna_consulta_se_salta_el_filtro();
+            $this->test_el_codigo_no_rodea_lo_que_rls_no_cubre();
 
             return [];
         } catch (ExpectationFailedException $e) {

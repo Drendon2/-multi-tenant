@@ -87,18 +87,19 @@ class Promotoria extends Model
             return null;
         }
 
-        // El enlace es publico y no sabe de que institucion es: se busca SIN
-        // el filtro y se adopta la de la fila. Si hay una sesion abierta de
-        // otra institucion, `adoptar()` da 404.
-        $promotoria = self::sinFiltroDeInstitucion()->where('enlace_token', $token)->first();
+        // El enlace es publico y no sabe de que institucion es: la base dice
+        // de cual es el token (RLS no deja buscarlo en la tabla), se adopta, y
+        // la promotoria se lee ya como cualquier otra. Si hay una sesion
+        // abierta de otra institucion, `adoptar()` da 404.
+        $institucion = InstitucionActual::deEnlace('promotoria', $token);
 
-        if ($promotoria === null) {
+        if ($institucion === null) {
             return null;
         }
 
-        InstitucionActual::adoptar($promotoria->institucionId());
+        InstitucionActual::adoptar($institucion);
 
-        return $promotoria->load('area');
+        return self::where('enlace_token', $token)->first()?->load('area');
     }
 
     /** La direccion que se comparte. Null si nunca se encendio. */

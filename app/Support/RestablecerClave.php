@@ -90,14 +90,18 @@ final class RestablecerClave
     {
         $token = Str::random(64);
 
-        DB::table(self::TABLA)->updateOrInsert(
+        // Como la institucion de la CUENTA, no la de la pagina: quien lo pide
+        // llega sin sesion, a la institucion por defecto, y con RLS la fila de
+        // otra institucion ni se veria (`updateOrInsert` chocaria con la clave
+        // al no encontrar la anterior) ni se podria escribir.
+        InstitucionActual::mientras($usuario->institucion_id, fn () => DB::table(self::TABLA)->updateOrInsert(
             ['user_id' => $usuario->id],
             [
                 'token' => self::digerir($token),
                 'created_at' => now(),
                 InstitucionActual::COLUMNA => $usuario->institucion_id,
             ],
-        );
+        ));
 
         return $token;
     }
@@ -112,6 +116,18 @@ final class RestablecerClave
      */
     public static function cuentaDelEnlace(string $token): ?User
     {
+        // El enlace llega por correo, sin sesion: la pagina que lo atiende es
+        // de la institucion de ESA cuenta, no de la de por defecto. Con RLS la
+        // fila no se puede buscar sin saberla, asi que primero la base dice de
+        // cual es la huella (ver `InstitucionActual::deEnlace()`).
+        $institucion = InstitucionActual::deEnlace('restablecimiento', self::digerir($token));
+
+        if ($institucion === null) {
+            return null;
+        }
+
+        InstitucionActual::adoptar($institucion);
+
         $fila = DB::table(self::TABLA)->where('token', self::digerir($token))->first();
 
         if ($fila === null) {
@@ -127,21 +143,16 @@ final class RestablecerClave
             return null;
         }
 
-        $usuario = User::where('id', $fila->user_id)->where('activo', true)->first();
-
-        // El enlace llega por correo, sin sesion: la pagina que lo atiende es
-        // de la institucion de ESA cuenta, no de la de por defecto.
-        if ($usuario !== null) {
-            InstitucionActual::adoptar($usuario->institucion_id);
-        }
-
-        return $usuario;
+        return User::where('id', $fila->user_id)->where('activo', true)->first();
     }
 
     /** Gasta el enlace. Se llama DESPUES de guardar la contrasena nueva. */
     public static function consumir(User $usuario): void
     {
-        DB::table(self::TABLA)->where('user_id', $usuario->id)->delete();
+        InstitucionActual::mientras(
+            $usuario->institucion_id,
+            fn () => DB::table(self::TABLA)->where('user_id', $usuario->id)->delete()
+        );
     }
 
     /**

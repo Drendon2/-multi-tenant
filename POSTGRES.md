@@ -23,6 +23,11 @@ No incluye Row Level Security: eso es el paso siguiente.
 
 ## Levantarlo en local
 
+> **Desde el paso 3 (RLS) la base tiene tres roles** y el esquema se monta como
+> el dueño (`php artisan migrate --database=pgsql_dueno`). Lo que sigue es el
+> paso 2; los roles, los permisos y el orden de instalación están en
+> [`RLS.md`](RLS.md#instalar-y-operar).
+
 Hace falta **PostgreSQL 18 o superior**. El esquema usa un cotejo ICU no
 determinista y PostgreSQL acepta `LIKE` sobre él solo desde la 18. PHP necesita
 `pdo_pgsql` (en el `php.ini`: `extension=pdo_pgsql`).

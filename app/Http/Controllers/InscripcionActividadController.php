@@ -155,16 +155,19 @@ class InscripcionActividadController extends Controller
      */
     private function buscar(string $token): Actividad
     {
-        // Enlace publico: se busca SIN el filtro de institucion y se adopta
-        // la de la fila (ver `InstitucionActual::adoptar()`).
-        $actividad = Actividad::sinFiltroDeInstitucion()
-            ->where('token', $token)
+        // Enlace publico: la base dice de que institucion es el token (RLS no
+        // deja buscarlo en la tabla), se adopta, y la actividad se lee ya como
+        // cualquier otra (ver `InstitucionActual::deEnlace()`). El corte por
+        // TIPO va en esa segunda lectura: un programa externo tiene token y
+        // aqui no existe.
+        $institucion = InstitucionActual::deEnlace('actividad', $token);
+        abort_if($institucion === null, 404);
+
+        InstitucionActual::adoptar($institucion);
+
+        return Actividad::where('token', $token)
             ->whereIn('tipo', Actividad::TIPOS_CON_ENLACE)
             ->firstOrFail();
-
-        InstitucionActual::adoptar($actividad->institucionId());
-
-        return $actividad;
     }
 
     /** Por que esta cerrada, dicho para quien acaba de llegar por el enlace. */

@@ -3,22 +3,29 @@
 namespace App\Support;
 
 use App\Models\Institucion;
+use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use WeakMap;
 
 /**
- * La institucion a la que pertenece esta peticion, y EL UNICO SITIO donde se
- * filtra por ella.
+ * La institucion a la que pertenece esta peticion, y como se entera la BASE.
  *
- * Todo pasa por `filtrar()`: el alcance global de los modelos
- * (`Models\Concerns\DeLaInstitucion`), las consultas sin modelo (`tabla()`) y
- * las reglas de validacion que van a la base (`Reglas::existe()` y
- * `Reglas::unica()`). Esta hecho asi porque el filtro se va a reemplazar por
- * Row Level Security: el dia que lo haga el motor, se vacia `filtrar()` y
- * nada mas.
+ * Desde el paso 3 (01/10/2026) el aislamiento entre instituciones lo hace
+ * PostgreSQL con Row Level Security: cada tabla de datos tiene una politica que
+ * solo deja ver y escribir las filas de `institucion_de_la_sesion()`, que lee
+ * la variable de sesion `app.institucion_id` (ver
+ * `database/sql/postgres/02-rls.sql`). Lo que hace esta clase es decirle a la
+ * base, antes de cada consulta, de que institucion es la peticion
+ * (`alConsultar()`).
+ *
+ * `filtrar()` queda VACIA para las tablas con RLS, como estaba previsto: era
+ * el unico `where institucion_id` del codigo y ahora lo pone el motor. Sigue
+ * filtrando, en PHP, las tablas que NO tienen RLS (`SIN_RLS`: hoy solo
+ * `users`). El sitio sigue siendo uno solo.
  *
  * Quien es la institucion, por orden:
  *
@@ -26,11 +33,10 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  *    o un comando que trabaja para una institucion concreta (`usar()`).
  * 2. La de la CUENTA con sesion abierta.
  * 3. La POR DEFECTO de la instalacion (`INSTITUCION_POR_DEFECTO`), para quien
- *    llega sin sesion a una pagina publica. Mientras no haya enrutamiento por
- *    dominio, el login, la inscripcion y la politica de datos son de esta.
+ *    llega sin sesion a una pagina publica.
  *
- * Sin ninguna de las tres, LANZA. Cerrar en falso es a proposito: un filtro
- * que ante la duda no filtra devuelve la casa de todos.
+ * Sin ninguna de las tres, `id()` LANZA y la base no recibe ninguna: sus
+ * politicas dan NULL y no sale ninguna fila. Cerrar en falso es a proposito.
  *
  * La fijada vive en el contenedor y no en una estatica, por lo mismo que
  * `ConfiguracionInstitucion::actual()`: el contenedor muere con la peticion y
@@ -43,7 +49,47 @@ class InstitucionActual
     /** Columna que llevan todas las tablas de datos. */
     public const COLUMNA = 'institucion_id';
 
+    /** La variable de sesion que leen las politicas de RLS. */
+    public const VARIABLE = 'app.institucion_id';
+
+    /**
+     * Las tablas con `institucion_id` que NO tienen RLS, y que por eso siguen
+     * filtrandose aqui.
+     *
+     * `users` es la identidad con la que se entra y la institucion sale de
+     * ella: con RLS, el login solo dejaria entrar a la institucion por defecto
+     * hasta que llegue el enrutamiento por dominio (decision del usuario,
+     * 01/10/2026). Mientras tanto, lo que la cuenta sin modelo
+     * (`tabla('users')`) necesita este filtro: sin el, `simular` borraria las
+     * cuentas de prueba de otras instituciones.
+     *
+     * Tiene que coincidir con lo que `02-rls.sql` deja fuera:
+     * `FiltroDeInstitucionUnicoTest` lo comprueba contra el catalogo.
+     */
+    public const SIN_RLS = ['users'];
+
+    /**
+     * Lo que ya se le dijo a cada conexion: la institucion, y el PDO al que se
+     * le dijo. Un PDO nuevo (una reconexion) es una sesion nueva de la base, sin
+     * la variable puesta.
+     *
+     * Clave: la `Connection`; valor: `array{pdo: int, id: ?int}`. Sin el
+     * generico en la anotacion: PHPStan trata `WeakMap` como invariante y no
+     * acepta que se le asigne una entrada.
+     */
+    private static ?WeakMap $dicha = null;
+
+    /** Para no volver a entrar mientras se averigua la institucion. */
+    private static bool $resolviendo = false;
+
     public static function id(): int
+    {
+        return self::idSiSeSabe()
+            ?? throw new RuntimeException('No se sabe de qué institución es esta petición.');
+    }
+
+    /** Como `id()`, pero null en vez de lanzar. */
+    public static function idSiSeSabe(): ?int
     {
         if (app()->bound(self::FIJADA)) {
             return app()->make(self::FIJADA);
@@ -61,7 +107,7 @@ class InstitucionActual
             return (int) $porDefecto;
         }
 
-        throw new RuntimeException('No se sabe de qué institución es esta petición.');
+        return null;
     }
 
     public static function modelo(): Institucion
@@ -70,34 +116,111 @@ class InstitucionActual
     }
 
     /**
-     * EL filtro. Cualquier otro `where institucion_id` en el codigo es un
-     * error: la prueba `FiltroUnicoTest` lo busca.
+     * Le dice a la base de que institucion es la peticion. Corre antes de CADA
+     * consulta (`DB::beforeExecuting`, en `AppServiceProvider`) y solo habla con
+     * la base cuando algo cambio, asi que cuesta una consulta por peticion.
      *
-     * `$tabla` es el nombre o el alias con el que la tabla aparece en la
-     * consulta; hace falta calificar la columna porque todas las tablas la
-     * tienen y en un `join` seria ambigua.
+     * Antes de cada consulta y no una vez al empezar, porque la institucion
+     * CAMBIA a mitad de camino: un enlace con token la adopta, `instalar
+     * --nueva` trabaja como otra, una prueba cambia de cuenta.
+     *
+     * Tres cosas que no se ven y que este metodo sostiene:
+     *
+     * - Averiguar la institucion puede cargar la cuenta (`Auth::user()`), y esa
+     *   consulta vuelve a pasar por aqui. Mientras se averigua no se hace nada:
+     *   esa consulta es a `users`, que no tiene RLS.
+     * - La variable se pone directamente en el PDO y no con `DB::select`: asi
+     *   no vuelve a entrar aqui, y las pruebas que CUENTAN consultas siguen
+     *   contando las de la aplicacion.
+     * - Una variable puesta dentro de una transaccion que se deshace VUELVE
+     *   ATRAS en la base. `olvidar()` borra lo recordado cuando eso pasa (lo
+     *   llama el evento `TransactionRolledBack`); sin eso, las consultas de
+     *   despues irian sin institucion y no verian nada, sin fallar.
      */
-    public static function filtrar(Builder $consulta, string $tabla): Builder
+    public static function alConsultar(Connection $conexion): void
     {
-        return $consulta->where($tabla.'.'.self::COLUMNA, self::id());
+        if (self::$resolviendo) {
+            return;
+        }
+
+        self::$resolviendo = true;
+
+        try {
+            $id = self::idSiSeSabe();
+        } finally {
+            self::$resolviendo = false;
+        }
+
+        $pdo = $conexion->getPdo();
+        self::$dicha ??= new WeakMap;
+        /** @var array{pdo: int, id: ?int}|null $antes */
+        $antes = self::$dicha[$conexion] ?? null;
+        $mismoPdo = $antes !== null && $antes['pdo'] === spl_object_id($pdo);
+
+        if ($mismoPdo && $antes['id'] === $id) {
+            return;
+        }
+
+        // Una sesion recien abierta ya esta sin institucion: no hace falta
+        // decirselo.
+        if ($id !== null || $mismoPdo) {
+            $pdo->prepare('SELECT set_config(?, ?, false)')
+                ->execute([self::VARIABLE, $id === null ? '' : (string) $id]);
+        }
+
+        self::$dicha[$conexion] = ['pdo' => spl_object_id($pdo), 'id' => $id];
+    }
+
+    /** La conexion deshizo una transaccion: lo que se le dijo puede no valer. */
+    public static function olvidarLoDicho(Connection $conexion): void
+    {
+        if (self::$dicha !== null) {
+            unset(self::$dicha[$conexion]);
+        }
     }
 
     /**
-     * `DB::table()` ya filtrado. Acepta alias: `tabla('clases as c')`.
+     * El filtro por institucion.
      *
-     * El filtro va el PRIMERO, y justo antes de ejecutar se agrupa lo demas
-     * entre parentesis. Sin eso, un `->where(a)->orWhere(b)` detras daria
-     * `institucion AND a OR b`, y la rama del OR saldria de la institucion.
-     * Eloquent hace lo mismo con sus alcances; el constructor de consultas no.
+     * VACIO para las tablas con RLS desde el paso 3: la condicion la pone el
+     * motor. Para las de `SIN_RLS` sigue siendo el `where` de siempre.
      *
-     * Lo que NO cubre: usada como SUBconsulta (`whereIn('id', tabla(...))`) se
-     * compila sin pasar por `beforeQuery`, asi que ahi un `orWhere` de primer
-     * nivel seguiria saliendose. Ninguna lo hace; si alguna lo necesita, que
-     * meta sus condiciones en un `where(fn ...)`.
+     * Todo lo que filtraba sigue pasando por aqui (el alcance global de los
+     * modelos, `tabla()`, `Reglas::existe()` y `Reglas::unica()`).
+     *
+     * `$from` es la tabla como aparece en la consulta, con su alias si lo
+     * lleva (`clases as c`): hace falta el nombre de verdad para saber si
+     * tiene RLS, y el alias para calificar la columna en un `join`.
+     */
+    public static function filtrar(Builder $consulta, string $from): Builder
+    {
+        if (! in_array(self::nombre($from), self::SIN_RLS, true)) {
+            return $consulta;
+        }
+
+        return $consulta->where(self::alias($from).'.'.self::COLUMNA, self::id());
+    }
+
+    /**
+     * `DB::table()`, con el filtro si la tabla no tiene RLS.
+     *
+     * En ese caso el filtro va el PRIMERO, y justo antes de ejecutar se agrupa
+     * lo demas entre parentesis. Sin eso, un `->where(a)->orWhere(b)` detras
+     * daria `institucion AND a OR b`, y la rama del OR saldria de la
+     * institucion. Con RLS no hace falta: la condicion del motor va FUERA de la
+     * consulta y ningun `orWhere` la alcanza.
+     *
+     * Lo que NO cubre: usada como SUBconsulta se compila sin pasar por
+     * `beforeQuery`, asi que ahi un `orWhere` de primer nivel seguiria
+     * saliendose. Hoy no hay ninguna sobre `users`.
      */
     public static function tabla(string $tabla): Builder
     {
-        $consulta = self::filtrar(DB::table($tabla), self::alias($tabla));
+        $consulta = self::filtrar(DB::table($tabla), $tabla);
+
+        if (! in_array(self::nombre($tabla), self::SIN_RLS, true)) {
+            return $consulta;
+        }
 
         return $consulta->beforeQuery(function (Builder $consulta) {
             $resto = array_slice($consulta->wheres, 1);
@@ -119,12 +242,41 @@ class InstitucionActual
         });
     }
 
+    /** El nombre de verdad de la tabla, sin alias: `clases as c` es `clases`. */
+    public static function nombre(string $from): string
+    {
+        return trim((string) preg_split('/\s+as\s+/i', trim($from))[0]);
+    }
+
     /** El nombre con el que se referencia la tabla dentro de la consulta. */
     public static function alias(string $from): string
     {
         $partes = preg_split('/\s+as\s+/i', trim($from));
 
         return trim(end($partes));
+    }
+
+    /**
+     * De que institucion es un token de enlace publico, o null si no existe.
+     *
+     * Con RLS una pagina sin sesion solo ve su institucion por defecto, asi que
+     * el token no se puede buscar en su tabla. Lo resuelve una funcion de la
+     * base que corre como el dueño y devuelve SOLO el numero (ver `02-rls.sql`).
+     * Con el numero, `adoptar()`, y lo demas sigue con RLS.
+     *
+     * @param  'promotoria'|'actividad'|'restablecimiento'  $enlace
+     */
+    public static function deEnlace(string $enlace, string $token): ?int
+    {
+        $funcion = match ($enlace) {
+            'promotoria' => 'institucion_del_enlace_de_promotoria',
+            'actividad' => 'institucion_del_enlace_de_actividad',
+            'restablecimiento' => 'institucion_del_restablecimiento',
+        };
+
+        $id = DB::selectOne("SELECT {$funcion}(?) AS id", [$token])?->id;
+
+        return $id === null ? null : (int) $id;
     }
 
     /**

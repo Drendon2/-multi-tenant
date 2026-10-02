@@ -41,6 +41,10 @@ require __DIR__.'/../vendor/autoload.php';
 $app = require __DIR__.'/../bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
+// Como el DUEÑO de las tablas: este guion trabaja con TODAS las instituciones
+// a la vez, y a la aplicacion RLS solo le deja ver una.
+config(['database.default' => 'pgsql_dueno']);
+
 const LOTE = 500;
 const SIN_COPIAR = ['migrations'];
 

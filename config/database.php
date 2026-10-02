@@ -2,6 +2,44 @@
 
 use Illuminate\Support\Str;
 
+/*
+ * La conexion de la APLICACION. Entra con el rol `matriculas` (DB_USERNAME):
+ * solo lee y escribe filas, y Row Level Security la ata a la institucion de
+ * cada peticion (ver `App\Support\InstitucionActual`).
+ */
+$pgsql = [
+    'driver' => 'pgsql',
+    'url' => env('DB_URL'),
+    'host' => env('DB_HOST', '127.0.0.1'),
+    'port' => env('DB_PORT', '5432'),
+    'database' => env('DB_DATABASE', 'laravel'),
+    'username' => env('DB_USERNAME', 'root'),
+    'password' => env('DB_PASSWORD', ''),
+    'charset' => env('DB_CHARSET', 'utf8'),
+    'prefix' => '',
+    'prefix_indexes' => true,
+    'search_path' => 'public',
+    'sslmode' => env('DB_SSLMODE', 'prefer'),
+    // La hora de la sesion de la base, que es la que ponen los
+    // valores por defecto del esquema (`LOCALTIMESTAMP`). La misma de
+    // la aplicacion: las columnas son `timestamp` sin zona y guardan
+    // la hora local tal cual.
+    'timezone' => env('APP_TIMEZONE', 'America/Bogota'),
+    'options' => [
+        // CUANTO se espera a que la base conteste al conectar. Sin esto
+        // PDO espera lo que diga el sistema, que en la practica es «para
+        // siempre»: el 08/09/2026 una peticion se quedo colgada y quien
+        // la lanzo vio el 504 en blanco del CDN a los 60 segundos, sin
+        // ninguna pista de que habia pasado. Con el tope, una base que
+        // no contesta da un error legible y deja rastro en el registro.
+        //
+        // `pdo_pgsql` lo traduce al `connect_timeout` de PostgreSQL.
+        // Un cero es «sin espera», un valor legitimo: por eso no pasa
+        // por ningun filtro de vacios.
+        PDO::ATTR_TIMEOUT => (int) env('DB_ESPERA_CONEXION', 5),
+    ],
+];
+
 return [
 
     /*
@@ -17,6 +55,13 @@ return [
     */
 
     'default' => env('DB_CONNECTION', 'pgsql'),
+
+    /*
+     * El rol que lee TODAS las instituciones (BYPASSRLS), para las estadisticas
+     * globales del paso 5. El guion de RLS le da permiso de solo lectura si
+     * existe. Nada lo usa todavia.
+     */
+    'rol_global' => env('DB_ROL_GLOBAL', 'matriculas_global'),
 
     /*
     |--------------------------------------------------------------------------
@@ -43,38 +88,19 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
-        'pgsql' => [
-            'driver' => 'pgsql',
-            'url' => env('DB_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
-            'charset' => env('DB_CHARSET', 'utf8'),
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'search_path' => 'public',
-            'sslmode' => env('DB_SSLMODE', 'prefer'),
-            // La hora de la sesion de la base, que es la que ponen los
-            // valores por defecto del esquema (`LOCALTIMESTAMP`). La misma de
-            // la aplicacion: las columnas son `timestamp` sin zona y guardan
-            // la hora local tal cual.
-            'timezone' => env('APP_TIMEZONE', 'America/Bogota'),
-            'options' => [
-                // CUANTO se espera a que la base conteste al conectar. Sin esto
-                // PDO espera lo que diga el sistema, que en la practica es «para
-                // siempre»: el 08/09/2026 una peticion se quedo colgada y quien
-                // la lanzo vio el 504 en blanco del CDN a los 60 segundos, sin
-                // ninguna pista de que habia pasado. Con el tope, una base que
-                // no contesta da un error legible y deja rastro en el registro.
-                //
-                // `pdo_pgsql` lo traduce al `connect_timeout` de PostgreSQL.
-                // Un cero es «sin espera», un valor legitimo: por eso no pasa
-                // por ningun filtro de vacios.
-                PDO::ATTR_TIMEOUT => (int) env('DB_ESPERA_CONEXION', 5),
-            ],
-        ],
+        'pgsql' => $pgsql,
+
+        /*
+         * La del DUEÑO de las tablas (DB_DUENO_*). Corre las migraciones
+         * (`php artisan migrate --database=pgsql_dueno`) y los guiones de
+         * `database/`, que copian y comparan TODAS las instituciones: por ser
+         * el dueño, RLS no le aplica. La aplicacion NO la usa nunca, y
+         * `FiltroDeInstitucionUnicoTest` vigila que siga asi.
+         */
+        'pgsql_dueno' => array_merge($pgsql, [
+            'username' => env('DB_DUENO_USERNAME', 'matriculas_dueno'),
+            'password' => env('DB_DUENO_PASSWORD', ''),
+        ]),
 
         'sqlsrv' => [
             'driver' => 'sqlsrv',

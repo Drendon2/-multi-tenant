@@ -9,10 +9,11 @@ pase a PostgreSQL.
 Esta versión vive en la rama `multi-tenant`. El sistema de una sola institución
 que está en producción es la rama `main`, y **esta rama no se fusiona en ella**.
 
-> **Estado: pasos 1 y 2 de 5, terminados.** `institucion_id` en todas las tablas
-> de datos, con el filtro centralizado (paso 1), y el sistema entero sobre
-> **PostgreSQL 18** (paso 2, contado en [`POSTGRES.md`](POSTGRES.md)). Los dos se
-> ensayaron sobre un volcado de producción. Ver [Hoja de ruta](#hoja-de-ruta).
+> **Estado: pasos 1, 2 y 3 de 5, terminados.** `institucion_id` en todas las
+> tablas de datos (paso 1), el sistema entero sobre **PostgreSQL 18** (paso 2,
+> [`POSTGRES.md`](POSTGRES.md)) y el aislamiento hecho por el motor con **Row
+> Level Security** (paso 3, [`RLS.md`](RLS.md)). Ensayados sobre un volcado de
+> producción. Ver [Hoja de ruta](#hoja-de-ruta).
 
 Para lo que no cambia (qué resuelve el sistema, sus pantallas, el stack), el
 [`README.md`](README.md) sigue valiendo. Este documento cuenta solo lo que
@@ -262,6 +263,12 @@ se quita.
 
 ## El filtro: un solo punto
 
+> **Desde el paso 3 esto lo hace el motor** (ver [`RLS.md`](RLS.md)):
+> `filtrar()` queda vacía para las tablas con RLS y solo sigue filtrando en PHP
+> las de `InstitucionActual::SIN_RLS` (hoy, `users`). La guardia ya no lee el
+> código buscando consultas que rodeen el filtro: lee el esquema. Lo que sigue
+> describe el paso 1.
+
 `App\Support\InstitucionActual::filtrar()` es el **único** `where
 institucion_id` del código. Lo llaman tres caminos:
 
@@ -394,7 +401,7 @@ DB_DATABASE=test_matriculas_mt php database/verificacion_esquema.php --borrar-da
 |---|---|---|
 | 1 | `institucion_id` en MariaDB y el filtro en un solo punto | **Hecho** |
 | 2 | PostgreSQL ([`POSTGRES.md`](POSTGRES.md)) | **Hecho** |
-| 3 | Row Level Security: se vacía `InstitucionActual::filtrar()` y la guardia se reescribe. Tiene que dejar sitio a las estadísticas globales del paso 5 | Pendiente |
+| 3 | Row Level Security ([`RLS.md`](RLS.md)), con el rol global ya previsto para las estadísticas del paso 5 | **Hecho** |
 | 4 | Panel de administración de todas las instituciones y suplantación. Desde él se asignan los dominios o subdominios; con ellos, `username` pasa a ser único por institución y las páginas públicas dejan de caer en la institución por defecto | Pendiente |
 | 5 | Pruebas con varias instituciones y estadísticas globales de todas | Pendiente |
 
