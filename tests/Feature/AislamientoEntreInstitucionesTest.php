@@ -57,7 +57,7 @@ class AislamientoEntreInstitucionesTest extends TestCase
         parent::setUp();
 
         config(['institucion.dominio_base' => 'localhost']);
-        Institucion::findOrFail(1)->update(['subdominio' => 'santuario']);
+        $this->institucionDePrueba->update(['subdominio' => 'santuario']);
 
         ConfiguracionInstitucion::actual()->update(['nombre_institucion' => 'Casa de El Santuario']);
         $this->casa = $this->montar('santuario');
@@ -104,7 +104,7 @@ class AislamientoEntreInstitucionesTest extends TestCase
         );
         $this->assertSame($this->otra['institucion']->id, $danza->institucionId());
         $this->assertFalse(
-            InstitucionActual::mientras(1, fn () => Area::where('nombre', 'Danza')->exists())
+            InstitucionActual::mientras($this->institucionDePrueba->id, fn () => Area::where('nombre', 'Danza')->exists())
         );
     }
 
@@ -123,7 +123,7 @@ class AislamientoEntreInstitucionesTest extends TestCase
         $admin->get(self::OTRA.'/gestion/promotorias/'.$this->casa['promotoria']->id.'/editar')->assertNotFound();
         $admin->get(self::OTRA.'/gestion/areas/'.$this->casa['area']->id.'/editar')->assertNotFound();
         $admin->post(self::OTRA.'/gestion/promotorias/'.$this->casa['promotoria']->id.'/eliminar')->assertNotFound();
-        $this->assertTrue(InstitucionActual::mientras(1, fn () => Promotoria::whereKey($this->casa['promotoria']->id)->exists()));
+        $this->assertTrue(InstitucionActual::mientras($this->institucionDePrueba->id, fn () => Promotoria::whereKey($this->casa['promotoria']->id)->exists()));
 
         $admin->get(self::OTRA.'/gestion/promotorias/'.$this->otra['promotoria']->id.'/editar')->assertOk();
     }
@@ -149,7 +149,7 @@ class AislamientoEntreInstitucionesTest extends TestCase
             ])
             ->assertSessionHasErrors('promotoria_id');
 
-        foreach ([1, $this->otra['institucion']->id] as $institucion) {
+        foreach ([$this->institucionDePrueba->id, $this->otra['institucion']->id] as $institucion) {
             $this->assertSame(0, InstitucionActual::mientras($institucion, fn () => Grupo::where('nombre', 'Intruso')->count()));
         }
     }
@@ -158,7 +158,7 @@ class AislamientoEntreInstitucionesTest extends TestCase
     {
         // La misma persona puede inscribirse en dos municipios.
         $this->assertSame(
-            InstitucionActual::mientras(1, fn () => DatosEstudiante::where('perfil_id', $this->casa['estudiante']->id)->value('documento_identidad')),
+            InstitucionActual::mientras($this->institucionDePrueba->id, fn () => DatosEstudiante::where('perfil_id', $this->casa['estudiante']->id)->value('documento_identidad')),
             InstitucionActual::mientras($this->otra['institucion']->id, fn () => DatosEstudiante::where('perfil_id', $this->otra['estudiante']->id)->value('documento_identidad')),
         );
     }
@@ -262,8 +262,8 @@ class AislamientoEntreInstitucionesTest extends TestCase
      */
     public function test_una_consulta_sin_ningun_filtro_solo_ve_su_institucion(): void
     {
-        $this->assertSame([1], DB::table('matriculas')->distinct()->pluck('institucion_id')->all());
-        $this->assertSame([1], DB::table('perfiles')->distinct()->pluck('institucion_id')->all());
+        $this->assertSame([$this->institucionDePrueba->id], DB::table('matriculas')->distinct()->pluck('institucion_id')->all());
+        $this->assertSame([$this->institucionDePrueba->id], DB::table('perfiles')->distinct()->pluck('institucion_id')->all());
 
         // Y la otra mitad: desde la otra, solo la otra.
         InstitucionActual::mientras($this->otra['institucion']->id, function () {

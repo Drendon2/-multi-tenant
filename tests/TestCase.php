@@ -3,12 +3,42 @@
 namespace Tests;
 
 use App\Models\Area;
+use App\Models\Institucion;
 use App\Models\Perfil;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
+    /**
+     * La institucion en la que corre cada prueba con base: la 2, NUNCA la 1
+     * (paso 5, decision del usuario del 02/10/2026).
+     *
+     * La 1 existe siempre (la crea el esquema) y era la de toda la suite, asi
+     * que un codigo que diera por hecho «la institucion es la 1» —un `find(1)`,
+     * un `institucion_id = 1` escrito a mano— pasaba todas las pruebas. Con la
+     * suite en otra, ese codigo se pone en rojo. La 1 se queda ahi, vacia,
+     * como la casa de al lado.
+     *
+     * Se midio antes de decidirlo: la suite entera como la 2 dio seis fallos,
+     * los seis en pruebas que tenian el 1 escrito, y ninguno en la aplicacion.
+     *
+     * Se fija como la institucion POR DEFECTO, que es la de una instalacion de
+     * una sola casa: las pruebas corren sin dominio base (`phpunit.xml`).
+     */
+    protected ?Institucion $institucionDePrueba = null;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (in_array(RefreshDatabase::class, class_uses_recursive($this), true)) {
+            $this->institucionDePrueba = Institucion::create(['nombre' => 'Institución de las pruebas']);
+            config(['institucion.por_defecto' => $this->institucionDePrueba->id]);
+        }
+    }
+
     /**
      * Las migraciones de `RefreshDatabase` corren como el DUEÑO de las tablas;
      * las pruebas, como la APLICACION.

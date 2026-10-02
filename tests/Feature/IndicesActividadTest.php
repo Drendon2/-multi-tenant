@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Actividad;
 use App\Models\InscritoActividad;
+use App\Support\InstitucionActual;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -59,11 +60,13 @@ class IndicesActividadTest extends TestCase
             $suya = $this->sembrarComoDueno($dueno);
             $dueno->statement('ANALYZE inscritos_actividad');
 
-            $plan = $this->plan(
+            // Como la 1, que es donde se sembro: la conexion del dueño no ve
+            // la institucion de la prueba, que vive en su transaccion.
+            $plan = InstitucionActual::mientras(1, fn () => $this->plan(
                 'SELECT * FROM inscritos_actividad WHERE actividad_id = ?'
                 .' ORDER BY nombre_completo, id LIMIT 50 OFFSET 0',
                 [$suya]
-            );
+            ));
         } finally {
             $this->limpiarComoDueno($dueno);
         }

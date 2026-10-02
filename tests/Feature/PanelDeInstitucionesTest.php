@@ -33,7 +33,7 @@ class PanelDeInstitucionesTest extends TestCase
         parent::setUp();
 
         config(['institucion.dominio_base' => 'localhost']);
-        Institucion::findOrFail(1)->update(['subdominio' => 'santuario']);
+        $this->institucionDePrueba->update(['subdominio' => 'santuario']);
         $this->otra = Institucion::create(['nombre' => 'Casa de Guarne', 'subdominio' => 'guarne']);
 
         $this->operador = Operador::create([
@@ -202,7 +202,7 @@ class PanelDeInstitucionesTest extends TestCase
 
     public function test_un_dominio_propio_no_se_repite(): void
     {
-        Institucion::findOrFail(1)->update(['dominio_propio' => 'matriculas.santuario.gov.co']);
+        $this->institucionDePrueba->update(['dominio_propio' => 'matriculas.santuario.gov.co']);
 
         $this->actingAs($this->operador, 'operador')
             ->post(self::PANEL.'/instituciones/'.$this->otra->id, [

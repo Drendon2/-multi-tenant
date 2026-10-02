@@ -43,7 +43,7 @@ class SuplantacionTest extends TestCase
         parent::setUp();
 
         config(['institucion.dominio_base' => 'localhost']);
-        Institucion::findOrFail(1)->update(['subdominio' => 'santuario']);
+        $this->institucionDePrueba->update(['subdominio' => 'santuario']);
         $this->otra = Institucion::create(['nombre' => 'Casa de Guarne', 'subdominio' => 'guarne']);
 
         $this->admin = InstitucionActual::mientras($this->otra->id, function () {
