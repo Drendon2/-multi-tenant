@@ -269,6 +269,13 @@ class CarneController extends Controller
      */
     private const HOLGURA_FILA = 4;
 
+    /**
+     * El alto del pie de cada hoja («Promotoria · Grupo · hoja 1 de 2»). Se le
+     * quita a las filas y no al margen: el margen es de la pinza de la
+     * impresora, y un pie metido ahi lo corta la impresora sin avisar.
+     */
+    private const ALTO_PIE = 16;
+
     public function hojaDeGrupo(Request $request, Grupo $grupo): Response
     {
         $this->exigirAdministrador($request);
@@ -278,6 +285,7 @@ class CarneController extends Controller
         return $this->hoja(
             $this->inscritosEnCurso()
                 ->whereHas('grupos', fn ($g) => $g->where('grupos.id', $grupo->id)),
+            $grupo->promotoria->nombre,
             "Carnés — {$grupo->promotoria->nombre} — {$grupo->nombre}",
             "carnes-{$grupo->promotoria->nombre}-{$grupo->nombre}"
         );
@@ -290,6 +298,12 @@ class CarneController extends Controller
      * promotoria sale UNA vez, en el primero: es UNA matricula repartida por la
      * tabla puente, y por eso se filtra con `whereHas` y no con un join, que la
      * duplicaria. Quien aun no tiene grupo sale al final.
+     *
+     * CADA GRUPO EMPIEZA HOJA NUEVA y el pie dice de cual es (02/10/2026,
+     * pedido por el usuario desde produccion: con los grupos seguidos una hoja
+     * mezclaba dos y no habia forma de saber de cual era cada carne). Elegido
+     * con el coste delante: la ultima hoja de cada grupo puede salir a medias,
+     * y eso es papel. Un pie por hoja con dos grupos dentro no resolvia nada.
      */
     public function hojaDePromotoria(Request $request, Promotoria $promotoria): Response
     {
@@ -297,6 +311,7 @@ class CarneController extends Controller
 
         return $this->hoja(
             $this->inscritosEnCurso()->where('matriculas.promotoria_id', $promotoria->id),
+            $promotoria->nombre,
             "Carnés — {$promotoria->nombre}",
             "carnes-{$promotoria->nombre}"
         );
@@ -316,22 +331,27 @@ class CarneController extends Controller
     }
 
     /** @param  Builder<Matricula>  $consulta */
-    private function hoja(Builder $consulta, string $titulo, string $archivo): Response
+    private function hoja(Builder $consulta, string $promotoria, string $titulo, string $archivo): Response
     {
+        // El grupo de cada quien es el PRIMERO por nombre, el mismo que decide
+        // el orden: si no, alguien en dos grupos saldria ordenado en uno y
+        // bajo el pie del otro.
+        $grupoDe = fn (Matricula $m): ?Grupo => $m->grupos->sortBy('nombre')->first();
+
         $matriculas = $consulta
             ->with(['estudiante', 'grupos'])
             ->get()
             ->sortBy(fn (Matricula $m) => [
                 // Sin grupo, al final: «~» va detras de cualquier letra.
-                $m->grupos->sortBy('nombre')->first()->nombre ?? '~',
+                $grupoDe($m)->nombre ?? '~',
                 Str::lower($m->estudiante->nombre_completo),
             ])
             ->values();
 
         $anchoCelda = (612 - 2 * self::MARGEN_HOJA) / self::POR_FILA;
-        $altoCelda = (792 - 2 * self::MARGEN_HOJA) / self::FILAS_POR_HOJA - self::HOLGURA_FILA;
+        $altoCelda = (792 - 2 * self::MARGEN_HOJA - self::ALTO_PIE) / self::FILAS_POR_HOJA - self::HOLGURA_FILA;
 
-        $carnes = $matriculas->map(function (Matricula $m) use ($anchoCelda, $altoCelda) {
+        $carne = function (Matricula $m) use ($anchoCelda, $altoCelda) {
             $png = CarneQr::carne($m->estudiante);
             [$ancho, $alto] = getimagesizefromstring($png) ?: [1, 1];
 
@@ -350,7 +370,7 @@ class CarneController extends Controller
                 'ancho' => round($ancho * $escala, 2),
                 'alto' => round($alto * $escala, 2),
             ];
-        })->all();
+        };
 
         // Se rellena la ultima hoja con celdas vacias: sin ellas la ultima fila
         // tendria menos columnas y dompdf ensancharia las que quedan, con lo
@@ -358,14 +378,23 @@ class CarneController extends Controller
         $porHoja = self::POR_FILA * self::FILAS_POR_HOJA;
         $hojas = [];
 
-        foreach (array_chunk($carnes, $porHoja) as $deUnaHoja) {
-            $deUnaHoja = array_pad($deUnaHoja, (int) (ceil(count($deUnaHoja) / self::POR_FILA) * self::POR_FILA), null);
-            $hojas[] = array_chunk($deUnaHoja, self::POR_FILA);
+        foreach ($matriculas->groupBy(fn (Matricula $m) => $grupoDe($m)->id ?? 0) as $deUnGrupo) {
+            $nombreGrupo = $grupoDe($deUnGrupo->first())->nombre ?? 'Sin grupo';
+            $trozos = array_chunk($deUnGrupo->map($carne)->all(), $porHoja);
+
+            foreach ($trozos as $i => $deUnaHoja) {
+                $deUnaHoja = array_pad($deUnaHoja, (int) (ceil(count($deUnaHoja) / self::POR_FILA) * self::POR_FILA), null);
+                $hojas[] = [
+                    'filas' => array_chunk($deUnaHoja, self::POR_FILA),
+                    'pie' => "{$promotoria} · {$nombreGrupo} · hoja ".($i + 1).' de '.count($trozos),
+                ];
+            }
         }
 
         $pdf = Pdf::loadView('carnes.hoja', [
             'titulo' => $titulo,
-            'hojas' => $hojas === [] ? [[array_fill(0, self::POR_FILA, null)]] : $hojas,
+            'hojas' => $hojas === [] ? [['filas' => [array_fill(0, self::POR_FILA, null)], 'pie' => $promotoria]] : $hojas,
+            'altoPie' => self::ALTO_PIE,
             'margen' => self::MARGEN_HOJA,
             'anchoCelda' => round($anchoCelda, 2),
             'altoCelda' => round($altoCelda, 2),

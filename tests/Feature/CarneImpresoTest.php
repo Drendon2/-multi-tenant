@@ -183,6 +183,21 @@ class CarneImpresoTest extends TestCase
         $this->assertSame(3, $this->carnesEnLaHoja(route('carnes-promotoria', $this->piano)));
     }
 
+    /**
+     * CADA GRUPO EN SU HOJA (02/10/2026): con los grupos seguidos, una hoja
+     * mezclaba dos y el pie no podia decir de cual era cada carne. Tres
+     * personas, cada una en un grupo distinto (o en ninguno): tres hojas, que
+     * antes cabian en una.
+     */
+    public function test_la_hoja_de_la_promotoria_empieza_hoja_en_cada_grupo(): void
+    {
+        $this->inscribir($this->perfil('ana', 'estudiante'), [$this->manana]);
+        $this->inscribir($this->perfil('luis', 'estudiante'), [$this->tarde]);
+        $this->inscribir($this->perfil('sin', 'estudiante'), []);
+
+        $this->assertSame(3, $this->paginas(route('carnes-promotoria', $this->piano)));
+    }
+
     public function test_los_botones_solo_los_ve_administracion(): void
     {
         $this->actingAs($this->admin->user)
