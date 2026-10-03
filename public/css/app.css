@@ -175,8 +175,24 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  a { color: var(--accent); }
-  a:hover { color: var(--accent-dark); }
+  /* LOS ENLACES (03/10/2026, decision del usuario: el subrayado de todos le
+     chocaba). Dos formas segun donde viven; el porque esta en DESIGN.md.
+     - En una FRASE siguen subrayados, con una linea fina y separada que se
+       marca entera al pasar el cursor: ahi el color solo no basta (el verde
+       contra la tinta da 3:1 en claro y 2,95:1 en oscuro).
+     - En una tabla o una lista los dice el SITIO —el nombre lleva a su
+       ficha— y van sin subrayar, en negrita. Con cero especificidad
+       (`:where`), para que cualquier regla con clase siga mandando. */
+  a {
+    color: var(--accent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.3em;
+    text-decoration-color: color-mix(in srgb, currentColor 30%, transparent);
+  }
+  /* `:active` es el dedo: en un telefono no existe pasar el cursor. */
+  a:hover, a:active { color: var(--accent-dark); text-decoration-color: currentColor; }
+  :where(td, th, li, dt, dd) :where(a) { text-decoration: none; font-weight: 600; }
+  :where(td, th, li, dt, dd) :where(a):is(:hover, :active) { text-decoration: underline; }
 
   h1, h2, h3, h4 { font-family: var(--font-body); color: var(--ink); text-wrap: balance; }
   h2 { font-size: 1.75rem; font-weight: 800; margin: 0 0 1.2rem; letter-spacing: -0.02em; }
@@ -3462,10 +3478,25 @@
      Y `min-height` porque este renglon se toca con el pulgar — un <summary> de
      texto suelto mide unos 20px de alto, que es justo la medida que ya se midio
      como intocable a 390px. */
+  /* EN VERDE Y CON FLECHA (03/10/2026, elegido por el usuario en el modo live
+     de Impeccable): en gris tenue y sin marcador «no se entendia que es un
+     enlace». El `inline-flex` le quita al <summary> el triangulo del
+     navegador, asi que la flecha es la que dice que se despliega. */
   .carne-qr-renovar summary {
-    display: inline-flex; align-items: center; min-height: 44px;
-    width: fit-content; cursor: pointer;
-    color: var(--ink-soft); font-size: 0.9rem;
+    display: inline-flex; align-items: center; gap: 0.35rem; min-height: 44px;
+    width: fit-content; cursor: pointer; list-style: none;
+    color: var(--accent); font-size: 0.92rem; font-weight: 600;
+  }
+  .carne-qr-renovar summary::-webkit-details-marker { display: none; }
+  .carne-qr-renovar summary:hover {
+    color: var(--accent-dark);
+    text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.3em;
+  }
+  .carne-qr-renovar summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  .carne-qr-renovar-chevron { flex-shrink: 0; transition: transform 0.15s ease; }
+  .carne-qr-renovar[open] .carne-qr-renovar-chevron { transform: rotate(180deg); }
+  @media (prefers-reduced-motion: reduce) {
+    .carne-qr-renovar .carne-qr-renovar-chevron { transition: none; }
   }
 
   /* UN NOMBRE DE USUARIO EN UNA LISTA.

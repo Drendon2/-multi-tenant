@@ -71,7 +71,7 @@
 </div>
 
 <details class="carne-qr-renovar">
-  <summary>{{ $propio ? 'Perdimos el cartón o alguien le tomó una foto' : 'Perdieron el cartón o alguien le tomó una foto' }}</summary>
+  <summary>{{ $propio ? 'Perdimos el cartón o alguien le tomó una foto' : 'Perdieron el cartón o alguien le tomó una foto' }}<svg aria-hidden="true" class="carne-qr-renovar-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></summary>
   <p class="campo-ayuda">
     Sacar un QR nuevo <strong>anula el anterior en el acto</strong>: el cartón viejo y las
     fotos que anden por ahí dejan de servir para verificar nada. Después hay que volver a

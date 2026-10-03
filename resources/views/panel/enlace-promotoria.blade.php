@@ -80,7 +80,7 @@
 
   @if ($puedeAbrir)
     <details class="carne-qr-renovar">
-      <summary>El QR se publicó donde no debía</summary>
+      <summary>El QR se publicó donde no debía<svg aria-hidden="true" class="carne-qr-renovar-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></summary>
       <p class="campo-ayuda">
         Cambiar el enlace <strong>anula el anterior en el acto</strong>: el QR viejo y el enlace que
         ande por ahí dejan de servir. Después hay que volver a compartirlo.
