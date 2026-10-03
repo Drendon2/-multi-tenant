@@ -424,8 +424,14 @@ class EstadisticasController extends Controller
                 SUM(CASE WHEN matriculas.estado IN ({$huecos}) THEN 1 ELSE 0 END) as continuan,
                 SUM(CASE WHEN matriculas.estado = ? THEN 1 ELSE 0 END) as retirados
             ", [...Matricula::ESTADOS_INSCRITO, Matricula::RETIRADA])
-            ->orderBy('areas.nombre')
+            // EMPATADAS, POR NOMBRE Y DESPUES POR ID (03/10/2026, pedido del
+            // usuario). Sin esto, dos promotorias con la misma cifra salian en
+            // el orden que trajera la agrupacion de PostgreSQL, distinto de una
+            // carga a otra. El `id` decide entre dos que se llaman igual, que
+            // la base permite: sale primero la que se creo primero.
+            ->orderBy('areas.nombre')->orderBy('areas.id')
             ->orderByDesc('continuan')
+            ->orderBy('promotorias.nombre')->orderBy('promotorias.id')
             ->get();
 
         $departamentos = [];
@@ -456,6 +462,7 @@ class EstadisticasController extends Controller
             $departamentos[$areaId]['base_renovacion'] += $base;
             $departamentos[$areaId]['no_renovaron'] += $noVolvieron;
             $departamentos[$areaId]['promotorias'][] = [
+                'id' => $promotoriaId,
                 'etiqueta' => $fila->promotoria,
                 'total' => $continuan,
                 'retirados' => $retirados,
@@ -465,6 +472,8 @@ class EstadisticasController extends Controller
         }
 
         $arbol = array_values($departamentos);
+        // `usort` es estable desde PHP 8: dos departamentos con el mismo total
+        // conservan el orden de la consulta, que es por nombre y despues por id.
         usort($arbol, fn (array $a, array $b) => $b['total'] <=> $a['total']);
 
         return array_map(

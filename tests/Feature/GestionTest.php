@@ -2577,6 +2577,45 @@ class GestionTest extends TestCase
     }
 
     /**
+     * EL REPARTO POR PROMOTORIA desempata por nombre, y despues por id
+     * (03/10/2026, pedido del usuario). Ordena por «continuan» dentro de cada
+     * departamento, y dos promotorias con la misma cifra salian en el orden
+     * que trajera la agrupacion de PostgreSQL. Se crean en orden alfabetico
+     * INVERSO a proposito, y las dos «Arpa» —la base permite el nombre
+     * repetido— para que el `id` tenga algo que decidir.
+     */
+    public function test_el_reparto_por_promotoria_desempata_por_nombre_y_despues_por_id(): void
+    {
+        $area = Area::create(['nombre' => 'Cuerdas']);
+        $creadas = [];
+        foreach (['Zampoña', 'Arpa', 'Arpa'] as $i => $nombre) {
+            $creadas[] = $promotoria = Promotoria::create(['nombre' => $nombre, 'area_id' => $area->id]);
+            $this->matricular($this->crearPerfil("cuerda{$i}", 'estudiante'), $promotoria, Matricula::ACTIVA);
+        }
+        // La primera «Arpa» se toca para que su fila pase al final de la tabla.
+        Promotoria::whereKey($creadas[1]->id)->update(['updated_at' => now()]);
+
+        // Con tan pocas filas el planificador va por indice y acierta por
+        // casualidad; sin indices lee en el orden fisico, como con volumen.
+        foreach (['enable_indexscan', 'enable_bitmapscan', 'enable_indexonlyscan'] as $ajuste) {
+            DB::statement("SET LOCAL {$ajuste} = off");
+        }
+
+        $arbol = $this->actingAs($this->admin->user)
+            ->get(route('gestion-estadisticas'))
+            ->assertOk()
+            ->viewData('arbolDepartamentos');
+
+        $cuerdas = collect($arbol)->firstWhere('id', $area->id);
+        $this->assertNotNull($cuerdas);
+        $this->assertSame(['Arpa', 'Arpa', 'Zampoña'], array_column($cuerdas['promotorias'], 'etiqueta'));
+        $this->assertSame(
+            [$creadas[1]->id, $creadas[2]->id, $creadas[0]->id],
+            array_column($cuerdas['promotorias'], 'id')
+        );
+    }
+
+    /**
      * El ranking de constancia exige un minimo de clases.
      *
      * Sin el, un 1 de 1 seria un 100 % y desplazaria a quien lleva veinte de
