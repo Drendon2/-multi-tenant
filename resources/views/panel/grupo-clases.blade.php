@@ -64,7 +64,12 @@
     <tbody>
       @foreach ($clases as $c)
       <tr>
-        <td>{{ $c['clase']->fecha_hora->isoFormat('ddd D [de] MMMM') }}</td>
+        <td>
+          {{ $c['clase']->fecha_hora->isoFormat('ddd D [de] MMMM') }}
+          @if ($reposiciones->has($c['clase']->id))
+            <span class="lista-nota lista-nota-bloque">Reposición del {{ $reposiciones[$c['clase']->id]->format('d/m/Y') }}</span>
+          @endif
+        </td>
         <td class="num">{{ $c['clase']->fecha_hora->format('H:i') }}</td>
         <td>
           @if ($c['verificada'])

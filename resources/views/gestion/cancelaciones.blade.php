@@ -176,8 +176,10 @@
 {{--
   ALERTA 1: las clases que un grupo tenía en su horario y no se dictaron.
 
-  No se pueden arreglar —el martes 12 ya pasó— así que la acción es archivar:
-  «ya hablé con quien dicta». Es lo único de esta pantalla que se guarda.
+  No se pueden arreglar —el martes 12 ya pasó— así que la acción es decir POR
+  QUÉ (03/10/2026): excusa, falta o festivo. Es lo único de esta pantalla que se
+  guarda. La falta le cuenta a quien dicta y le aparece en su Panel para
+  reponerla; las otras dos no. Ver `OmisionArchivada::CAUSAS`.
 
   `.tabla-personas` porque bajo 640px esto tiene que dejar de ser tabla: la
   acción quedaría al otro lado de un arrastre.
@@ -185,11 +187,14 @@
 <h3 style="margin-top:2.4rem;">Clases que no se dictaron</h3>
 <p class="campo-ayuda" style="margin-bottom:1rem;">
   El grupo tenía clase ese día y nadie la registró. Quien dicta tiene todo el día
-  para iniciarla y pasar lista; esto aparece al día siguiente.
+  para iniciarla y pasar lista; esto aparece al día siguiente. Di por qué no se dio:
+  <strong>Excusa</strong> no se repone ni le cuenta como perdida;
+  <strong>Falta</strong> le cuenta y le aparece en su Panel para reponerla;
+  <strong>Festivo o cierre</strong> es un día en que la institución no tenía clase.
   @if ($omisionesTotales > $clasesNoDictadas->count())
     <br><strong>Hay {{ $omisionesTotales }} en total</strong> y se muestran las
     {{ $clasesNoDictadas->count() }} más recientes; las demás van apareciendo a
-    medida que archives estas.
+    medida que atiendas estas.
   @endif
 </p>
 
@@ -232,18 +237,68 @@
       </td>
       <td data-celda="accion" class="lista-acciones">
         <span class="accion-fila">
-          <form method="post" action="{{ route('gestion-archivar-omision') }}">
-            @csrf
-            <input type="hidden" name="grupo_id" value="{{ $falta['grupo']->id }}">
-            <input type="hidden" name="fecha" value="{{ $falta['fecha']->toDateString() }}">
-            <button type="submit" class="btn btn-blanco btn-sm">Archivar</button>
-          </form>
+          @include('partials.clasificar-omision')
         </span>
       </td>
     </tr>
     @endforeach
   </tbody>
 </table>
+@endif
+
+{{--
+  LAS YA ATENDIDAS, para poder CORREGIR una causa equivocada. Sin esto, quien
+  pulsa «Falta» en vez de «Excusa» deja al profesor con una perdida y una
+  reposición que no le tocan, y no habría ninguna puerta para deshacerlo.
+
+  Plegadas: no son trabajo pendiente. Llevan `id` para que `acciones.js` las
+  deje abiertas tras corregir una — se corrige casi siempre más de una seguida.
+  Las archivadas antes del 03/10/2026 salen «Sin clasificar» y siguen contando
+  como perdidas hasta que alguien les ponga causa.
+--}}
+@if ($atendidasTotales > 0)
+<details class="panel-departamento" id="omisiones-atendidas" style="margin-top:1rem;">
+  <summary class="panel-departamento-resumen">
+    Ya atendidas
+    <span class="panel-departamento-cuenta">{{ $atendidasTotales }}</span>
+    <svg aria-hidden="true" class="perfil-seccion-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+  </summary>
+  @if ($atendidasTotales > $omisionesAtendidas->count())
+    <p class="campo-ayuda">Se muestran las {{ $omisionesAtendidas->count() }} más recientes.</p>
+  @endif
+  <table class="tabla-personas tabla-catalogo">
+    <thead>
+      <tr>
+        <th>Grupo</th>
+        <th>Día</th>
+        <th>Causa</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @foreach ($omisionesAtendidas as $falta)
+      <tr>
+        <td data-celda="detalle">
+          <span class="tag-dot {{ $falta['grupo']->promotoria->area->tag_color }}"></span><span class="lista-nombre">{{ $falta['grupo']->nombre_con_nivel }}</span>
+          <span class="lista-nota lista-nota-bloque">
+            {{ $falta['grupo']->promotoria->nombre }} ·
+            {{ $falta['grupo']->promotoria->profesor?->nombre_completo ?? 'Sin profesor asignado' }}
+          </span>
+        </td>
+        <td data-label="Día">{{ $falta['dia'] }} {{ $falta['fecha']->format('d/m/Y') }}</td>
+        <td data-label="Causa">
+          @include('partials.causa-omision')
+        </td>
+        <td data-celda="accion" class="lista-acciones">
+          <span class="accion-fila">
+            @include('partials.clasificar-omision')
+          </span>
+        </td>
+      </tr>
+      @endforeach
+    </tbody>
+  </table>
+</details>
 @endif
 
 {{--

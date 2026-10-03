@@ -75,9 +75,22 @@
       Clases perdidas: días en que un grupo tenía horario y no se registró clase,
       contados desde el {{ $perdidas['desde']->format('d/m/Y') }}, cuando se
       encendieron las alertas.
+      @if ($perdidas['faltas'])
+        {{ $perdidas['faltas'] === 1 ? 'Una está marcada' : $perdidas['faltas'].' están marcadas' }} como falta
+        @if ($perdidas['repuestas'])
+          y {{ $perdidas['repuestas'] === $perdidas['faltas'] ? ($perdidas['faltas'] === 1 ? 'ya la repusiste' : 'ya las repusiste todas') : 'ya repusiste '.$perdidas['repuestas'] }};
+          la reposición cuenta como clase dada, pero la clase de ese día no se dio.
+        @else
+          y te {{ $perdidas['faltas'] === 1 ? 'aparece' : 'aparecen' }} en el Panel para reponer.
+        @endif
+      @endif
       @if ($perdidas['archivadas'])
-        {{ $perdidas['archivadas'] === $perdidas['total'] ? ($perdidas['total'] === 1 ? 'Está archivada' : 'Todas están archivadas') : $perdidas['archivadas'].' de ellas '.($perdidas['archivadas'] === 1 ? 'está archivada' : 'están archivadas') }}
-        en la bandeja de alertas: ya se habló de ellas, pero cuentan porque la clase no se dio.
+        {{ $perdidas['archivadas'] === 1 ? 'Una se archivó' : $perdidas['archivadas'].' se archivaron' }}
+        en la bandeja de alertas sin decir por qué: cuentan porque la clase no se dio.
+      @endif
+      @if ($perdidas['excusas'] || $perdidas['institucion'])
+        No cuentan
+        {{ $perdidas['excusas'] ? $perdidas['excusas'].' con excusa' : '' }}{{ $perdidas['excusas'] && $perdidas['institucion'] ? ' ni ' : '' }}{{ $perdidas['institucion'] ? $perdidas['institucion'].' por festivo o cierre de la institución' : '' }}.
       @endif
     @endif
   </li>

@@ -6,6 +6,7 @@ use App\Models\Asistencia;
 use App\Models\ConfiguracionInstitucion;
 use App\Models\Grupo;
 use App\Models\Matricula;
+use App\Models\OmisionArchivada;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
@@ -26,6 +27,11 @@ use Illuminate\Support\Carbon;
  *   27/09/2026, viendo Percusion en produccion: 2 perdidas a la vista y 18
  *   reales): archivar limpia la bandeja, pero la clase no se dio. Se dice
  *   cuantas estan archivadas.
+ *   Desde el 03/10/2026 la bandeja dice POR QUE (decision del usuario): la
+ *   EXCUSA y el FESTIVO O CIERRE salen de la cifra y se dicen aparte; la
+ *   FALTA cuenta aunque se haya repuesto —ese dia no hubo clase igual—, y la
+ *   reposicion se dice aparte. Lo archivado antes, sin causa, sigue contando.
+ *   Ver `OmisionArchivada::cuentaComoPerdida()`.
  * - CANCELACIONES son solo las TRAMITADAS: pedidas por el estudiante y
  *   aprobadas por la direccion (`motivo_retiro = cancelacion`). Quien se retiro
  *   solo o fue retirado por inasistencia no entra.
@@ -160,28 +166,48 @@ class EstadisticasDeProfesor
      * cero ahi se leeria como «no falto a ninguna»: las alertas apagadas, y un
      * periodo que termino antes de que empezaran a contar.
      *
-     * @return array{total: ?int, archivadas: int, porGrupo: array<int, int>, motivo: ?string, desde: ?Carbon}
+     * `archivadas` son las archivadas SIN causa (las de antes del 03/10/2026);
+     * `faltas`, `repuestas`, `excusas` e `institucion` salen de la causa.
+     *
+     * @return array{total: ?int, archivadas: int, faltas: int, repuestas: int, excusas: int, institucion: int, porGrupo: array<int, int>, motivo: ?string, desde: ?Carbon}
      */
     private static function perdidas(Perfil $profesor, Periodo $periodo): array
     {
         if (! ConfiguracionInstitucion::actual()->alerta_clase_no_dictada) {
-            return ['total' => null, 'archivadas' => 0, 'porGrupo' => [], 'motivo' => 'apagadas', 'desde' => null];
+            return self::sinCifra('apagadas', null);
         }
 
         $desde = Alertas::desde($periodo);
 
         if ($desde->gt(Carbon::parse($periodo->fecha_fin)->startOfDay())) {
-            return ['total' => null, 'archivadas' => 0, 'porGrupo' => [], 'motivo' => 'fuera', 'desde' => $desde];
+            return self::sinCifra('fuera', $desde);
         }
 
-        $faltas = Alertas::clasesNoDictadas($periodo, $profesor, conArchivadas: true);
+        $todas = Alertas::clasesNoDictadas($periodo, $profesor, conArchivadas: true);
+        $cuentan = $todas->filter(fn ($f) => OmisionArchivada::cuentaComoPerdida($f['causa']));
+        $faltas = $todas->where('causa', OmisionArchivada::FALTA);
 
         return [
-            'total' => $faltas->count(),
-            'archivadas' => $faltas->where('archivada', true)->count(),
-            'porGrupo' => $faltas->countBy(fn ($f) => $f['grupo']->id)->all(),
+            'total' => $cuentan->count(),
+            'archivadas' => $cuentan->where('archivada', true)->whereNull('causa')->count(),
+            'faltas' => $faltas->count(),
+            'repuestas' => $faltas->where('repuesta', true)->count(),
+            'excusas' => $todas->where('causa', OmisionArchivada::EXCUSA)->count(),
+            'institucion' => $todas->where('causa', OmisionArchivada::INSTITUCION)->count(),
+            'porGrupo' => $cuentan->countBy(fn ($f) => $f['grupo']->id)->all(),
             'motivo' => null,
             'desde' => $desde,
+        ];
+    }
+
+    /**
+     * @return array{total: null, archivadas: int, faltas: int, repuestas: int, excusas: int, institucion: int, porGrupo: array<int, int>, motivo: string, desde: ?Carbon}
+     */
+    private static function sinCifra(string $motivo, ?Carbon $desde): array
+    {
+        return [
+            'total' => null, 'archivadas' => 0, 'faltas' => 0, 'repuestas' => 0,
+            'excusas' => 0, 'institucion' => 0, 'porGrupo' => [], 'motivo' => $motivo, 'desde' => $desde,
         ];
     }
 

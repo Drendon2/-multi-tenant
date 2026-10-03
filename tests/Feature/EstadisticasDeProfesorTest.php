@@ -196,7 +196,45 @@ class EstadisticasDeProfesorTest extends TestCase
         // La contraparte: de la bandeja de alertas si sale.
         $this->assertSame(0, Alertas::clasesNoDictadas($this->actual, $this->profe)->count());
 
-        $this->actingAs($this->profe->user)->get(route('mis-estadisticas'))->assertSee('Está archivada');
+        $this->actingAs($this->profe->user)->get(route('mis-estadisticas'))->assertSee('se archivó');
+    }
+
+    /**
+     * LA CAUSA DECIDE SI CUENTA (03/10/2026, decision del usuario): la excusa
+     * y el festivo o cierre salen de la cifra; la falta se queda.
+     */
+    public function test_la_excusa_y_el_festivo_no_cuentan_como_perdidas(): void
+    {
+        OmisionArchivada::create(['grupo_id' => $this->grupoPiano->id, 'fecha' => '2026-03-03', 'causa' => OmisionArchivada::EXCUSA]);
+        OmisionArchivada::create(['grupo_id' => $this->grupoPiano->id, 'fecha' => '2026-03-10', 'causa' => OmisionArchivada::INSTITUCION]);
+
+        $perdidas = $this->datos()['perdidas'];
+
+        $this->assertSame(0, $perdidas['total']);
+        $this->assertSame(1, $perdidas['excusas']);
+        $this->assertSame(1, $perdidas['institucion']);
+        $this->assertSame([], $perdidas['porGrupo']);
+    }
+
+    /**
+     * Una falta REPUESTA sigue contando: la clase de ese dia no se dio igual. La
+     * reposicion se dice aparte.
+     */
+    public function test_una_falta_repuesta_sigue_contando_y_se_dice(): void
+    {
+        $reposicion = $this->clase($this->grupoPiano, '2026-03-05 08:00:00');
+        OmisionArchivada::create([
+            'grupo_id' => $this->grupoPiano->id, 'fecha' => '2026-03-03',
+            'causa' => OmisionArchivada::FALTA, 'repuesta_en_id' => $reposicion->id,
+        ]);
+        OmisionArchivada::create(['grupo_id' => $this->grupoPiano->id, 'fecha' => '2026-03-10', 'causa' => OmisionArchivada::FALTA]);
+
+        $perdidas = $this->datos()['perdidas'];
+
+        $this->assertSame(2, $perdidas['total']);
+        $this->assertSame(2, $perdidas['faltas']);
+        $this->assertSame(1, $perdidas['repuestas']);
+        $this->assertSame(0, $perdidas['archivadas']);
     }
 
     public function test_con_las_alertas_apagadas_no_pinta_un_cero_de_perdidas(): void

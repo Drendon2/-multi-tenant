@@ -84,7 +84,10 @@ class Alertas
      * contarla: en produccion, Percusion salia con 2 clases perdidas y le
      * faltaron 18, porque 16 estaban archivadas. La bandeja sigue sin ellas.
      *
-     * @return Collection<int, array{grupo: Grupo, fecha: Carbon, dia: string, archivada: bool}>
+     * Desde el 03/10/2026 cada una trae tambien su `causa` (nula si no se ha
+     * clasificado o es de las archivadas de antes) y si ya se `repuso`.
+     *
+     * @return Collection<int, array{grupo: Grupo, fecha: Carbon, dia: string, archivada: bool, causa: ?string, repuesta: bool}>
      */
     public static function clasesNoDictadas(Periodo $periodo, ?Perfil $quienMira = null, bool $conArchivadas = false): Collection
     {
@@ -108,6 +111,13 @@ class Alertas
         // pregunta, se deduce de tener la lista entera delante.
         $dictadas = InstitucionActual::tabla('clases')
             ->where('periodo_id', $periodo->id)
+            // Una REPOSICION no es la clase de su dia (03/10/2026): si quien
+            // dicta repone el martes pasado un martes en que no dio la suya,
+            // contarla taparia la falta de hoy con la clase de la semana
+            // pasada. Sigue en la misma consulta, con una subconsulta.
+            ->whereNotIn('id', InstitucionActual::tabla('omisiones_archivadas')
+                ->whereNotNull('repuesta_en_id')
+                ->select('repuesta_en_id'))
             ->selectRaw('grupo_id, DATE(fecha_hora) as fecha')
             ->distinct()
             ->get()
@@ -115,10 +125,9 @@ class Alertas
             ->flip();
 
         $archivadas = InstitucionActual::tabla('omisiones_archivadas')
-            ->select('grupo_id', 'fecha')
+            ->select('id', 'grupo_id', 'fecha', 'causa', 'repuesta_en_id')
             ->get()
-            ->map(fn ($f) => $f->grupo_id.'|'.Carbon::parse($f->fecha)->toDateString())
-            ->flip();
+            ->keyBy(fn ($f) => $f->grupo_id.'|'.Carbon::parse($f->fecha)->toDateString());
 
         // ACOTADO A QUIEN MIRA desde el 12/09/2026: un director solo ve las
         // alertas de los departamentos que administra. El recorte va AQUI, en
@@ -167,7 +176,8 @@ class Alertas
                 if (in_array($fecha->dayOfWeekIso, $dias, true)) {
                     $clave = $grupoId.'|'.$fecha->toDateString();
 
-                    $archivada = $archivadas->has($clave);
+                    $omision = $archivadas->get($clave);
+                    $archivada = $omision !== null;
 
                     if (! $dictadas->has($clave) && ($conArchivadas || ! $archivada)) {
                         $faltantes->push([
@@ -175,6 +185,8 @@ class Alertas
                             'fecha' => $fecha->copy(),
                             'dia' => SesionGrupo::DIAS[$fecha->dayOfWeekIso] ?? '',
                             'archivada' => $archivada,
+                            'causa' => $omision?->causa,
+                            'repuesta' => $omision?->repuesta_en_id !== null,
                         ]);
                     }
                 }

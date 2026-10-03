@@ -18,6 +18,7 @@ use App\Support\Reglas;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -111,9 +112,16 @@ class CancelacionesController extends Controller
 
         // Sin periodo en curso no hay nada que cruzar: ni horario que mirar ni
         // clases que buscar. Las dos alertas se apagan solas.
-        $omisiones = ($config->alerta_clase_no_dictada && $periodo)
-            ? Alertas::clasesNoDictadas($periodo, $perfil)
+        //
+        // Se piden CON las ya atendidas y se parten aqui: las de la bandeja y
+        // las que ya tienen causa, que se enseñan aparte para poder CORREGIR
+        // una clasificacion equivocada. Es el mismo recorrido —las mismas
+        // cuatro consultas— y asi las dos listas no pueden discrepar.
+        $todas = ($config->alerta_clase_no_dictada && $periodo)
+            ? Alertas::clasesNoDictadas($periodo, $perfil, conArchivadas: true)
             : collect();
+        $omisiones = $todas->where('archivada', false)->values();
+        $atendidas = $todas->where('archivada', true)->values();
 
         return view('gestion.cancelaciones', [
             'pendientes' => $pendientes,
@@ -124,6 +132,9 @@ class CancelacionesController extends Controller
             // unicas que todavia se pueden recuperar hablando con quien dicta.
             'clasesNoDictadas' => $omisiones->take(self::OMISIONES_VISIBLES),
             'omisionesTotales' => $omisiones->count(),
+            'omisionesAtendidas' => $atendidas->take(self::OMISIONES_VISIBLES),
+            'atendidasTotales' => $atendidas->count(),
+            'causas' => OmisionArchivada::CAUSAS,
             'abandonos' => ($config->alerta_abandono && $periodo)
                 ? Alertas::posiblesAbandonos($periodo, $perfil)
                 : collect(),
@@ -162,31 +173,47 @@ class CancelacionesController extends Controller
     }
 
     /**
-     * Archiva una clase no dictada: «ya lo hable con quien dicta».
+     * Atiende una clase no dictada diciendo POR QUE no se dio.
      *
      * Es lo UNICO que se guarda de las alertas, y es porque esta no se arregla
-     * nunca: el martes 12 ya paso. Sin archivar, la bandeja arrastraria el
-     * periodo entero y dejaria de servir para ver lo que falta por atender.
+     * nunca: el martes 12 ya paso. Hasta el 03/10/2026 solo se ARCHIVABA; desde
+     * ese dia se elige la causa (decision del usuario), porque una incapacidad
+     * y una falta sin aviso no pesan igual: la falta le cuenta al profesor y le
+     * aparece en el Panel para reponerla, la excusa y el dia sin clase de la
+     * institucion no. Ver `OmisionArchivada::CAUSAS`.
      *
-     * `updateOrCreate` y no `create`: dos personas pueden archivar la misma
+     * Sirve tambien para CORREGIR una causa ya puesta: la bandeja enseña las
+     * atendidas con el mismo formulario. Si una falta ya repuesta pasa a
+     * excusa, la reposicion se queda enlazada —la clase se dio, y borrar el
+     * enlace la convertiria en la clase de su dia en las alertas—.
+     *
+     * `updateOrCreate` y no `create`: dos personas pueden clasificar la misma
      * desde dos pestañas, y la clave unica (grupo, fecha) haria fallar la
      * segunda. Que gane la ultima es exactamente lo que se quiere.
      */
-    public function archivarOmision(Request $request): RedirectResponse
+    public function clasificarOmision(Request $request): RedirectResponse
     {
         $datos = $request->validate([
             'grupo_id' => ['required', Reglas::existe('grupos')],
             'fecha' => ['required', 'date'],
+            'causa' => ['required', Rule::in(array_keys(OmisionArchivada::CAUSAS))],
+        ], [
+            'causa.required' => 'Elige por qué no se dio la clase.',
+            'causa.in' => 'Elige por qué no se dio la clase.',
         ]);
 
         $this->cerrarSiEsAjena(Grupo::findOrFail($datos['grupo_id'])->promotoria);
 
         OmisionArchivada::updateOrCreate(
             ['grupo_id' => $datos['grupo_id'], 'fecha' => $datos['fecha']],
-            ['archivada_por_id' => auth()->user()?->perfil?->id],
+            ['causa' => $datos['causa'], 'archivada_por_id' => auth()->user()?->perfil?->id],
         );
 
-        return $this->volver('Aviso archivado.', exito: true);
+        return $this->volver(match ($datos['causa']) {
+            OmisionArchivada::FALTA => 'Quedó como falta. A quien dicta le aparece en su Panel para reponerla.',
+            OmisionArchivada::EXCUSA => 'Quedó como excusa: no se repone ni le cuenta como perdida.',
+            default => 'Quedó como día sin clase por la institución.',
+        }, exito: true);
     }
 
     /**

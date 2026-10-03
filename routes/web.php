@@ -319,6 +319,9 @@ Route::middleware(['auth', 'rol:administrador,director,profesor'])->group(functi
     // Clases y asistencia
     Route::post('/panel/grupos/{grupo}/clase-nueva', [ClaseController::class, 'nueva'])
         ->name('panel-clase-nueva');
+    // Reponer una clase que la bandeja de alertas marco como falta.
+    Route::post('/panel/reposiciones/{omision}', [ClaseController::class, 'reponer'])
+        ->name('panel-reponer-clase');
     Route::get('/panel/grupos/{grupo}/clases', [ClaseController::class, 'delGrupo'])
         ->name('grupo-clases');
     Route::get('/panel/clases/{clase}/asistencia', [ClaseController::class, 'asistencia'])
@@ -570,8 +573,8 @@ Route::middleware(['auth', 'rol:administrador,director'])->prefix('gestion')->gr
     // Las dos acciones de las alertas. Van ANTES de la de `{matricula}` por lo
     // mismo que «lote»: con el comodin por delante, «omision» se leeria como el
     // id de una matricula.
-    Route::post('/cancelaciones/omision', [Gestion\CancelacionesController::class, 'archivarOmision'])
-        ->name('gestion-archivar-omision');
+    Route::post('/cancelaciones/omision', [Gestion\CancelacionesController::class, 'clasificarOmision'])
+        ->name('gestion-clasificar-omision');
     Route::post('/cancelaciones/{matricula}/abandono', [Gestion\CancelacionesController::class, 'retirarPorAbandono'])
         ->name('gestion-retirar-abandono');
     Route::post('/cancelaciones/{matricula}/{decision}', [Gestion\CancelacionesController::class, 'resolver'])

@@ -121,6 +121,20 @@ class Clase extends Model
     }
 
     /**
+     * Fuera las REPOSICIONES (03/10/2026): las que reponen una falta que la
+     * bandeja de alertas marco. Para preguntar «¿ya hay clase de hoy?» una
+     * reposicion no cuenta: quien repone la del martes pasado y luego da la
+     * suya acabaria pasando lista de la de hoy en la hoja de la reposicion.
+     */
+    public function scopeSinReposiciones(Builder $query): Builder
+    {
+        return $query->whereNotIn(
+            $query->qualifyColumn('id'),
+            OmisionArchivada::whereNotNull('repuesta_en_id')->select('repuesta_en_id')
+        );
+    }
+
+    /**
      * Cuantas confirmaciones necesita una clase de un grupo de ese tamano.
      *
      * Tres es el numero normal. Un grupo de uno o dos estudiantes no puede

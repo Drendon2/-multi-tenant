@@ -14,6 +14,46 @@
 @include('partials.recordar-encuesta')
 
 {{--
+  CLASES POR REEMPLAZAR (03/10/2026, pedido del usuario): las clases que la
+  bandeja de alertas marcó como FALTA y todavía no se han repuesto. Solo las de
+  quien dicta (`PanelController::clasesPorReponer()`).
+
+  Va ARRIBA de todo y ABIERTO: es trabajo pendiente, y como nada le avisa a
+  nadie de nada en este sistema, esta lista es la única forma de que el
+  profesor se entere. «Dictar reposición» inicia una clase ahora y lleva a
+  pasar lista; al guardarla se va de aquí sola.
+--}}
+@if ($porReponer->isNotEmpty())
+<details class="panel-departamento" id="bloque-por-reponer" open>
+  <summary class="panel-departamento-resumen">
+    Clases por reemplazar
+    <span class="panel-departamento-cuenta">{{ $porReponer->count() }}</span>
+    <svg aria-hidden="true" class="perfil-seccion-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+  </summary>
+
+  <p class="campo-ayuda" style="margin:0.5rem 0;">
+    Clases que no se dieron y que dirección marcó como falta. Cuando des la
+    reposición, iníciala desde aquí para que quede registrada como tal.
+  </p>
+
+  <ul class="sesiones-rapidas">
+    @foreach ($porReponer as $omision)
+    <li>
+      <span class="sesiones-rapidas-fecha">{{ $omision->fecha->format('d/m/Y') }}</span>
+      <span class="tag-dot {{ $omision->grupo->promotoria->area->tag_color }}"></span>
+      <span>{{ $omision->grupo->promotoria->nombre }} · {{ $omision->grupo->nombre_con_nivel }}</span>
+      <form method="post" action="{{ route('panel-reponer-clase', $omision) }}">
+        @csrf
+        <button type="submit" class="btn btn-sm"
+                aria-label="Dictar reposición: {{ $omision->grupo->nombre_con_nivel }}, {{ $omision->fecha->format('d/m/Y') }}">Dictar reposición</button>
+      </form>
+    </li>
+    @endforeach
+  </ul>
+</details>
+@endif
+
+{{--
   LAS CLASES DE LA SEMANA, con un selector de día que NO pide nada al servidor.
 
   Lo pidió el usuario el 06/09/2026: «un filtro por día y hora para los grupos,

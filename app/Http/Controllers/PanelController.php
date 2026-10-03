@@ -10,6 +10,7 @@ use App\Models\CupoPromotoria;
 use App\Models\DocumentoRequerido;
 use App\Models\Grupo;
 use App\Models\Matricula;
+use App\Models\OmisionArchivada;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
@@ -149,6 +150,41 @@ class PanelController extends Controller
         return $clases;
     }
 
+    /**
+     * Las faltas que quien dicta tiene por reponer (03/10/2026).
+     *
+     * Las marca la bandeja de alertas —administracion o direccion dicen
+     * «Falta»— y se van de aqui en cuanto se registra la reposicion. Solo las
+     * del periodo EN CURSO: la reposicion se registra en el periodo en curso,
+     * y reponer en 2026-2 una clase de 2026-1 no tiene donde quedar.
+     *
+     * Acotado por `profesor_id` como `clasesDeLaSemana()`, y por lo mismo:
+     * aqui se ve lo que esta persona tiene que hacer, no lo que puede ver.
+     *
+     * @return Collection<int, OmisionArchivada>
+     */
+    private function clasesPorReponer(Perfil $perfil): Collection
+    {
+        $periodo = Periodo::enCurso();
+
+        if ($periodo === null) {
+            return new Collection;
+        }
+
+        return OmisionArchivada::query()
+            ->where('causa', OmisionArchivada::FALTA)
+            ->whereNull('repuesta_en_id')
+            ->whereBetween('fecha', [$periodo->fecha_inicio, $periodo->fecha_fin])
+            ->whereIn('grupo_id', Grupo::whereIn(
+                'promotoria_id',
+                Promotoria::where('profesor_id', $perfil->id)->select('id')
+            )->select('id'))
+            ->with('grupo.promotoria.area')
+            ->orderBy('fecha')
+            ->orderBy('id')
+            ->get();
+    }
+
     private function datosDelIndice(Perfil $perfil): array
     {
         $promotorias = $this->visiblesPara($perfil)
@@ -224,6 +260,7 @@ class PanelController extends Controller
             // LA SEMANA ENTERA, y el dia se elige en el navegador. Ver
             // `clasesDeLaSemana()`.
             'clasesDeLaSemana' => $this->clasesDeLaSemana($perfil),
+            'porReponer' => $this->clasesPorReponer($perfil),
             // El dia de HOY, para que el selector arranque ahi. Nulo el
             // domingo, que la casa no abre: entonces se ven los seis dias.
             'diaDeHoy' => (int) Carbon::today()->dayOfWeekIso <= 6
@@ -1008,6 +1045,7 @@ class PanelController extends Controller
         return Clase::query()
             ->where('periodo_id', $periodo->id)
             ->whereDate('fecha_hora', today())
+            ->sinReposiciones()
             ->whereIn('grupo_id', $promotoria->grupos->pluck('id'))
             ->get()
             ->keyBy('grupo_id')

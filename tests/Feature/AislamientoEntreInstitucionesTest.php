@@ -8,6 +8,7 @@ use App\Models\DatosEstudiante;
 use App\Models\Grupo;
 use App\Models\Institucion;
 use App\Models\Matricula;
+use App\Models\OmisionArchivada;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
@@ -207,6 +208,44 @@ class AislamientoEntreInstitucionesTest extends TestCase
         $this->actingAs($this->casa['estudiante']->user)
             ->get(self::CASA.'/unirse/'.$token)
             ->assertNotFound();
+    }
+
+    /**
+     * «Clases por reemplazar» (traido de main el 03/10/2026): la falta de una
+     * casa no sale en el Panel de la otra ni se repone desde alli. Las dos
+     * mitades: cada profesor ve la suya y no la ajena.
+     */
+    public function test_las_faltas_por_reponer_no_cruzan_de_institucion(): void
+    {
+        $faltaDe = function (array $casa): OmisionArchivada {
+            /** @var Grupo $grupo */
+            $grupo = $casa['promotoria']->grupos()->create([
+                'nombre' => 'Grupo A', 'nivel' => 'basico', 'cupo_maximo' => 10, 'salon' => '',
+            ]);
+
+            return OmisionArchivada::create([
+                'grupo_id' => $grupo->id,
+                'fecha' => '2026-03-10',
+                'causa' => OmisionArchivada::FALTA,
+            ]);
+        };
+
+        $mia = $faltaDe($this->casa);
+        $ajena = InstitucionActual::mientras($this->otra['institucion']->id, fn () => $faltaDe($this->otra));
+
+        $this->actingAs($this->casa['profesor']->user)->get(self::CASA.'/panel')
+            ->assertOk()
+            ->assertSee(route('panel-reponer-clase', $mia), false)
+            ->assertDontSee('/panel/reposiciones/'.$ajena->id, false);
+
+        $this->actingAs($this->casa['profesor']->user)
+            ->post(self::CASA.'/panel/reposiciones/'.$ajena->id)
+            ->assertNotFound();
+
+        $this->actingAs($this->otra['profesor']->user)->get(self::OTRA.'/panel')
+            ->assertOk()
+            ->assertSee('/panel/reposiciones/'.$ajena->id, false)
+            ->assertDontSee('/panel/reposiciones/'.$mia->id, false);
     }
 
     public function test_las_cifras_sin_modelo_no_suman_la_otra_institucion(): void

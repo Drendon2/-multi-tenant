@@ -752,9 +752,10 @@ class DirectorPorDepartamentoTest extends TestCase
         ]);
 
         $this->actingAs($this->director->user)
-            ->post(route('gestion-archivar-omision'), [
+            ->post(route('gestion-clasificar-omision'), [
                 'grupo_id' => $grupoAjeno->id,
                 'fecha' => Carbon::today()->subDay()->toDateString(),
+                'causa' => 'excusa',
             ])->assertNotFound();
         $this->assertDatabaseMissing('omisiones_archivadas', ['grupo_id' => $grupoAjeno->id]);
     }

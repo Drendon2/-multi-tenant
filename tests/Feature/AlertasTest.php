@@ -510,9 +510,10 @@ class AlertasTest extends TestCase
         $this->horarioEn(2);
 
         $this->actingAs($this->admin->user)
-            ->post(route('gestion-archivar-omision'), [
+            ->post(route('gestion-clasificar-omision'), [
                 'grupo_id' => $this->grupo->id,
                 'fecha' => '2026-03-03',
+                'causa' => OmisionArchivada::FALTA,
             ])
             ->assertSessionHas('success');
 
@@ -531,9 +532,10 @@ class AlertasTest extends TestCase
 
         foreach ([1, 2] as $vez) {
             $this->actingAs($this->admin->user)
-                ->post(route('gestion-archivar-omision'), [
+                ->post(route('gestion-clasificar-omision'), [
                     'grupo_id' => $this->grupo->id,
                     'fecha' => '2026-03-03',
+                    'causa' => OmisionArchivada::EXCUSA,
                 ])
                 ->assertSessionHas('success');
         }

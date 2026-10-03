@@ -7,6 +7,7 @@ use App\Models\Clase;
 use App\Models\ConfirmacionClase;
 use App\Models\Grupo;
 use App\Models\Matricula;
+use App\Models\OmisionArchivada;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Support\CarneQr;
@@ -19,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 /**
@@ -66,6 +68,7 @@ class ClaseController extends Controller
 
         $deHoy = Clase::where('grupo_id', $grupo->id)
             ->whereDate('fecha_hora', today())
+            ->sinReposiciones()
             ->first();
 
         if ($deHoy !== null) {
@@ -81,6 +84,67 @@ class ClaseController extends Controller
         $clase = Clase::abrir($grupo, $periodo, $perfil);
 
         return redirect()->route('clase-asistencia', $clase);
+    }
+
+    /**
+     * Registra AHORA la clase que repone una falta, y lleva a pasar lista.
+     *
+     * Pedido por el usuario el 03/10/2026: una clase que la bandeja de alertas
+     * marco como FALTA le aparece a quien dicta en su Panel, en «Clases por
+     * reemplazar», y se repone desde ahi. La reposicion es una clase como
+     * cualquier otra —su lista, la confirmacion de los estudiantes—, asi que
+     * tiene la misma evidencia detras; lo unico que se añade es el enlace con
+     * la falta que repone.
+     *
+     * La misma puerta que «Iniciar clase» (`dictaLaPromotoria`), y con ella el
+     * corte de la gestion asistida: una reposicion registrada por quien no la
+     * dio no seria evidencia de nada.
+     *
+     * El bloqueo de la fila es por el doble toque: dos clases para una falta
+     * dejarian una de ellas suelta, contando como la clase de su dia.
+     */
+    public function reponer(Request $request, OmisionArchivada $omision): RedirectResponse
+    {
+        /** @var Perfil $perfil */
+        $perfil = $request->attributes->get('perfil');
+
+        abort_unless($omision->causa === OmisionArchivada::FALTA, 404);
+
+        /** @var Grupo $grupo */
+        $grupo = $omision->grupo;
+
+        if (! Permisos::dictaLaPromotoria($perfil, $grupo->promotoria)) {
+            return redirect()->route('panel')->with('error', self::SOLO_EL_PROFESOR);
+        }
+
+        $periodo = Periodo::enCurso();
+
+        if ($periodo === null) {
+            return redirect()->route('panel')->with(
+                'error',
+                'No hay un periodo en curso, así que la reposición no se puede registrar en ninguno. '
+                .'Pide que marquen el periodo en curso desde Gestión.'
+            );
+        }
+
+        $clase = DB::transaction(function () use ($omision, $grupo, $periodo, $perfil) {
+            $fila = OmisionArchivada::whereKey($omision->id)->lockForUpdate()->firstOrFail();
+
+            if ($fila->repuesta_en_id !== null) {
+                return Clase::find($fila->repuesta_en_id);
+            }
+
+            $clase = Clase::abrir($grupo, $periodo, $perfil);
+            $fila->repuesta_en_id = $clase->id;
+            $fila->save();
+
+            return $clase;
+        });
+
+        return redirect()->route('clase-asistencia', $clase)->with(
+            'success',
+            'Reposición de la clase del '.$omision->fecha->format('d/m/Y').'. Pasa lista.'
+        );
     }
 
     /**
@@ -534,6 +598,12 @@ class ClaseController extends Controller
             'periodo' => $periodo,
             'clases' => $clases,
             'filas' => $filas,
+            // Que clases son REPOSICIONES y de que dia (03/10/2026). Sin esto,
+            // quien supervisa ve una clase un jueves en un grupo de martes y no
+            // sabe por que. Una consulta, sea cual sea el numero de clases.
+            'reposiciones' => OmisionArchivada::query()
+                ->whereIn('repuesta_en_id', array_map(fn ($c) => $c['clase']->id, $clases))
+                ->pluck('fecha', 'repuesta_en_id'),
             'puedeMarcar' => Permisos::dictaLaPromotoria($perfil, $grupo->promotoria),
             // Los carnes del grupo: la misma puerta que el carne de otra
             // persona, solo administracion (ver `CarneController`).
