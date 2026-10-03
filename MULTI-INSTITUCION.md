@@ -201,6 +201,9 @@ encuestas_satisfaccion, grupos, inscritos_actividad, instituciones_externas,
 matriculas, omisiones_archivadas, perfiles, periodos, promotorias,
 restablecimientos_clave, sesiones_actividad, sesiones_grupo, users.
 
+- **Añadidas después** (cada una con su guion en `database/sql/postgres/` y
+  RLS): `suplantaciones` (05) y `omisiones_externas` (08, 03/10/2026: la causa
+  de una semana sin clase de un programa externo).
 - También la llevan las tablas hijas, que ya quedarían aisladas por su padre:
   RLS la necesitará en cada una.
 - **Sin ella**, las 8 del framework: migrations, cache, cache_locks, jobs,
