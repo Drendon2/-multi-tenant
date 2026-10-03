@@ -579,6 +579,9 @@ Route::middleware(['auth', 'rol:administrador,director'])->prefix('gestion')->gr
         ->name('gestion-clasificar-omisiones-lote');
     Route::post('/cancelaciones/festivo', [Gestion\CancelacionesController::class, 'marcarFestivo'])
         ->name('gestion-marcar-festivo');
+    // Solo administracion: el controlador da 404 a cualquier otro rol.
+    Route::post('/cancelaciones/semana-externa', [Gestion\CancelacionesController::class, 'clasificarSemanaExterna'])
+        ->name('gestion-clasificar-semana-externa');
     Route::post('/cancelaciones/{matricula}/abandono', [Gestion\CancelacionesController::class, 'retirarPorAbandono'])
         ->name('gestion-retirar-abandono');
     Route::post('/cancelaciones/{matricula}/{decision}', [Gestion\CancelacionesController::class, 'resolver'])

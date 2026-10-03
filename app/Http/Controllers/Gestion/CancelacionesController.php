@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Gestion;
 
 use App\Http\Controllers\Controller;
+use App\Models\Actividad;
 use App\Models\Clase;
 use App\Models\ConfiguracionInstitucion;
 use App\Models\Grupo;
 use App\Models\Matricula;
 use App\Models\OmisionArchivada;
+use App\Models\OmisionExterna;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
@@ -126,7 +128,16 @@ class CancelacionesController extends Controller
         $omisiones = $todas->where('archivada', false)->values();
         $atendidas = $todas->where('archivada', true)->values();
 
+        // Las semanas sin clase de los programas externos (03/10/2026): SOLO
+        // administracion, y con el mismo interruptor que la de los grupos. No
+        // dependen del periodo: las gobiernan las fechas de cada institucion.
+        $externas = ($config->alerta_clase_no_dictada && $perfil->rol === 'administrador')
+            ? Alertas::semanasSinClaseExterna(conAtendidas: true)
+            : collect();
+
         return view('gestion.cancelaciones', [
+            'semanasExternas' => $externas->where('atendida', false)->values(),
+            'semanasExternasAtendidas' => $externas->where('atendida', true)->take(self::OMISIONES_VISIBLES)->values(),
             'pendientes' => $pendientes,
             // Se enseñan las mas recientes y se dice cuantas hay. En la base de
             // desarrollo salieron 596 de golpe —un periodo desde enero con 26
@@ -315,6 +326,46 @@ class CancelacionesController extends Controller
 
         $omision->archivada_por_id = auth()->user()?->perfil?->id;
         $omision->save();
+    }
+
+    /**
+     * Dice por que un programa externo no tuvo clase en una semana (03/10/2026).
+     *
+     * Las mismas tres causas que un grupo, sin reposicion: sin horario no hay
+     * contra que medir una clase de mas. SOLO administracion, como la alerta:
+     * un director que llegara aqui a mano recibe un 404, no un permiso a
+     * medias. La semana se normaliza a su LUNES, que es como se guarda.
+     */
+    public function clasificarSemanaExterna(Request $request): RedirectResponse
+    {
+        /** @var Perfil $perfil */
+        $perfil = $request->attributes->get('perfil');
+        abort_unless($perfil->rol === 'administrador', 404);
+
+        $datos = $request->validate([
+            'actividad_id' => ['required', 'integer'],
+            'semana' => ['required', 'date'],
+            'causa' => ['required', Rule::in(array_keys(OmisionArchivada::CAUSAS))],
+        ], [
+            'causa.required' => 'Elige por qué no hubo clase esa semana.',
+            'causa.in' => 'Elige por qué no hubo clase esa semana.',
+        ]);
+
+        $programa = Actividad::externos()->findOrFail($datos['actividad_id']);
+
+        OmisionExterna::updateOrCreate(
+            [
+                'actividad_id' => $programa->id,
+                'semana' => Carbon::parse($datos['semana'])->startOfWeek()->toDateString(),
+            ],
+            ['causa' => $datos['causa'], 'clasificada_por_id' => $perfil->id],
+        );
+
+        return $this->volver(match ($datos['causa']) {
+            OmisionArchivada::FALTA => "La semana sin clase de {$programa->nombre} quedó como falta.",
+            OmisionArchivada::EXCUSA => "La semana sin clase de {$programa->nombre} quedó como excusa.",
+            default => "La semana de {$programa->nombre} quedó como festivo o cierre.",
+        }, exito: true);
     }
 
     /**

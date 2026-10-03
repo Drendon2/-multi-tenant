@@ -367,6 +367,94 @@
 @endif
 
 {{--
+  LOS PROGRAMAS EXTERNOS: semanas enteras sin ninguna clase allá (03/10/2026).
+  Un programa externo no tiene horario, así que lo que se deduce es la SEMANA,
+  no el día (ver `Alertas::semanasSinClaseExterna`). Solo administración, y
+  solo si alguna institución tiene fecha de inicio de clases: sin ella, la
+  sección no existe y no hay nada que explicar.
+--}}
+@if ($semanasExternas->isNotEmpty() || $semanasExternasAtendidas->isNotEmpty())
+<h3 style="margin-top:2.4rem;">Programas externos sin clase en la semana</h3>
+<p class="campo-ayuda" style="margin-bottom:1rem;">
+  Semanas de lunes a domingo en que el profesor no inició ninguna clase allá,
+  entre las fechas de clases de cada institución. Di por qué:
+  <strong>Excusa</strong>, <strong>Falta</strong> o <strong>Festivo o cierre</strong>.
+  Aquí no hay reposición: un programa externo no tiene horario.
+</p>
+
+@if ($semanasExternas->isEmpty())
+  <p class="vacio">Todas las semanas sin clase ya tienen causa.</p>
+@else
+<table class="tabla-personas tabla-catalogo">
+  <thead>
+    <tr>
+      <th>Programa</th>
+      <th>Semana</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    @foreach ($semanasExternas as $semana)
+    <tr>
+      <td data-celda="detalle">
+        @include('partials.programa-externo-fila')
+      </td>
+      <td data-label="Semana">
+        {{ $semana['semana']->format('d/m') }} al {{ $semana['semana']->copy()->addDays(6)->format('d/m/Y') }}
+      </td>
+      <td data-celda="accion" class="lista-acciones">
+        <span class="accion-fila">
+          @include('partials.clasificar-semana-externa')
+        </span>
+      </td>
+    </tr>
+    @endforeach
+  </tbody>
+</table>
+@endif
+
+@if ($semanasExternasAtendidas->isNotEmpty())
+<details class="panel-departamento" id="externas-atendidas" style="margin-top:1rem;">
+  <summary class="panel-departamento-resumen">
+    Ya atendidas
+    <span class="panel-departamento-cuenta">{{ $semanasExternasAtendidas->count() }}</span>
+    <svg aria-hidden="true" class="perfil-seccion-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+  </summary>
+  <table class="tabla-personas tabla-catalogo">
+    <thead>
+      <tr>
+        <th>Programa</th>
+        <th>Semana</th>
+        <th>Causa</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @foreach ($semanasExternasAtendidas as $semana)
+      <tr>
+        <td data-celda="detalle">
+          @include('partials.programa-externo-fila')
+        </td>
+        <td data-label="Semana">
+          {{ $semana['semana']->format('d/m') }} al {{ $semana['semana']->copy()->addDays(6)->format('d/m/Y') }}
+        </td>
+        <td data-label="Causa">
+          <span class="estado {{ $semana['causa'] === 'falta' ? 'estado-cancelacion' : 'estado-finalizada' }}">{{ $causas[$semana['causa']] ?? '' }}</span>
+        </td>
+        <td data-celda="accion" class="lista-acciones">
+          <span class="accion-fila">
+            @include('partials.clasificar-semana-externa')
+          </span>
+        </td>
+      </tr>
+      @endforeach
+    </tbody>
+  </table>
+</details>
+@endif
+@endif
+
+{{--
   ALERTA 2: quien lleva demasiadas faltas seguidas sin excusa.
 
   Desaparece sola en cuanto el estudiante vuelve o alguien retira su matrícula,

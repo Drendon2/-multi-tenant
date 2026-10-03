@@ -75,6 +75,21 @@ class InicioController extends Controller
             }
         }
 
+        // Las semanas sin clase de los programas externos (03/10/2026): solo
+        // administracion, y fuera del `if` del periodo porque no dependen de
+        // el —las gobiernan las fechas de cada institucion—.
+        if ($config->alerta_clase_no_dictada && $perfil->rol === 'administrador') {
+            foreach (Alertas::semanasSinClaseExterna() as $semana) {
+                $alertas++;
+                $ultimas[] = [
+                    'tipo' => 'clase',
+                    'fecha' => $semana['semana'],
+                    'texto' => $semana['actividad']->nombre,
+                    'detalle' => 'Semana del '.$semana['semana']->format('d/m').' sin clase',
+                ];
+            }
+        }
+
         // LAS TRES MAS RECIENTES de las dos bandejas juntas, ordenadas por fecha.
         // Se mezclan a proposito: quien mira la portada quiere «que ha pasado
         // ultimamente», no «que ha pasado de este tipo». Y no se guarda ninguna

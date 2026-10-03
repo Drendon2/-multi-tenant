@@ -127,6 +127,21 @@ class InstitucionExternaController extends RecursoController
                 'opcional' => true,
                 'ayuda' => 'El de la institución. Admite fijo con extensión.',
             ],
+            // Entre que fechas se dicta alla (03/10/2026): gobiernan la alerta
+            // de las semanas sin clase. Opcionales las dos, y la ayuda dice lo
+            // que pasa cuando faltan, porque no se deduce.
+            'clases_desde' => [
+                'etiqueta' => 'Las clases empiezan el',
+                'tipo' => 'date',
+                'opcional' => true,
+                'ayuda' => 'Desde la primera semana completa (de lunes a domingo) a partir de esta fecha, cada semana sin ninguna clase allá sale en Alertas. Vacío, no se avisa.',
+            ],
+            'clases_hasta' => [
+                'etiqueta' => 'Las clases terminan el',
+                'tipo' => 'date',
+                'opcional' => true,
+                'ayuda' => 'Después de esta fecha deja de avisar. Vacío, sigue avisando hasta que la pongas.',
+            ],
             'funcionario' => [
                 'etiqueta' => 'Persona que verifica',
                 'tipo' => 'text',
@@ -170,6 +185,8 @@ class InstitucionExternaController extends RecursoController
             // razon por la que esa lista no alcanza a los catalogos.
             'direccion' => Reglas::texto(160, obligatorio: false),
             'telefono' => Reglas::telefonoDeEntidad(40),
+            'clases_desde' => ['nullable', 'date'],
+            'clases_hasta' => ['nullable', 'date', 'after_or_equal:clases_desde'],
             // El de la PERSONA si lleva la lista blanca: es un nombre de
             // persona y nada mas.
             'funcionario' => Reglas::nombreDePersona(90),
@@ -186,6 +203,7 @@ class InstitucionExternaController extends RecursoController
     {
         return [
             'funcionario.required' => 'Escribe el nombre de quien va a verificar las clases.',
+            'clases_hasta.after_or_equal' => 'Las clases no pueden terminar antes de empezar.',
         ];
     }
 
@@ -219,6 +237,8 @@ class InstitucionExternaController extends RecursoController
                 'nombre' => $datos['nombre'],
                 'direccion' => $datos['direccion'] ?: null,
                 'telefono' => $datos['telefono'] ?: null,
+                'clases_desde' => $datos['clases_desde'] ?? null,
+                'clases_hasta' => $datos['clases_hasta'] ?? null,
                 'perfil_id' => $perfil->id,
             ]);
         });
@@ -250,6 +270,8 @@ class InstitucionExternaController extends RecursoController
                 'nombre' => $datos['nombre'],
                 'direccion' => $datos['direccion'] ?: null,
                 'telefono' => $datos['telefono'] ?: null,
+                'clases_desde' => $datos['clases_desde'] ?? null,
+                'clases_hasta' => $datos['clases_hasta'] ?? null,
             ])->save();
 
             $perfil = $institucion->perfil;

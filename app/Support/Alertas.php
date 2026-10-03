@@ -2,9 +2,11 @@
 
 namespace App\Support;
 
+use App\Models\Actividad;
 use App\Models\Asistencia;
 use App\Models\ConfiguracionInstitucion;
 use App\Models\Grupo;
+use App\Models\InstitucionExterna;
 use App\Models\Matricula;
 use App\Models\OmisionArchivada;
 use App\Models\Perfil;
@@ -213,6 +215,98 @@ class Alertas
             ?: OrdenPorNombre::comparar((string) $a['grupo']->promotoria?->nombre, (string) $b['grupo']->promotoria?->nombre)
             ?: OrdenPorNombre::comparar($a['grupo']->nombre, $b['grupo']->nombre)
         )->values();
+    }
+
+    /**
+     * Las SEMANAS (lunes a domingo) en que un programa externo no tuvo ninguna
+     * clase (03/10/2026, pedido del usuario).
+     *
+     * Un programa externo no tiene horario: la clase existe cuando el profesor
+     * la inicia alla. Asi que lo unico que se puede deducir es una semana entera
+     * sin ninguna clase iniciada. Cuentan las semanas COMPLETAS entre las fechas
+     * de la institucion (`clases_desde` / `clases_hasta`) y desde que existe el
+     * programa; sin fecha de inicio la institucion no avisa. La ultima que se
+     * mira es la que termino el domingo pasado: la de hoy todavia no acaba.
+     *
+     * NO lleva periodo ni recorte por persona: la ve solo administracion
+     * (decision del usuario), igual que el QR y el informe de estos programas.
+     *
+     * Tres consultas fijas —los programas, sus clases iniciadas y las semanas
+     * ya atendidas— y el cruce en memoria.
+     *
+     * @return Collection<int, array{actividad: Actividad, semana: Carbon, atendida: bool, causa: ?string}>
+     */
+    public static function semanasSinClaseExterna(bool $conAtendidas = false): Collection
+    {
+        $programas = Actividad::externos()
+            ->whereHas('institucion', fn ($q) => $q->whereNotNull('clases_desde'))
+            ->with(['institucion', 'responsable'])
+            ->get();
+
+        if ($programas->isEmpty()) {
+            return collect();
+        }
+
+        $conClase = InstitucionActual::tabla('sesiones_actividad')
+            ->whereIn('actividad_id', $programas->modelKeys())
+            ->whereNotNull('iniciada_en')
+            ->select('actividad_id', 'fecha')
+            ->get()
+            ->map(fn ($s) => $s->actividad_id.'|'.Carbon::parse($s->fecha)->startOfWeek()->toDateString())
+            ->flip();
+
+        $atendidas = InstitucionActual::tabla('omisiones_externas')
+            ->whereIn('actividad_id', $programas->modelKeys())
+            ->select('actividad_id', 'semana', 'causa')
+            ->get()
+            ->keyBy(fn ($o) => $o->actividad_id.'|'.Carbon::parse($o->semana)->toDateString());
+
+        // El lunes de la ultima semana que ya termino.
+        $ultima = Carbon::today()->startOfWeek()->subWeek();
+        $semanas = collect();
+
+        foreach ($programas as $programa) {
+            /** @var InstitucionExterna $institucion */
+            $institucion = $programa->institucion;
+
+            // La MAS TARDIA entre el inicio de las clases alla y el dia en que
+            // se creo el programa: antes de existir no podia faltar a nada.
+            $inicio = $institucion->clases_desde->copy()->startOfDay();
+            $creado = Carbon::parse($programa->created_at)->startOfDay();
+            if ($creado->gt($inicio)) {
+                $inicio = $creado;
+            }
+
+            // La primera semana COMPLETA: un programa que empieza un viernes no
+            // ha faltado a la semana de ese viernes.
+            $lunes = $inicio->copy()->startOfWeek();
+            if ($lunes->lt($inicio)) {
+                $lunes->addWeek();
+            }
+
+            while ($lunes->lte($ultima)) {
+                // Y la ultima, tambien completa: la semana entera antes del fin.
+                if ($institucion->clases_hasta !== null && $lunes->copy()->addDays(6)->gt($institucion->clases_hasta)) {
+                    break;
+                }
+
+                $clave = $programa->id.'|'.$lunes->toDateString();
+                $atendida = $atendidas->get($clave);
+
+                if (! $conClase->has($clave) && ($conAtendidas || $atendida === null)) {
+                    $semanas->push([
+                        'actividad' => $programa,
+                        'semana' => $lunes->copy(),
+                        'atendida' => $atendida !== null,
+                        'causa' => $atendida?->causa,
+                    ]);
+                }
+
+                $lunes->addWeek();
+            }
+        }
+
+        return $semanas->sortByDesc(fn ($s) => $s['semana']->timestamp)->values();
     }
 
     /**

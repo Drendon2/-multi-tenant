@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Models\Actividad;
 use App\Models\Area;
 use App\Models\ConfiguracionInstitucion;
 use App\Models\DatosEstudiante;
 use App\Models\Grupo;
 use App\Models\Institucion;
+use App\Models\InstitucionExterna;
 use App\Models\Matricula;
 use App\Models\OmisionArchivada;
+use App\Models\OmisionExterna;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
@@ -303,6 +306,57 @@ class AislamientoEntreInstitucionesTest extends TestCase
         InstitucionActual::mientras($this->otra['institucion']->id, function () use ($ajeno) {
             $this->assertSame(0, OmisionArchivada::where('grupo_id', $ajeno->id)->count());
         });
+    }
+
+    /**
+     * La alerta semanal de los programas externos (traida de main el
+     * 03/10/2026) se arma con `InstitucionActual::tabla()`: cada casa ve las
+     * semanas de SUS programas y no las de la otra. Las dos mitades.
+     */
+    public function test_las_semanas_sin_clase_externa_no_cruzan_de_institucion(): void
+    {
+        $programaDe = function (array $casa, string $nombre): Actividad {
+            $escuela = InstitucionExterna::create([
+                'nombre' => "Escuela $nombre",
+                'perfil_id' => $this->persona("func.$nombre", Perfil::INSTITUCION_EXTERNA, "Func $nombre")->id,
+                'clases_desde' => '2026-03-02',
+            ]);
+
+            $programa = Actividad::create([
+                'nombre' => "Programa $nombre",
+                'tipo' => Actividad::EXTERNO,
+                'responsable_id' => $casa['profesor']->id,
+                'institucion_externa_id' => $escuela->id,
+            ]);
+            $programa->created_at = Carbon::parse('2026-03-01');
+            $programa->save();
+
+            return $programa;
+        };
+
+        $programaDe($this->casa, 'santuario');
+        $ajeno = InstitucionActual::mientras($this->otra['institucion']->id, fn () => $programaDe($this->otra, 'guarne'));
+
+        $html = $this->actingAs($this->casa['admin']->user)->get(self::CASA.'/gestion/cancelaciones')
+            ->assertOk()->getContent();
+        $this->assertStringContainsString('Programa santuario', $html);
+        $this->assertStringNotContainsString('Programa guarne', $html);
+
+        $html = $this->actingAs($this->otra['admin']->user)->get(self::OTRA.'/gestion/cancelaciones')
+            ->assertOk()->getContent();
+        $this->assertStringContainsString('Programa guarne', $html);
+        $this->assertStringNotContainsString('Programa santuario', $html);
+
+        // Y clasificar una semana del programa ajeno desde esta casa no existe.
+        $this->actingAs($this->casa['admin']->user)
+            ->post(self::CASA.'/gestion/cancelaciones/semana-externa', [
+                'actividad_id' => $ajeno->id, 'semana' => '2026-03-02', 'causa' => 'excusa',
+            ])
+            ->assertNotFound();
+        $this->assertSame(0, InstitucionActual::mientras(
+            $this->otra['institucion']->id,
+            fn () => OmisionExterna::count()
+        ));
     }
 
     public function test_las_cifras_sin_modelo_no_suman_la_otra_institucion(): void

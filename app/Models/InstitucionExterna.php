@@ -6,6 +6,7 @@ use App\Models\Concerns\DeLaInstitucion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * La otra institucion: una escuela rural, un colegio, una fundacion.
@@ -24,6 +25,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * El QR de la institucion es el `codigo_qr` de ESE perfil, el mismo mecanismo
  * del carne del estudiante (ver `App\Support\CarneQr`). Nace vacio y se crea al
  * imprimirlo por primera vez.
+ *
+ * `clases_desde` / `clases_hasta` (03/10/2026): entre que fechas se dicta alla.
+ * Gobiernan la alerta semanal de los programas externos; sin inicio no avisa.
+ *
+ * @property ?Carbon $clases_desde
+ * @property ?Carbon $clases_hasta
  */
 class InstitucionExterna extends Model
 {
@@ -35,8 +42,15 @@ class InstitucionExterna extends Model
         'nombre',
         'direccion',
         'telefono',
+        'clases_desde',
+        'clases_hasta',
         'perfil_id',
     ];
+
+    protected function casts(): array
+    {
+        return ['clases_desde' => 'date', 'clases_hasta' => 'date'];
+    }
 
     /**
      * La cuenta con la que entra su funcionario. Una sola, por el unico de la base.
