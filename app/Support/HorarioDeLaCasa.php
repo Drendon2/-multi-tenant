@@ -63,10 +63,17 @@ class HorarioDeLaCasa
                 'a.id as area_id', 'a.nombre as area',
                 'prof.nombre_completo as profesor',
             ])
-            ->orderBy('a.nombre')
-            ->orderBy('p.nombre')
+            // CADA NOMBRE LLEVA SU `id` DETRAS (03/10/2026, pedido del usuario).
+            // Dos promotorias pueden llamarse igual en el mismo departamento
+            // —la base no lo impide— y sin el `id` PostgreSQL las entrega en
+            // el orden fisico de la tabla, que cambia con cada UPDATE: los
+            // bloques se reordenaban entre una carga y otra. Asi, empatadas,
+            // sale primero la que se creo primero.
+            ->orderBy('a.nombre')->orderBy('a.id')
+            ->orderBy('p.nombre')->orderBy('p.id')
             ->orderBy('s.hora_inicio')
-            ->orderBy('g.nombre')
+            ->orderBy('g.nombre')->orderBy('g.id')
+            ->orderBy('s.id')
             ->get();
 
         $cruces = self::cruces($sesiones);
@@ -97,7 +104,8 @@ class HorarioDeLaCasa
         $promotorias = [];
         foreach (Promotoria::queVe($perfil)
             ->join('areas', 'areas.id', '=', 'promotorias.area_id')
-            ->orderBy('areas.nombre')->orderBy('promotorias.nombre')
+            ->orderBy('areas.nombre')->orderBy('areas.id')
+            ->orderBy('promotorias.nombre')->orderBy('promotorias.id')
             ->get(['promotorias.id', 'promotorias.nombre', 'areas.nombre as area']) as $p) {
             $promotorias[$p->area][$p->id] = $p->nombre;
         }

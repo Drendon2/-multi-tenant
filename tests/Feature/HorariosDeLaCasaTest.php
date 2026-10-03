@@ -204,6 +204,51 @@ class HorariosDeLaCasaTest extends TestCase
      * La otra mitad es que la puerta de destino deje pasar a quien Horarios se
      * lo enseña: un enlace que rebota al Panel es peor que no tenerlo.
      */
+    /**
+     * DOS PROMOTORIAS QUE SE LLAMAN IGUAL en el mismo departamento —la base lo
+     * permite; los grupos y los departamentos no— salen en el orden en que se
+     * crearon, en los bloques y en el desplegable (03/10/2026, pedido del
+     * usuario). Sin el `id` al final, PostgreSQL las devuelve en el orden
+     * fisico de la tabla, y un UPDATE mueve la fila al final: es lo que hace
+     * aqui con la primera, que asi saldria segunda.
+     */
+    public function test_dos_promotorias_que_se_llaman_igual_salen_en_el_orden_en_que_se_crearon(): void
+    {
+        $primera = Promotoria::create(['nombre' => 'Guitarra', 'area_id' => $this->musica->id]);
+        $segunda = Promotoria::create(['nombre' => 'Guitarra', 'area_id' => $this->musica->id]);
+        $this->grupo($primera, 'Grupo A', 'Salón 1', [[2, '16:00', '18:00']]);
+        $this->grupo($segunda, 'Grupo A', 'Salón 2', [[2, '16:00', '18:00']]);
+
+        Promotoria::whereKey($primera->id)->update(['updated_at' => now()]);
+        Grupo::where('promotoria_id', $primera->id)->update(['updated_at' => now()]);
+        SesionGrupo::whereIn('grupo_id', Grupo::where('promotoria_id', $primera->id)->pluck('id'))
+            ->update(['hora_fin' => '18:00']);
+
+        // Con cuatro filas el planificador recorre por INDICE y entrega el
+        // orden del `id` por casualidad, y la prueba pasaba sin el arreglo.
+        // Sin indices lee la tabla en su orden fisico, que es lo que pasa con
+        // volumen. `SET LOCAL` muere con la transaccion de la prueba.
+        foreach (['enable_indexscan', 'enable_bitmapscan', 'enable_indexonlyscan'] as $ajuste) {
+            DB::statement("SET LOCAL {$ajuste} = off");
+        }
+
+        $x = $this->pagina($this->admin, ['dia' => 2]);
+
+        $bloques = [];
+        foreach ($x->query('//section[contains(@class,"horarios-bloque")][@data-nombre="Guitarra"]') as $s) {
+            $this->assertInstanceOf(DOMElement::class, $s);
+            $bloques[] = (int) $s->getAttribute('data-promotoria');
+        }
+        $opciones = [];
+        foreach ($x->query('//select[@id="horarios-promotoria"]//option[normalize-space()="Guitarra"]') as $o) {
+            $this->assertInstanceOf(DOMElement::class, $o);
+            $opciones[] = (int) $o->getAttribute('value');
+        }
+
+        $this->assertSame([$primera->id, $segunda->id], $bloques);
+        $this->assertSame([$primera->id, $segunda->id], $opciones);
+    }
+
     public function test_cada_grupo_lleva_a_sus_clases_y_el_director_entra(): void
     {
         $a = $this->grupo($this->piano, 'Grupo A', 'Salón 1', [[2, '16:00', '18:00'], [4, '16:00', '18:00']]);
