@@ -141,7 +141,14 @@
             <tr data-dia="{{ $fila['dia'] }}" @if ($fila['dia'] !== $dia) hidden @endif @if ($fila['cruces']) data-cruce @endif>
               <td class="horarios-hora">{{ $fila['rango'] }}</td>
               <td>
-                {{ $fila['grupo'] }}
+                {{--
+                  EL GRUPO LLEVA A SUS CLASES Y SU ASISTENCIA (03/10/2026, pedido
+                  del usuario): desde aquí es por donde se llega a revisar un
+                  grupo. La puerta de destino es `puedeGestionarPromotoria()`,
+                  que deja pasar al administrador y al director en lo suyo, o
+                  sea a quien esta pantalla se lo enseña.
+                --}}
+                <a class="horarios-grupo" href="{{ route('grupo-clases', $fila['grupo_id']) }}" data-grupo-clases>{{ $fila['grupo'] }}</a>
                 {{--
                   EL CRUCE se dice con una palabra en un marcador y con quién
                   choca: el color solo acompaña. No bloquea nada —decisión del

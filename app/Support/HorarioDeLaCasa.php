@@ -41,7 +41,7 @@ class HorarioDeLaCasa
 {
     /**
      * @return array{
-     *     bloques: list<array{id: int, nombre: string, area: string, color: string, profesor: ?string, filas: list<array{dia: int, rango: string, grupo: string, salon: ?string, cruces: list<string>}>}>,
+     *     bloques: list<array{id: int, nombre: string, area: string, color: string, profesor: ?string, filas: list<array{dia: int, rango: string, grupo_id: int, grupo: string, salon: ?string, cruces: list<string>}>}>,
      *     promotorias: array<string, array<int, string>>,
      *     sinHorario: int,
      * }
@@ -58,7 +58,7 @@ class HorarioDeLaCasa
             ->whereIn('p.id', $visibles)
             ->select([
                 's.id', 's.dia', 's.hora_inicio', 's.hora_fin',
-                'g.nombre as grupo', 'g.nivel', 'g.salon',
+                'g.id as grupo_id', 'g.nombre as grupo', 'g.nivel', 'g.salon',
                 'p.id as promotoria_id', 'p.nombre as promotoria',
                 'a.id as area_id', 'a.nombre as area',
                 'prof.nombre_completo as profesor',
@@ -87,6 +87,7 @@ class HorarioDeLaCasa
             $bloques[$s->promotoria_id]['filas'][] = [
                 'dia' => (int) $s->dia,
                 'rango' => SesionGrupo::rangoCorto($s->hora_inicio, $s->hora_fin),
+                'grupo_id' => (int) $s->grupo_id,
                 'grupo' => self::nombreDelGrupo($s->grupo, $s->nivel),
                 'salon' => self::limpio($s->salon),
                 'cruces' => $cruces[$s->id] ?? [],

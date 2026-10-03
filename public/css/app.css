@@ -3356,6 +3356,9 @@
   .horarios-tabla th:last-child { width: 8rem; }
   .horarios-hora { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .horarios-tabla td { vertical-align: top; overflow-wrap: anywhere; }
+  /* El nombre del grupo es el enlace a sus clases. En bloque y con alto
+     minimo para el pulgar: un enlace del alto de su renglon mide unos 20px. */
+  .horarios-grupo { display: inline-block; min-height: 2.75rem; padding: 0.6rem 0; margin: -0.6rem 0; font-weight: 600; }
 
   /* EL CRUCE DE SALON. Contorno macizo en el rojo y SIN relleno: no se parece
      a «retirada» (relleno y tachado) ni a «rechazada» (relleno), que son

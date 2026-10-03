@@ -198,6 +198,33 @@ class HorariosDeLaCasaTest extends TestCase
         $this->assertSame(1, $x->query('//option[@value="'.$this->piano->id.'"]')->length);
     }
 
+    /**
+     * Cada grupo lleva a SUS clases y su asistencia (pedido del usuario el
+     * 03/10/2026: desde el horario es por donde se llega a revisar un grupo).
+     * La otra mitad es que la puerta de destino deje pasar a quien Horarios se
+     * lo enseña: un enlace que rebota al Panel es peor que no tenerlo.
+     */
+    public function test_cada_grupo_lleva_a_sus_clases_y_el_director_entra(): void
+    {
+        $a = $this->grupo($this->piano, 'Grupo A', 'Salón 1', [[2, '16:00', '18:00'], [4, '16:00', '18:00']]);
+        $b = $this->grupo($this->violin, 'Grupo B', 'Salón 2', [[2, '09:00', '11:00']]);
+
+        $x = $this->pagina($this->director, ['dia' => 2]);
+
+        $destinos = [];
+        foreach ($x->query('//tr[@data-dia]//a[@data-grupo-clases]') as $enlace) {
+            $this->assertInstanceOf(DOMElement::class, $enlace);
+            $destinos[] = $enlace->getAttribute('href');
+        }
+
+        // Una por FILA: el grupo de Piano sale el martes y el jueves.
+        $this->assertSame(3, count($destinos));
+        $this->assertSame(2, count(array_keys($destinos, route('grupo-clases', $a))));
+        $this->assertContains(route('grupo-clases', $b), $destinos);
+
+        $this->actingAs($this->director->user)->get(route('grupo-clases', $b))->assertOk();
+    }
+
     public function test_una_promotoria_ajena_en_la_url_se_ignora(): void
     {
         $this->grupo($this->piano, 'Grupo A', 'Salón 1', [[2, '16:00', '18:00']]);
