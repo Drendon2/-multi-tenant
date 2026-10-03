@@ -22,6 +22,9 @@
   nadie de nada en este sistema, esta lista es la única forma de que el
   profesor se entere. «Dictar reposición» inicia una clase ahora y lleva a
   pasar lista; al guardarla se va de aquí sola.
+
+  Cada una dice HASTA CUÁNDO, si la institución puso plazo, y «Vencida» cuando
+  pasó. Vencida no bloquea: se puede seguir reponiendo, y el botón sigue ahí.
 --}}
 @if ($porReponer->isNotEmpty())
 <details class="panel-departamento" id="bloque-por-reponer" open>
@@ -42,6 +45,11 @@
       <span class="sesiones-rapidas-fecha">{{ $omision->fecha->format('d/m/Y') }}</span>
       <span class="tag-dot {{ $omision->grupo->promotoria->area->tag_color }}"></span>
       <span>{{ $omision->grupo->promotoria->nombre }} · {{ $omision->grupo->nombre_con_nivel }}</span>
+      @if ($omision->estaVencida())
+        <span class="estado estado-rechazada">Vencida</span>
+      @elseif ($omision->plazo())
+        <span class="lista-nota">hasta el {{ $omision->plazo()->format('d/m/Y') }}</span>
+      @endif
       <form method="post" action="{{ route('panel-reponer-clase', $omision) }}">
         @csrf
         <button type="submit" class="btn btn-sm"

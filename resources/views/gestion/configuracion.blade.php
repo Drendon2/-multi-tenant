@@ -639,6 +639,29 @@
           que se reúne una vez por semana no aguanta lo mismo que uno de tres.
         </p>
       </div>
+
+      {{--
+        EL PLAZO PARA REPONER UNA FALTA (03/10/2026). Cuenta desde que se marca
+        la falta en la bandeja, no desde el día de la clase: es cuando el
+        profesor se entera. Vacío es «sin plazo», y por eso no lleva `required`.
+      --}}
+      <div class="config-campo">
+        <label class="config-etiqueta" for="dias_para_reponer">
+          Días para reponer una falta
+        </label>
+        <input type="number" name="dias_para_reponer" id="dias_para_reponer"
+               min="1" max="180" inputmode="numeric" style="max-width:8rem;"
+               value="{{ old('dias_para_reponer', $institucion->dias_para_reponer) }}">
+        @error('dias_para_reponer')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
+        <p class="config-ayuda">
+          Cuando una clase no dictada se marca como <strong>falta</strong>, el
+          profesor la ve en su Panel para reponerla. Pasados estos días sin
+          reponerse sale como <strong>vencida</strong> en su Panel, en Alertas y
+          en sus estadísticas. <strong>No bloquea nada</strong>: se puede seguir
+          reponiendo. Cuentan desde el día en que se marcó la falta.
+          Déjalo vacío para no poner plazo.
+        </p>
+      </div>
     </fieldset>
 
     <button type="submit" class="btn">Guardar</button>

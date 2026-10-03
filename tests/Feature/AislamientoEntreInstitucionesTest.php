@@ -248,6 +248,37 @@ class AislamientoEntreInstitucionesTest extends TestCase
             ->assertDontSee('/panel/reposiciones/'.$mia->id, false);
     }
 
+    /**
+     * «Festivo para todos» (traido de main el 03/10/2026) marca los grupos de
+     * SU casa: el de la otra, con clase el mismo dia, sigue sin causa.
+     */
+    public function test_el_festivo_no_marca_los_grupos_de_la_otra_institucion(): void
+    {
+        $grupoCon = function (array $casa): Grupo {
+            /** @var Grupo $grupo */
+            $grupo = $casa['promotoria']->grupos()->create([
+                'nombre' => 'Grupo A', 'nivel' => 'basico', 'cupo_maximo' => 10, 'salon' => '',
+            ]);
+            // Martes, escrito: el CHECK de `sesiones_grupo` no admite domingo.
+            $grupo->sesiones()->create(['dia' => 2, 'hora_inicio' => '08:00', 'hora_fin' => '10:00']);
+
+            return $grupo;
+        };
+
+        $mio = $grupoCon($this->casa);
+        $ajeno = InstitucionActual::mientras($this->otra['institucion']->id, fn () => $grupoCon($this->otra));
+
+        // 10/03/2026 es martes y cae dentro del periodo de las dos.
+        $this->actingAs($this->casa['admin']->user)
+            ->post(self::CASA.'/gestion/cancelaciones/festivo', ['fecha_festivo' => '2026-03-10'])
+            ->assertSessionHas('success');
+
+        $this->assertSame(1, OmisionArchivada::where('grupo_id', $mio->id)->count());
+        InstitucionActual::mientras($this->otra['institucion']->id, function () use ($ajeno) {
+            $this->assertSame(0, OmisionArchivada::where('grupo_id', $ajeno->id)->count());
+        });
+    }
+
     public function test_las_cifras_sin_modelo_no_suman_la_otra_institucion(): void
     {
         // El informe de la institucion se arma con consultas que no hidratan

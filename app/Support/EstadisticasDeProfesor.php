@@ -169,7 +169,7 @@ class EstadisticasDeProfesor
      * `archivadas` son las archivadas SIN causa (las de antes del 03/10/2026);
      * `faltas`, `repuestas`, `excusas` e `institucion` salen de la causa.
      *
-     * @return array{total: ?int, archivadas: int, faltas: int, repuestas: int, excusas: int, institucion: int, porGrupo: array<int, int>, motivo: ?string, desde: ?Carbon}
+     * @return array{total: ?int, archivadas: int, faltas: int, repuestas: int, vencidas: int, excusas: int, institucion: int, porGrupo: array<int, int>, motivo: ?string, desde: ?Carbon}
      */
     private static function perdidas(Perfil $profesor, Periodo $periodo): array
     {
@@ -192,6 +192,7 @@ class EstadisticasDeProfesor
             'archivadas' => $cuentan->where('archivada', true)->whereNull('causa')->count(),
             'faltas' => $faltas->count(),
             'repuestas' => $faltas->where('repuesta', true)->count(),
+            'vencidas' => $faltas->where('vencida', true)->count(),
             'excusas' => $todas->where('causa', OmisionArchivada::EXCUSA)->count(),
             'institucion' => $todas->where('causa', OmisionArchivada::INSTITUCION)->count(),
             'porGrupo' => $cuentan->countBy(fn ($f) => $f['grupo']->id)->all(),
@@ -201,12 +202,12 @@ class EstadisticasDeProfesor
     }
 
     /**
-     * @return array{total: null, archivadas: int, faltas: int, repuestas: int, excusas: int, institucion: int, porGrupo: array<int, int>, motivo: string, desde: ?Carbon}
+     * @return array{total: null, archivadas: int, faltas: int, repuestas: int, vencidas: int, excusas: int, institucion: int, porGrupo: array<int, int>, motivo: string, desde: ?Carbon}
      */
     private static function sinCifra(string $motivo, ?Carbon $desde): array
     {
         return [
-            'total' => null, 'archivadas' => 0, 'faltas' => 0, 'repuestas' => 0,
+            'total' => null, 'archivadas' => 0, 'faltas' => 0, 'repuestas' => 0, 'vencidas' => 0,
             'excusas' => 0, 'institucion' => 0, 'porGrupo' => [], 'motivo' => $motivo, 'desde' => $desde,
         ];
     }

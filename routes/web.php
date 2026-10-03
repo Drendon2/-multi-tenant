@@ -570,11 +570,13 @@ Route::middleware(['auth', 'rol:administrador,director'])->prefix('gestion')->gr
     // devolveria un 404 en vez de llegar aqui.
     Route::post('/cancelaciones/lote', [Gestion\CancelacionesController::class, 'resolverLote'])
         ->name('gestion-cancelaciones-lote');
-    // Las dos acciones de las alertas. Van ANTES de la de `{matricula}` por lo
+    // Las acciones de las alertas. Van ANTES de la de `{matricula}` por lo
     // mismo que «lote»: con el comodin por delante, «omision» se leeria como el
     // id de una matricula.
     Route::post('/cancelaciones/omision', [Gestion\CancelacionesController::class, 'clasificarOmision'])
         ->name('gestion-clasificar-omision');
+    Route::post('/cancelaciones/festivo', [Gestion\CancelacionesController::class, 'marcarFestivo'])
+        ->name('gestion-marcar-festivo');
     Route::post('/cancelaciones/{matricula}/abandono', [Gestion\CancelacionesController::class, 'retirarPorAbandono'])
         ->name('gestion-retirar-abandono');
     Route::post('/cancelaciones/{matricula}/{decision}', [Gestion\CancelacionesController::class, 'resolver'])

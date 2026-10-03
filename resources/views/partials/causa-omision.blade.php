@@ -8,6 +8,10 @@
 @if ($falta['causa'] === 'falta')
   @if ($falta['repuesta'])
     <span class="estado estado-activa">Falta · repuesta</span>
+  @elseif ($falta['vencida'])
+    {{-- Pasó el plazo para reponerla (Configuración). Sólido y rojo, SIN tachar:
+         el tachado es «estuvo y salió», y esta sigue ahí. Ya no está a tiempo; señala, no cierra nada. --}}
+    <span class="estado estado-rechazada">Falta · vencida</span>
   @else
     <span class="estado estado-cancelacion">Falta · por reponer</span>
   @endif

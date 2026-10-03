@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $fecha
  * @property ?string $causa
  * @property ?int $repuesta_en_id
+ * @property ?Carbon $clasificada_en
  */
 class OmisionArchivada extends Model
 {
@@ -48,7 +49,7 @@ class OmisionArchivada extends Model
         self::INSTITUCION => 'Festivo o cierre',
     ];
 
-    protected $fillable = ['grupo_id', 'fecha', 'causa', 'archivada_por_id', 'repuesta_en_id'];
+    protected $fillable = ['grupo_id', 'fecha', 'causa', 'clasificada_en', 'archivada_por_id', 'repuesta_en_id'];
 
     /**
      * ¿Le cuenta al profesor como clase perdida?
@@ -62,9 +63,54 @@ class OmisionArchivada extends Model
         return $causa === null || $causa === self::FALTA;
     }
 
+    /**
+     * El ultimo dia para reponer una falta, o null si no hay plazo.
+     *
+     * Cuenta desde que se CLASIFICO y no desde el dia de la clase: es cuando el
+     * profesor se entera, y una falta clasificada dos semanas tarde naceria
+     * vencida. `$dias` nulo es «sin plazo» (Configuracion).
+     */
+    public static function plazoDe(?Carbon $clasificadaEn, ?int $dias): ?Carbon
+    {
+        if ($clasificadaEn === null || $dias === null) {
+            return null;
+        }
+
+        return $clasificadaEn->copy()->startOfDay()->addDays($dias);
+    }
+
+    /**
+     * ¿Es una falta sin reponer que ya paso su plazo?
+     *
+     * Solo SEÑALA: se puede seguir reponiendo. Una reposicion tardia vale mas
+     * que ninguna, y nada le avisa a nadie de nada en este sistema.
+     */
+    public static function vencio(?string $causa, bool $repuesta, ?Carbon $clasificadaEn, ?int $dias): bool
+    {
+        $plazo = self::plazoDe($clasificadaEn, $dias);
+
+        return $causa === self::FALTA && ! $repuesta && $plazo !== null && Carbon::today()->gt($plazo);
+    }
+
+    /** El plazo de ESTA falta, con el de la institucion. */
+    public function plazo(): ?Carbon
+    {
+        return self::plazoDe($this->clasificada_en, ConfiguracionInstitucion::actual()->dias_para_reponer);
+    }
+
+    public function estaVencida(): bool
+    {
+        return self::vencio(
+            $this->causa,
+            $this->repuesta_en_id !== null,
+            $this->clasificada_en,
+            ConfiguracionInstitucion::actual()->dias_para_reponer,
+        );
+    }
+
     protected function casts(): array
     {
-        return ['fecha' => 'date'];
+        return ['fecha' => 'date', 'clasificada_en' => 'datetime'];
     }
 
     public function grupo(): BelongsTo

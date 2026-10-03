@@ -191,12 +191,44 @@
   <strong>Excusa</strong> no se repone ni le cuenta como perdida;
   <strong>Falta</strong> le cuenta y le aparece en su Panel para reponerla;
   <strong>Festivo o cierre</strong> es un día en que la institución no tenía clase.
+  @if ($faltasVencidas)
+    <br><strong style="color:var(--danger);">{{ $faltasVencidas === 1 ? 'Una falta pasó' : $faltasVencidas.' faltas pasaron' }}
+    el plazo de {{ $diasParaReponer }} {{ $diasParaReponer === 1 ? 'día' : 'días' }} sin reponerse.</strong>
+    Están en «Ya atendidas», abajo.
+  @endif
   @if ($omisionesTotales > $clasesNoDictadas->count())
     <br><strong>Hay {{ $omisionesTotales }} en total</strong> y se muestran las
     {{ $clasesNoDictadas->count() }} más recientes; las demás van apareciendo a
     medida que atiendas estas.
   @endif
 </p>
+
+{{--
+  FESTIVO PARA TODOS (03/10/2026, pedido del usuario): un lunes festivo dejaba
+  una alerta por cada grupo de los lunes. Una fecha y un botón marcan a todos
+  los que tenían clase ese día de la semana —también una fecha futura, para que
+  la alerta no llegue a salir—. No pisa lo que ya tenga causa ni toca a quien
+  sí dio clase (ver `CancelacionesController::marcarFestivo`).
+
+  Un formulario suelto y NO dentro de un `<details>`: plegado escondería su
+  error, y este proyecto sostiene que sus pantallas funcionan sin JavaScript.
+--}}
+@if ($periodo && $alertaClases)
+<form method="post" action="{{ route('gestion-marcar-festivo') }}" class="festivo-para-todos">
+  @csrf
+  <label class="config-etiqueta" for="fecha_festivo">Marcar un día como festivo o cierre para todos los grupos</label>
+  <div class="festivo-para-todos-fila">
+    <input type="date" name="fecha_festivo" id="fecha_festivo" required
+           min="{{ $periodo->fecha_inicio->toDateString() }}" max="{{ $periodo->fecha_fin->toDateString() }}"
+           value="{{ old('fecha_festivo') }}">
+    <button type="submit" class="btn btn-secundario btn-sm">Marcar festivo o cierre</button>
+  </div>
+  @error('fecha_festivo')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
+  <p class="campo-ayuda">
+    Sirve también para un día que todavía no llega. Lo que ya tenga causa no se cambia.
+  </p>
+</form>
+@endif
 
 @if ($clasesNoDictadas->isEmpty())
   <p class="vacio">

@@ -83,6 +83,10 @@
         @else
           y te {{ $perdidas['faltas'] === 1 ? 'aparece' : 'aparecen' }} en el Panel para reponer.
         @endif
+        @if ($perdidas['vencidas'])
+          <strong>{{ $perdidas['vencidas'] === 1 ? 'Una pasó' : $perdidas['vencidas'].' pasaron' }} el plazo para reponerse</strong>;
+          todavía se {{ $perdidas['vencidas'] === 1 ? 'puede reponer' : 'pueden reponer' }} desde el Panel.
+        @endif
       @endif
       @if ($perdidas['archivadas'])
         {{ $perdidas['archivadas'] === 1 ? 'Una se archivó' : $perdidas['archivadas'].' se archivaron' }}

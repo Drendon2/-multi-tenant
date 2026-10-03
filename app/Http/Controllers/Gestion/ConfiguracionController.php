@@ -176,6 +176,9 @@ class ConfiguracionController extends Controller
             // El maximo no es capricho: una racha mas larga que el periodo no
             // se alcanza nunca y la alerta quedaria apagada sin decirlo.
             'faltas_para_abandono' => ['required', 'integer', 'min:2', 'max:20'],
+            // Vacio es «sin plazo». El tope es el de un periodo largo: mas alla
+            // el plazo no vence nunca y el aviso quedaria apagado sin decirlo.
+            'dias_para_reponer' => ['nullable', 'integer', 'min:1', 'max:180'],
             'alertas_desde' => ['nullable', 'date'],
         ], Reglas::mensajes() + [
             'color_acento.regex' => 'El color de acento debe ir en formato #rrggbb.',
@@ -292,6 +295,9 @@ class ConfiguracionController extends Controller
         $configuracion->recordar_encuesta = $request->boolean('recordar_encuesta');
         $configuracion->correo_obligatorio = $request->boolean('correo_obligatorio');
         $configuracion->faltas_para_abandono = (int) $request->input('faltas_para_abandono');
+        $configuracion->dias_para_reponer = $request->filled('dias_para_reponer')
+            ? (int) $request->input('dias_para_reponer')
+            : null;
         // Vacia se guarda como NULL: es lo que significa «desde el inicio del
         // periodo». Quien lo consigue de verdad es el middleware
         // `ConvertEmptyStringsToNull` de Laravel; el `?: null` es el cinturon

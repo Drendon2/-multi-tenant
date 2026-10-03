@@ -760,6 +760,33 @@ class DirectorPorDepartamentoTest extends TestCase
         $this->assertDatabaseMissing('omisiones_archivadas', ['grupo_id' => $grupoAjeno->id]);
     }
 
+    /** «Festivo para todos» desde un director marca SOLO sus grupos. */
+    public function test_el_festivo_de_un_director_solo_marca_sus_grupos(): void
+    {
+        $manana = Carbon::today()->addDay();
+        $grupos = [];
+
+        foreach (['suyo' => $this->piano, 'ajeno' => $this->ballet] as $quien => $promotoria) {
+            $grupos[$quien] = Grupo::create([
+                'promotoria_id' => $promotoria->id, 'nombre' => 'Grupo '.$quien,
+                'nivel' => 'basico', 'salon' => 'B1', 'cupo_maximo' => 10,
+            ]);
+            // Un domingo no admite sesion (CHECK 1-6): se escribe el dia, no se
+            // deduce, y la fecha se mueve al lunes si mañana es domingo.
+            if ($manana->dayOfWeekIso === 7) {
+                $manana = $manana->addDay();
+            }
+            $grupos[$quien]->sesiones()->create(['dia' => $manana->dayOfWeekIso, 'hora_inicio' => '08:00', 'hora_fin' => '10:00']);
+        }
+
+        $this->actingAs($this->director->user)
+            ->post(route('gestion-marcar-festivo'), ['fecha_festivo' => $manana->toDateString()])
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseHas('omisiones_archivadas', ['grupo_id' => $grupos['suyo']->id, 'causa' => 'institucion']);
+        $this->assertDatabaseMissing('omisiones_archivadas', ['grupo_id' => $grupos['ajeno']->id]);
+    }
+
     private function cancelacion(string $username, Promotoria $promotoria): Matricula
     {
         $matricula = $this->matricular($username, $promotoria);

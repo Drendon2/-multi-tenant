@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Gestion;
 
 use App\Http\Controllers\Controller;
+use App\Models\Clase;
 use App\Models\ConfiguracionInstitucion;
 use App\Models\Grupo;
 use App\Models\Matricula;
@@ -15,8 +16,10 @@ use App\Support\Auditoria;
 use App\Support\FichasIncompletas;
 use App\Support\Permisos;
 use App\Support\Reglas;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -135,6 +138,11 @@ class CancelacionesController extends Controller
             'omisionesAtendidas' => $atendidas->take(self::OMISIONES_VISIBLES),
             'atendidasTotales' => $atendidas->count(),
             'causas' => OmisionArchivada::CAUSAS,
+            'faltasVencidas' => $atendidas->where('vencida', true)->count(),
+            'diasParaReponer' => $config->dias_para_reponer,
+            // El formulario del festivo solo tiene sentido con la alerta
+            // encendida: apagada, no hay bandeja que limpiar.
+            'alertaClases' => (bool) $config->alerta_clase_no_dictada,
             'abandonos' => ($config->alerta_abandono && $periodo)
                 ? Alertas::posiblesAbandonos($periodo, $perfil)
                 : collect(),
@@ -187,9 +195,13 @@ class CancelacionesController extends Controller
      * excusa, la reposicion se queda enlazada —la clase se dio, y borrar el
      * enlace la convertiria en la clase de su dia en las alertas—.
      *
-     * `updateOrCreate` y no `create`: dos personas pueden clasificar la misma
+     * `firstOrNew` y no `create`: dos personas pueden clasificar la misma
      * desde dos pestañas, y la clave unica (grupo, fecha) haria fallar la
      * segunda. Que gane la ultima es exactamente lo que se quiere.
+     *
+     * `clasificada_en` cambia SOLO si cambia la causa: es desde cuando corre el
+     * plazo para reponer, y volver a pulsar «Falta» no puede regalar otros
+     * quince dias.
      */
     public function clasificarOmision(Request $request): RedirectResponse
     {
@@ -204,16 +216,114 @@ class CancelacionesController extends Controller
 
         $this->cerrarSiEsAjena(Grupo::findOrFail($datos['grupo_id'])->promotoria);
 
-        OmisionArchivada::updateOrCreate(
-            ['grupo_id' => $datos['grupo_id'], 'fecha' => $datos['fecha']],
-            ['causa' => $datos['causa'], 'archivada_por_id' => auth()->user()?->perfil?->id],
-        );
+        $omision = OmisionArchivada::firstOrNew(['grupo_id' => $datos['grupo_id'], 'fecha' => $datos['fecha']]);
+
+        if ($omision->causa !== $datos['causa']) {
+            $omision->causa = $datos['causa'];
+            $omision->clasificada_en = now();
+        }
+
+        $omision->archivada_por_id = auth()->user()?->perfil?->id;
+        $omision->save();
 
         return $this->volver(match ($datos['causa']) {
             OmisionArchivada::FALTA => 'Quedó como falta. A quien dicta le aparece en su Panel para reponerla.',
             OmisionArchivada::EXCUSA => 'Quedó como excusa: no se repone ni le cuenta como perdida.',
             default => 'Quedó como día sin clase por la institución.',
         }, exito: true);
+    }
+
+    /**
+     * Marca un dia como FESTIVO O CIERRE para todos los grupos que tenian clase
+     * ese dia de la semana (03/10/2026, pedido del usuario).
+     *
+     * Un lunes festivo dejaba una alerta por cada grupo de los lunes, y habia
+     * que atenderlas de una en una. Vale tambien para una fecha FUTURA —se
+     * marca el festivo de la semana que viene y la alerta no llega a salir—,
+     * siempre dentro del periodo en curso.
+     *
+     * Lo que NO toca, a proposito:
+     * - Lo que ya tiene causa. Si a alguien se le marco falta ese dia, eso fue
+     *   una decision sobre una persona, y se corrige a mano en «Ya atendidas».
+     * - Los grupos que SI dieron clase ese dia: no hay omision que marcar. La
+     *   reposicion no cuenta como clase de su dia (`sinReposiciones`).
+     * - Los grupos que quien marca no ve: el director, solo los suyos.
+     */
+    public function marcarFestivo(Request $request): RedirectResponse
+    {
+        /** @var Perfil $perfil */
+        $perfil = $request->attributes->get('perfil');
+        $periodo = Periodo::enCurso();
+
+        abort_if($periodo === null, 404);
+
+        $datos = $request->validate([
+            'fecha_festivo' => [
+                'required', 'date',
+                'after_or_equal:'.Carbon::parse($periodo->fecha_inicio)->toDateString(),
+                'before_or_equal:'.Carbon::parse($periodo->fecha_fin)->toDateString(),
+            ],
+        ], [
+            'fecha_festivo.required' => 'Escribe la fecha del festivo o del cierre.',
+            'fecha_festivo.date' => 'Escribe la fecha del festivo o del cierre.',
+            'fecha_festivo.after_or_equal' => "La fecha tiene que estar dentro de {$periodo->nombre}.",
+            'fecha_festivo.before_or_equal' => "La fecha tiene que estar dentro de {$periodo->nombre}.",
+        ]);
+
+        $fecha = Carbon::parse($datos['fecha_festivo'])->startOfDay();
+
+        $grupos = Grupo::query()
+            ->whereHas('sesiones', fn ($q) => $q->where('dia', $fecha->dayOfWeekIso))
+            ->whereHas('promotoria', function ($q) use ($perfil) {
+                /** @var Builder<Promotoria> $q */
+                $q->queVe($perfil);
+            })
+            ->whereDoesntHave('clases', function ($q) use ($fecha) {
+                // Anotada por lo mismo que la de arriba: la relacion llega sin
+                // tipo y el analizador no sabe que `sinReposiciones()` existe.
+                /** @var Builder<Clase> $q */
+                $q->whereDate('fecha_hora', $fecha)->sinReposiciones();
+            })
+            ->pluck('id');
+
+        $yaTenian = OmisionArchivada::whereIn('grupo_id', $grupos)
+            ->whereDate('fecha', $fecha)
+            ->get()
+            ->keyBy('grupo_id');
+
+        $marcados = 0;
+
+        DB::transaction(function () use ($grupos, $yaTenian, $fecha, $perfil, &$marcados) {
+            foreach ($grupos as $grupoId) {
+                $omision = $yaTenian->get($grupoId)
+                    ?? new OmisionArchivada(['grupo_id' => $grupoId, 'fecha' => $fecha->toDateString()]);
+
+                if ($omision->causa !== null) {
+                    continue;
+                }
+
+                $omision->causa = OmisionArchivada::INSTITUCION;
+                $omision->clasificada_en = now();
+                $omision->archivada_por_id = $perfil->id;
+                $omision->save();
+                $marcados++;
+            }
+        });
+
+        $dia = ucfirst($fecha->isoFormat('dddd D/MM/YYYY'));
+        $respetadas = $grupos->count() - $marcados;
+
+        if ($marcados === 0) {
+            return $this->volver($respetadas
+                ? "{$dia}: los grupos con clase ese día ya tenían causa; no se cambió ninguno."
+                : "{$dia}: ningún grupo tenía clase ese día, o todos la registraron.");
+        }
+
+        return $this->volver(
+            "{$dia} quedó como festivo o cierre para {$marcados} ".($marcados === 1 ? 'grupo' : 'grupos').'.'
+            .($respetadas ? " {$respetadas} ya tenían causa y no se tocaron." : ''),
+            exito: true
+        );
     }
 
     /**

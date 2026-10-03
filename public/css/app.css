@@ -3649,3 +3649,10 @@
       box-shadow: none; border: 0; padding: 0; margin: 0;
     }
   }
+
+/* FESTIVO PARA TODOS (03/10/2026): la fecha y su boton en una fila que baja
+   a dos en el telefono. `width` y no solo `max-width` en el campo: un control
+   reclama su ancho aunque se dibuje estrecho (ver CLAUDE.md, CSS y movil). */
+.festivo-para-todos { margin: 0 0 1.4rem; }
+.festivo-para-todos-fila { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.3rem; }
+.festivo-para-todos-fila input[type="date"] { width: 12rem; max-width: 100%; }

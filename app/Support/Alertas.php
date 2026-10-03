@@ -6,6 +6,7 @@ use App\Models\Asistencia;
 use App\Models\ConfiguracionInstitucion;
 use App\Models\Grupo;
 use App\Models\Matricula;
+use App\Models\OmisionArchivada;
 use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
@@ -85,9 +86,10 @@ class Alertas
      * faltaron 18, porque 16 estaban archivadas. La bandeja sigue sin ellas.
      *
      * Desde el 03/10/2026 cada una trae tambien su `causa` (nula si no se ha
-     * clasificado o es de las archivadas de antes) y si ya se `repuso`.
+     * clasificado o es de las archivadas de antes), si ya se `repuso` y si es
+     * una falta que paso su plazo sin reponerse (`vencida`).
      *
-     * @return Collection<int, array{grupo: Grupo, fecha: Carbon, dia: string, archivada: bool, causa: ?string, repuesta: bool}>
+     * @return Collection<int, array{grupo: Grupo, fecha: Carbon, dia: string, archivada: bool, causa: ?string, repuesta: bool, vencida: bool}>
      */
     public static function clasesNoDictadas(Periodo $periodo, ?Perfil $quienMira = null, bool $conArchivadas = false): Collection
     {
@@ -125,7 +127,7 @@ class Alertas
             ->flip();
 
         $archivadas = InstitucionActual::tabla('omisiones_archivadas')
-            ->select('id', 'grupo_id', 'fecha', 'causa', 'repuesta_en_id')
+            ->select('id', 'grupo_id', 'fecha', 'causa', 'clasificada_en', 'repuesta_en_id')
             ->get()
             ->keyBy(fn ($f) => $f->grupo_id.'|'.Carbon::parse($f->fecha)->toDateString());
 
@@ -149,6 +151,7 @@ class Alertas
             ->keyBy('id');
 
         $desde = self::desde($periodo);
+        $diasParaReponer = ConfiguracionInstitucion::actual()->dias_para_reponer;
         // Hasta AYER: hoy no ha terminado, y quien dicta tiene todo el dia.
         $hasta = Carbon::today()->subDay();
         $fin = Carbon::parse($periodo->fecha_fin)->startOfDay();
@@ -187,6 +190,12 @@ class Alertas
                             'archivada' => $archivada,
                             'causa' => $omision?->causa,
                             'repuesta' => $omision?->repuesta_en_id !== null,
+                            'vencida' => $omision !== null && OmisionArchivada::vencio(
+                                $omision->causa,
+                                $omision->repuesta_en_id !== null,
+                                $omision->clasificada_en ? Carbon::parse($omision->clasificada_en) : null,
+                                $diasParaReponer,
+                            ),
                         ]);
                     }
                 }
