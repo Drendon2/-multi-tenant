@@ -535,6 +535,9 @@ class ClaseController extends Controller
             'clases' => $clases,
             'filas' => $filas,
             'puedeMarcar' => Permisos::dictaLaPromotoria($perfil, $grupo->promotoria),
+            // Los carnes del grupo: la misma puerta que el carne de otra
+            // persona, solo administracion (ver `CarneController`).
+            'puedeImprimirCarnes' => $perfil->rol === 'administrador',
         ]);
     }
 }

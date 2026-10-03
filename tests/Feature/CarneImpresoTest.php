@@ -200,6 +200,29 @@ class CarneImpresoTest extends TestCase
     }
 
     /**
+     * La vista del grupo —sus clases y su asistencia, adonde lleva Horarios—
+     * tambien ofrece los carnes (03/10/2026, pedido del usuario), y tambien
+     * solo a administracion. El profesor y el director ENTRAN a esa pantalla
+     * (se comprueba con `assertOk`): sin eso, el `assertDontSee` pasaria por
+     * la barrera equivocada, la de la puerta y no la del boton.
+     */
+    public function test_la_vista_de_clases_del_grupo_ofrece_los_carnes_solo_a_administracion(): void
+    {
+        $this->actingAs($this->admin->user)
+            ->get(route('grupo-clases', $this->manana))
+            ->assertOk()
+            ->assertSee(route('carnes-grupo', $this->manana), false);
+
+        $director = $this->dirige($this->perfil('dire', 'director'));
+        foreach ([$this->profesor, $director] as $quien) {
+            $this->actingAs($quien->user)
+                ->get(route('grupo-clases', $this->manana))
+                ->assertOk()
+                ->assertDontSee(route('carnes-grupo', $this->manana), false);
+        }
+    }
+
+    /**
      * NUEVE CABEN EN UNA HOJA, y el decimo abre la segunda. Se cuenta en el
      * PDF y no se deduce de la cuenta de filas: la primera version tenia las
      * tres filas midiendo el alto exacto de la hoja, los bordes las empujaban

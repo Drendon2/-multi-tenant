@@ -22,6 +22,16 @@
   <a class="btn btn-secundario btn-sm" href="{{ route('informe-estudiantes', ['grupo' => $grupo->id]) }}">
     Descargar lista (Excel)
   </a>
+  {{--
+    Los carnés del grupo, nueve por hoja carta (03/10/2026, pedido del usuario:
+    desde Horarios se llega aquí). Solo administración, como en la lista de
+    estudiantes del grupo.
+  --}}
+  @if ($puedeImprimirCarnes)
+  <a class="btn btn-secundario btn-sm" href="{{ route('carnes-grupo', $grupo) }}" data-carnes-grupo>
+    Imprimir carnés (PDF)
+  </a>
+  @endif
 </p>
 
 @if (! $periodo)
