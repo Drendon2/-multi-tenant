@@ -787,6 +787,30 @@ class DirectorPorDepartamentoTest extends TestCase
         $this->assertDatabaseMissing('omisiones_archivadas', ['grupo_id' => $grupos['ajeno']->id]);
     }
 
+    /** El lote desde un director: la casilla de un grupo ajeno no hace nada. */
+    public function test_el_lote_de_un_director_ignora_los_grupos_ajenos(): void
+    {
+        $ayer = Carbon::today()->subDay()->toDateString();
+        $suyo = Grupo::create([
+            'promotoria_id' => $this->piano->id, 'nombre' => 'Grupo A',
+            'nivel' => 'basico', 'salon' => 'B1', 'cupo_maximo' => 10,
+        ]);
+        $ajeno = Grupo::create([
+            'promotoria_id' => $this->ballet->id, 'nombre' => 'Grupo B',
+            'nivel' => 'basico', 'salon' => 'B1', 'cupo_maximo' => 10,
+        ]);
+
+        $this->actingAs($this->director->user)
+            ->post(route('gestion-clasificar-omisiones-lote'), [
+                'omisiones' => ["{$suyo->id}|{$ayer}", "{$ajeno->id}|{$ayer}"],
+                'causa' => 'excusa',
+            ])
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseHas('omisiones_archivadas', ['grupo_id' => $suyo->id, 'causa' => 'excusa']);
+        $this->assertDatabaseMissing('omisiones_archivadas', ['grupo_id' => $ajeno->id]);
+    }
+
     private function cancelacion(string $username, Promotoria $promotoria): Matricula
     {
         $matricula = $this->matricular($username, $promotoria);

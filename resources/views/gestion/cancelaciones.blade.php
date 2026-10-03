@@ -239,9 +239,20 @@
     @endif
   </p>
 @else
-<table class="tabla-personas tabla-catalogo">
+{{-- Con una sola no hay lote: los botones de la fila bastan. --}}
+@php($loteOmisiones = $clasesNoDictadas->count() > 1)
+<div class="lote-bloque">
+@if ($loteOmisiones)
+  @include('partials.lote-omisiones', ['loteId' => 'lote-omisiones'])
+@endif
+<table class="tabla-personas tabla-catalogo" @if ($loteOmisiones) data-lote-tabla="lote-omisiones" @endif>
   <thead>
     <tr>
+      @if ($loteOmisiones)
+      <th style="width:1%;">
+        <input type="checkbox" data-lote-todos aria-label="Marcar todas las clases que no se dictaron">
+      </th>
+      @endif
       <th>Grupo</th>
       <th>Día</th>
       <th></th>
@@ -250,6 +261,11 @@
   <tbody>
     @foreach ($clasesNoDictadas as $falta)
     <tr>
+      @if ($loteOmisiones)
+      <td data-celda="marca">
+        @include('partials.casilla-omision', ['loteId' => 'lote-omisiones'])
+      </td>
+      @endif
       <td data-celda="detalle">
         {{-- `nombre_con_nivel` y no `rotulo_breve`: ese trae ademas el horario
              semanal, y aqui al lado va la fecha concreta. «Martes 4:00 p.m. ·
@@ -276,6 +292,7 @@
     @endforeach
   </tbody>
 </table>
+</div>
 @endif
 
 {{--
@@ -298,9 +315,19 @@
   @if ($atendidasTotales > $omisionesAtendidas->count())
     <p class="campo-ayuda">Se muestran las {{ $omisionesAtendidas->count() }} más recientes.</p>
   @endif
-  <table class="tabla-personas tabla-catalogo">
+  @php($loteAtendidas = $omisionesAtendidas->count() > 1)
+  <div class="lote-bloque">
+  @if ($loteAtendidas)
+    @include('partials.lote-omisiones', ['loteId' => 'lote-atendidas'])
+  @endif
+  <table class="tabla-personas tabla-catalogo" @if ($loteAtendidas) data-lote-tabla="lote-atendidas" @endif>
     <thead>
       <tr>
+        @if ($loteAtendidas)
+        <th style="width:1%;">
+          <input type="checkbox" data-lote-todos aria-label="Marcar todas las ya atendidas">
+        </th>
+        @endif
         <th>Grupo</th>
         <th>Día</th>
         <th>Causa</th>
@@ -310,6 +337,11 @@
     <tbody>
       @foreach ($omisionesAtendidas as $falta)
       <tr>
+        @if ($loteAtendidas)
+        <td data-celda="marca">
+          @include('partials.casilla-omision', ['loteId' => 'lote-atendidas'])
+        </td>
+        @endif
         <td data-celda="detalle">
           <span class="tag-dot {{ $falta['grupo']->promotoria->area->tag_color }}"></span><span class="lista-nombre">{{ $falta['grupo']->nombre_con_nivel }}</span>
           <span class="lista-nota lista-nota-bloque">
@@ -330,6 +362,7 @@
       @endforeach
     </tbody>
   </table>
+  </div>
 </details>
 @endif
 

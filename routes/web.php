@@ -575,6 +575,8 @@ Route::middleware(['auth', 'rol:administrador,director'])->prefix('gestion')->gr
     // id de una matricula.
     Route::post('/cancelaciones/omision', [Gestion\CancelacionesController::class, 'clasificarOmision'])
         ->name('gestion-clasificar-omision');
+    Route::post('/cancelaciones/omisiones-lote', [Gestion\CancelacionesController::class, 'clasificarLote'])
+        ->name('gestion-clasificar-omisiones-lote');
     Route::post('/cancelaciones/festivo', [Gestion\CancelacionesController::class, 'marcarFestivo'])
         ->name('gestion-marcar-festivo');
     Route::post('/cancelaciones/{matricula}/abandono', [Gestion\CancelacionesController::class, 'retirarPorAbandono'])

@@ -216,21 +216,105 @@ class CancelacionesController extends Controller
 
         $this->cerrarSiEsAjena(Grupo::findOrFail($datos['grupo_id'])->promotoria);
 
-        $omision = OmisionArchivada::firstOrNew(['grupo_id' => $datos['grupo_id'], 'fecha' => $datos['fecha']]);
-
-        if ($omision->causa !== $datos['causa']) {
-            $omision->causa = $datos['causa'];
-            $omision->clasificada_en = now();
-        }
-
-        $omision->archivada_por_id = auth()->user()?->perfil?->id;
-        $omision->save();
+        $this->ponerCausa(
+            OmisionArchivada::firstOrNew(['grupo_id' => $datos['grupo_id'], 'fecha' => $datos['fecha']]),
+            $datos['causa'],
+        );
 
         return $this->volver(match ($datos['causa']) {
             OmisionArchivada::FALTA => 'Quedó como falta. A quien dicta le aparece en su Panel para reponerla.',
             OmisionArchivada::EXCUSA => 'Quedó como excusa: no se repone ni le cuenta como perdida.',
             default => 'Quedó como día sin clase por la institución.',
         }, exito: true);
+    }
+
+    /**
+     * Clasifica VARIAS de una vez (03/10/2026, pedido del usuario): en
+     * produccion la bandeja puede traer cientos, y las archivadas de antes
+     * quedaron «Sin clasificar».
+     *
+     * Cada casilla manda «grupo|fecha», porque una omision pendiente no tiene
+     * fila todavia. Lo que llegue mal formado o de un grupo que quien marca no
+     * ve se queda fuera EN SILENCIO, como en el lote de cancelaciones: la
+     * pantalla no lo pinta, asi que solo llega compuesto a mano. Y por la misma
+     * puerta que la fila suelta (`ponerCausa`), asi que el plazo de una falta
+     * ya marcada no se reinicia por estar en el lote.
+     */
+    public function clasificarLote(Request $request): RedirectResponse
+    {
+        /** @var Perfil $perfil */
+        $perfil = $request->attributes->get('perfil');
+
+        $request->validate([
+            'causa' => ['required', Rule::in(array_keys(OmisionArchivada::CAUSAS))],
+        ], [
+            'causa.required' => 'Elige por qué no se dieron las clases.',
+            'causa.in' => 'Elige por qué no se dieron las clases.',
+        ]);
+        $causa = (string) $request->input('causa');
+
+        $pares = collect((array) $request->input('omisiones', []))
+            ->filter(fn ($v) => is_string($v) && preg_match('/^(\d+)\|(\d{4})-(\d{2})-(\d{2})$/', $v, $m)
+                && checkdate((int) $m[3], (int) $m[4], (int) $m[2]))
+            ->map(fn (string $v) => array_combine(['grupo_id', 'fecha'], explode('|', $v)))
+            ->unique(fn ($p) => $p['grupo_id'].'|'.$p['fecha']);
+
+        $visibles = Grupo::whereIn('id', $pares->pluck('grupo_id')->unique())
+            ->whereHas('promotoria', function ($q) use ($perfil) {
+                /** @var Builder<Promotoria> $q */
+                $q->queVe($perfil);
+            })
+            ->pluck('id')
+            ->flip();
+
+        $pares = $pares->filter(fn ($p) => $visibles->has((int) $p['grupo_id']));
+
+        if ($pares->isEmpty()) {
+            return $this->volver('No marcaste ninguna clase.');
+        }
+
+        // Las filas que ya existen, de una vez: una consulta y no una por casilla.
+        $existentes = OmisionArchivada::whereIn('grupo_id', $pares->pluck('grupo_id')->unique())
+            ->whereIn('fecha', $pares->pluck('fecha')->unique())
+            ->get()
+            ->keyBy(fn (OmisionArchivada $o) => $o->grupo_id.'|'.$o->fecha->toDateString());
+
+        DB::transaction(function () use ($pares, $existentes, $causa) {
+            foreach ($pares as $p) {
+                $this->ponerCausa(
+                    $existentes->get($p['grupo_id'].'|'.$p['fecha'])
+                        ?? new OmisionArchivada(['grupo_id' => (int) $p['grupo_id'], 'fecha' => $p['fecha']]),
+                    $causa,
+                );
+            }
+        });
+
+        $n = $pares->count();
+        $clases = $n === 1 ? '1 clase quedó' : "{$n} clases quedaron";
+
+        return $this->volver(match ($causa) {
+            OmisionArchivada::FALTA => "{$clases} como falta. A quien dicta le aparecen en su Panel para reponerlas.",
+            OmisionArchivada::EXCUSA => "{$clases} como excusa: no se reponen ni cuentan como perdidas.",
+            default => "{$clases} como festivo o cierre.",
+        }, exito: true);
+    }
+
+    /**
+     * La UNICA forma de ponerle causa a una omision, para la fila y el lote.
+     *
+     * `clasificada_en` cambia SOLO si cambia la causa: es desde cuando corre el
+     * plazo para reponer, y volver a decir «Falta» no puede regalar otros
+     * quince dias. Escrita dos veces, una de las copias acabaria olvidandolo.
+     */
+    private function ponerCausa(OmisionArchivada $omision, string $causa): void
+    {
+        if ($omision->causa !== $causa) {
+            $omision->causa = $causa;
+            $omision->clasificada_en = now();
+        }
+
+        $omision->archivada_por_id = auth()->user()?->perfil?->id;
+        $omision->save();
     }
 
     /**

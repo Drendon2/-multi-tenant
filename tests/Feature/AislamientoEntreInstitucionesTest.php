@@ -279,6 +279,32 @@ class AislamientoEntreInstitucionesTest extends TestCase
         });
     }
 
+    /**
+     * El lote de clasificar (traido de main el 03/10/2026): una casilla
+     * compuesta a mano con un grupo de la otra casa no escribe nada alli.
+     */
+    public function test_el_lote_no_clasifica_grupos_de_la_otra_institucion(): void
+    {
+        $nuevo = fn (array $casa): Grupo => $casa['promotoria']->grupos()->create([
+            'nombre' => 'Grupo A', 'nivel' => 'basico', 'cupo_maximo' => 10, 'salon' => '',
+        ]);
+
+        $mio = $nuevo($this->casa);
+        $ajeno = InstitucionActual::mientras($this->otra['institucion']->id, fn () => $nuevo($this->otra));
+
+        $this->actingAs($this->casa['admin']->user)
+            ->post(self::CASA.'/gestion/cancelaciones/omisiones-lote', [
+                'omisiones' => ["{$mio->id}|2026-03-10", "{$ajeno->id}|2026-03-10"],
+                'causa' => 'excusa',
+            ])
+            ->assertSessionHas('success');
+
+        $this->assertSame(1, OmisionArchivada::where('grupo_id', $mio->id)->count());
+        InstitucionActual::mientras($this->otra['institucion']->id, function () use ($ajeno) {
+            $this->assertSame(0, OmisionArchivada::where('grupo_id', $ajeno->id)->count());
+        });
+    }
+
     public function test_las_cifras_sin_modelo_no_suman_la_otra_institucion(): void
     {
         // El informe de la institucion se arma con consultas que no hidratan

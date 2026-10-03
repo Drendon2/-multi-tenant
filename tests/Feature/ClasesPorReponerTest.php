@@ -424,4 +424,73 @@ class ClasesPorReponerTest extends TestCase
 
         $this->assertNull(ConfiguracionInstitucion::actual()->fresh()->dias_para_reponer);
     }
+
+    // -----------------------------------------------------------------------
+    // Clasificar varias de una vez
+
+    /** @param  list<string>  $omisiones */
+    private function lote(array $omisiones, ?string $causa): TestResponse
+    {
+        return $this->actingAs($this->admin->user)
+            ->post(route('gestion-clasificar-omisiones-lote'), array_filter([
+                'omisiones' => $omisiones,
+                'causa' => $causa,
+            ]));
+    }
+
+    public function test_el_lote_clasifica_todas_las_marcadas(): void
+    {
+        $id = $this->grupo->id;
+
+        $this->lote(["{$id}|2026-03-03", "{$id}|2026-03-10"], OmisionArchivada::EXCUSA)
+            ->assertSessionHas('success');
+
+        $this->assertSame(2, OmisionArchivada::where('causa', OmisionArchivada::EXCUSA)->count());
+        $this->assertCount(0, Alertas::clasesNoDictadas($this->periodo));
+    }
+
+    /**
+     * Las archivadas de antes, «Sin clasificar», se clasifican por el mismo
+     * lote: es la razon por la que se pidio.
+     */
+    public function test_el_lote_clasifica_las_archivadas_sin_causa(): void
+    {
+        OmisionArchivada::create(['grupo_id' => $this->grupo->id, 'fecha' => '2026-03-03']);
+
+        $this->lote([$this->grupo->id.'|2026-03-03'], OmisionArchivada::FALTA);
+
+        $vieja = OmisionArchivada::sole();
+        $this->assertSame(OmisionArchivada::FALTA, $vieja->causa);
+        $this->assertNotNull($vieja->clasificada_en);
+    }
+
+    /** Pasa por la misma puerta que la fila: el lote no reinicia el plazo. */
+    public function test_el_lote_no_reinicia_el_plazo_de_una_falta(): void
+    {
+        $this->clasificar('2026-03-03', OmisionArchivada::FALTA);
+
+        Carbon::setTestNow(Carbon::parse('2026-03-25 10:00:00'));
+        $this->lote([$this->grupo->id.'|2026-03-03'], OmisionArchivada::FALTA);
+
+        $this->assertSame('2026-03-11', OmisionArchivada::sole()->clasificada_en->toDateString());
+    }
+
+    /** Lo mal formado se queda fuera en silencio; sin nada valido, se dice. */
+    public function test_el_lote_ignora_lo_mal_formado_y_exige_causa(): void
+    {
+        $this->lote(['basura', $this->grupo->id.'|2026-02-31', '|2026-03-03'], OmisionArchivada::EXCUSA)
+            ->assertSessionHas('error');
+        $this->lote([$this->grupo->id.'|2026-03-03'], null)->assertSessionHasErrors('causa');
+
+        $this->assertSame(0, OmisionArchivada::count());
+    }
+
+    /** Con dos o más pendientes, la tabla trae las casillas y la barra. */
+    public function test_la_bandeja_pinta_las_casillas_del_lote(): void
+    {
+        $this->actingAs($this->admin->user)->get(route('gestion-cancelaciones'))
+            ->assertOk()
+            ->assertSee('data-lote-tabla="lote-omisiones"', false)
+            ->assertSee('value="'.$this->grupo->id.'|2026-03-10"', false);
+    }
 }
