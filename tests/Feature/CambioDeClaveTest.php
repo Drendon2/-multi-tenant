@@ -182,4 +182,21 @@ class CambioDeClaveTest extends TestCase
             'telefono' => '3000000000',
         ]);
     }
+
+    /**
+     * Al CAMBIARLA tambien, y ahi el usuario sale de la sesion: el formulario
+     * de Mi perfil no lo trae.
+     */
+    public function test_la_nueva_no_puede_ser_comun_ni_el_usuario(): void
+    {
+        $largo = $this->perfil('anamaria2026', 'estudiante', self::VIEJA);
+
+        foreach (['password123', 'AnaMaria2026'] as $mala) {
+            $this->actingAs($largo->user)
+                ->post(route('mi-perfil.guardar'), $this->formulario(self::VIEJA, $mala))
+                ->assertSessionHasErrors('password');
+        }
+
+        $this->assertTrue(Hash::check(self::VIEJA, $largo->user->fresh()->password));
+    }
 }

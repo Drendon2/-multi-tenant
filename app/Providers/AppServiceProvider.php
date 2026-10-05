@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\ConfiguracionInstitucion;
 use App\Models\Periodo;
+use App\Rules\ClaveComun;
 use App\Support\ClasesPendientes;
 use App\Support\ConexionQueReintenta;
 use App\Support\InstitucionActual;
@@ -310,15 +311,13 @@ class AppServiceProvider extends ServiceProvider
      * `create_user()`. Configuracion muerta. Esta regla es un anadido
      * deliberado, no una equivalencia.
      *
-     * Se queda en la longitud y no se copian los otros tres validadores (lista
-     * de contrasenas comunes, no-solo-digitos, parecido al usuario) porque eso
-     * ya seria decidir politica de contrasenas, y esa decision no esta escrita
-     * en ninguna parte. Si algun dia se toma, se anade aqui encadenando y los
-     * tres formularios la reciben solos.
+     * Desde el 05/10/2026 rechaza ademas las contraseñas COMUNES y la igual al
+     * usuario (`App\Rules\ClaveComun`, decision del usuario). Va encadenada
+     * aqui, como estaba previsto, y todos los formularios la reciben solos.
      */
     private function exigirContrasenaMinima(): void
     {
-        Password::defaults(fn () => Password::min(8));
+        Password::defaults(fn () => Password::min(8)->rules([new ClaveComun]));
     }
 
     /**

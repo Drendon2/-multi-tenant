@@ -181,4 +181,27 @@ class RegistroTest extends TestCase
         $this->assertSame(5, User::count());
         $this->assertNull(User::where('username', 'profe.nuevo6')->first());
     }
+
+    /**
+     * Las contraseñas que se adivinan primero no entran (05/10/2026,
+     * `App\Rules\ClaveComun`). Sin mayusculas ni tildes: «Contraseña123» es
+     * «contrasena123» para quien la prueba.
+     */
+    public function test_una_contrasena_comun_se_rechaza(): void
+    {
+        foreach (['colombia123', 'Contraseña123', 'QWERTYUIOP', 'aaaaaaaa', '11111111'] as $comun) {
+            $this->post(route('registro.guardar'), [...$this->datos, 'password' => $comun, 'password_confirmation' => $comun])
+                ->assertSessionHasErrors('password');
+        }
+
+        $this->assertSame(0, User::count());
+    }
+
+    public function test_la_contrasena_no_puede_ser_el_usuario(): void
+    {
+        $this->post(route('registro.guardar'), [...$this->datos, 'password' => 'Profe.Nuevo', 'password_confirmation' => 'Profe.Nuevo'])
+            ->assertSessionHasErrors('password');
+
+        $this->assertSame(0, User::count());
+    }
 }

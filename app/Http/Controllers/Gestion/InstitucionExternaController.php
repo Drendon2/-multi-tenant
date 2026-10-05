@@ -194,8 +194,8 @@ class InstitucionExternaController extends RecursoController
                 Rule::unique('users', 'username')->ignore($objeto?->perfil?->user_id)
             ),
             'password' => $objeto === null
-                ? ['required', Password::min(8)]
-                : ['nullable', Password::min(8)],
+                ? ['required', Password::defaults()]
+                : ['nullable', Password::defaults()],
         ];
     }
 
