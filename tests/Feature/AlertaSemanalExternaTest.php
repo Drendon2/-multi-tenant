@@ -258,4 +258,26 @@ class AlertaSemanalExternaTest extends TestCase
         $this->assertSame('2026-04-01', $nueva->clases_desde?->toDateString());
         $this->assertSame('2026-11-30', $nueva->clases_hasta?->toDateString());
     }
+
+    /**
+     * Dos programas sin clase la misma semana desempatan por nombre
+     * (05/10/2026). El segundo se crea DESPUES y empieza antes en el
+     * alfabeto: sin desempate saldria detras.
+     */
+    public function test_los_programas_de_la_misma_semana_desempatan_por_nombre(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-03-01 09:00:00'));
+        Actividad::create([
+            'nombre' => 'Arpa — El Carmen',
+            'tipo' => Actividad::EXTERNO,
+            'responsable_id' => $this->profesor->id,
+            'institucion_externa_id' => $this->escuela->id,
+        ]);
+        Carbon::setTestNow(Carbon::parse('2026-03-18 10:00:00'));
+
+        $this->assertSame(
+            ['2026-03-09 Arpa — El Carmen', '2026-03-09 Guitarra — El Carmen', '2026-03-02 Arpa — El Carmen', '2026-03-02 Guitarra — El Carmen'],
+            Alertas::semanasSinClaseExterna()->map(fn ($s) => $s['semana']->toDateString().' '.$s['actividad']->nombre)->all()
+        );
+    }
 }

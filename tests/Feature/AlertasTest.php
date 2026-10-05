@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Actividad;
 use App\Models\Area;
 use App\Models\Asistencia;
 use App\Models\Clase;
 use App\Models\ConfiguracionInstitucion;
 use App\Models\DatosEstudiante;
 use App\Models\Grupo;
+use App\Models\InstitucionExterna;
 use App\Models\Matricula;
 use App\Models\OmisionArchivada;
 use App\Models\Perfil;
@@ -579,5 +581,95 @@ class AlertasTest extends TestCase
         $this->actingAs($this->crearPerfil('otro', 'profesor')->user)
             ->get(route('gestion-cancelaciones'))
             ->assertRedirect(route('post-login'));
+    }
+    // -----------------------------------------------------------------------
+    // Desempates (05/10/2026). Los empatados se crean en el orden CONTRARIO al
+    // del nombre: sin desempate saldrian en el de la consulta, que es el de
+    // creacion, y la prueba se pondria roja.
+
+    /** Otro grupo con clase los dias dados, en una promotoria nueva o en Violin. */
+    private function otroGrupo(string $promotoria, string $grupo, int $dia): Grupo
+    {
+        $prom = $promotoria === 'Violin'
+            ? Promotoria::findOrFail($this->grupo->promotoria_id)
+            : Promotoria::create([
+                'nombre' => $promotoria,
+                'area_id' => Promotoria::findOrFail($this->grupo->promotoria_id)->area_id,
+                'profesor_id' => Promotoria::findOrFail($this->grupo->promotoria_id)->profesor_id,
+            ]);
+
+        /** @var Grupo $nuevo */
+        $nuevo = $prom->grupos()->create(['nombre' => $grupo, 'nivel' => 'basico', 'cupo_maximo' => 10, 'salon' => '']);
+        $nuevo->sesiones()->create(['dia' => $dia, 'hora_inicio' => '08:00', 'hora_fin' => '10:00']);
+
+        return $nuevo;
+    }
+
+    public function test_las_clases_del_mismo_dia_desempatan_por_promotoria_y_grupo(): void
+    {
+        $this->horarioEn(2);                          // Violin · Grupo A, el primero creado
+        $this->otroGrupo('Violin', 'Grupo 0', 2);     // mismo nombre de promotoria, grupo antes
+        $this->otroGrupo('Arpa', 'Grupo Z', 2);       // promotoria antes en el alfabeto
+
+        $orden = Alertas::clasesNoDictadas($this->periodo)
+            ->map(fn ($f) => $f['fecha']->format('d/m').' '.$f['grupo']->promotoria->nombre.' · '.$f['grupo']->nombre)
+            ->all();
+
+        $this->assertSame([
+            '10/03 Arpa · Grupo Z', '10/03 Violin · Grupo 0', '10/03 Violin · Grupo A',
+            '03/03 Arpa · Grupo Z', '03/03 Violin · Grupo 0', '03/03 Violin · Grupo A',
+        ], $orden);
+    }
+
+    public function test_los_abandonos_con_las_mismas_faltas_desempatan_por_nombre(): void
+    {
+        $zuleta = $this->estudianteMatriculado('zuleta');
+        $alvarez = $this->estudianteMatriculado('álvarez');
+
+        foreach (['03-02', '03-03', '03-04', '03-05', '03-06'] as $dia) {
+            $clase = $this->clase("2026-{$dia} 08:00:00");
+            foreach ([$zuleta, $alvarez] as $m) {
+                Asistencia::create(['clase_id' => $clase->id, 'matricula_id' => $m->id, 'estado' => Asistencia::FALTO]);
+            }
+        }
+
+        $this->assertSame(
+            ['álvarez', 'Zuleta'],   // en minuscula y con tilde: no altera el orden
+            Alertas::posiblesAbandonos($this->periodo)->map(fn ($c) => $c['matricula']->estudiante->nombre_completo)->all()
+        );
+    }
+
+    /**
+     * La portada recorta a tres y MEZCLA las bandejas. El unico empate real
+     * entre tipos distintos es el de una clase sin dictar de un lunes y la
+     * semana sin clase de un programa externo que empieza ese lunes: las dos
+     * van a medianoche. Sin desempate ganaba la que se apilo antes (las
+     * clases); con el, la que va antes por lo que se lee.
+     */
+    public function test_la_portada_desempata_por_lo_que_se_lee(): void
+    {
+        $this->horarioEn(1);                          // Violin · Grupo A, los lunes: 02/03 y 09/03
+
+        Carbon::setTestNow(Carbon::parse('2026-03-01 09:00:00'));
+        $escuela = InstitucionExterna::create([
+            'nombre' => 'I. E. Rural El Carmen',
+            'perfil_id' => $this->crearPerfil('carmen', Perfil::INSTITUCION_EXTERNA)->id,
+            'clases_desde' => '2026-03-02',
+        ]);
+        Actividad::create([
+            'nombre' => 'Arpa — El Carmen',
+            'tipo' => Actividad::EXTERNO,
+            'responsable_id' => Promotoria::findOrFail($this->grupo->promotoria_id)->profesor_id,
+            'institucion_externa_id' => $escuela->id,
+        ]);
+        Carbon::setTestNow(Carbon::parse('2026-03-11 10:00:00'));
+
+        $html = (string) $this->actingAs($this->admin->user)->get(route('gestion-inicio'))->assertOk()->getContent();
+        preg_match_all('#<span class="alertas-banner-texto">\s*<strong>(.*?)</strong>#s', $html, $m);
+
+        $this->assertSame(
+            ['Violin · Grupo A', 'Arpa — El Carmen', 'Violin · Grupo A'],
+            array_map('html_entity_decode', $m[1])
+        );
     }
 }

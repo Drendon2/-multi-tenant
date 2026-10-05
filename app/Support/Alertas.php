@@ -306,7 +306,11 @@ class Alertas
             }
         }
 
-        return $semanas->sortByDesc(fn ($s) => $s['semana']->timestamp)->values();
+        // La semana mas reciente arriba y, entre programas de la misma semana,
+        // por nombre (ver `OrdenPorNombre`).
+        return $semanas->sort(fn (array $a, array $b) => $b['semana']->timestamp <=> $a['semana']->timestamp
+            ?: OrdenPorNombre::comparar($a['actividad']->nombre, $b['actividad']->nombre)
+        )->values();
     }
 
     /**
