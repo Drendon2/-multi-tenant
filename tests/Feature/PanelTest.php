@@ -14,8 +14,10 @@ use App\Models\Perfil;
 use App\Models\Periodo;
 use App\Models\Promotoria;
 use App\Models\User;
+use App\Support\Permisos;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -1131,6 +1133,58 @@ class PanelTest extends TestCase
     }
 
     /**
+     * Desde el 05/10/2026 el profesor solo abre la ficha de SUS estudiantes
+     * (`Permisos::esEstudianteDe`, la misma regla que la foto). Antes abria la
+     * de cualquiera probando ids.
+     */
+    public function test_un_profesor_no_abre_la_ficha_de_un_estudiante_ajeno(): void
+    {
+        $this->matricular($this->danza, estado: Matricula::ACTIVA);   // Danza no es suya
+
+        $this->actingAs($this->profesor->user)
+            ->get(route('detalle-usuario', $this->estudiante))
+            ->assertRedirect(route('panel'))
+            ->assertSessionHas('error');
+    }
+
+    public function test_tampoco_la_de_un_estudiante_sin_matricula(): void
+    {
+        $this->actingAs($this->profesor->user)
+            ->get(route('detalle-usuario', $this->crearEstudiante('beto')))
+            ->assertRedirect(route('panel'));
+    }
+
+    /** La retirada de su historial tambien es suya: cualquier estado. */
+    public function test_si_la_de_un_estudiante_suyo_ya_retirado(): void
+    {
+        $this->matricular($this->violin, estado: Matricula::RETIRADA);
+
+        $this->actingAs($this->profesor->user)
+            ->get(route('detalle-usuario', $this->estudiante))
+            ->assertOk();
+    }
+
+    /**
+     * Las listas preguntan por cada fila para pintar el enlace a la ficha: la
+     * respuesta cuesta UNA consulta por peticion, no una por estudiante.
+     */
+    public function test_saber_si_es_suyo_cuesta_una_consulta_por_peticion(): void
+    {
+        $alumnos = [];
+        foreach (['b1', 'b2', 'b3', 'b4', 'b5'] as $u) {
+            $alumnos[] = $alumno = $this->crearEstudiante($u);
+            $this->matricular($this->violin, $alumno, Matricula::ACTIVA);
+        }
+
+        DB::enableQueryLog();
+        foreach ($alumnos as $alumno) {
+            $this->assertTrue(Permisos::esEstudianteDe($this->profesor, $alumno));
+        }
+        $this->assertCount(1, DB::getQueryLog());
+        DB::disableQueryLog();
+    }
+
+    /**
      * El panel de asistencia de la ficha solo se pinta cuando hay algo que
      * contar, y por eso ninguna prueba lo habia renderizado: un error de
      * compilacion de Blade vivio ahi sin que nada lo delatara.
@@ -1156,8 +1210,9 @@ class PanelTest extends TestCase
     }
 
     /**
-     * Que un profesor pueda abrir la ficha no le da los datos de contacto de
-     * cualquiera: solo de quien cursa alguna de sus promotorias.
+     * El contacto de un estudiante ajeno no le llega al profesor. Hasta el
+     * 05/10/2026 abria la ficha con el contacto recortado; desde ese dia ni
+     * siquiera la abre (`Permisos::esEstudianteDe`).
      */
     public function test_el_profesor_no_ve_el_contacto_de_un_estudiante_ajeno(): void
     {
@@ -1166,7 +1221,7 @@ class PanelTest extends TestCase
 
         $this->actingAs($this->profesor->user)
             ->get(route('detalle-usuario', $ajeno))
-            ->assertOk()
+            ->assertRedirect(route('panel'))
             ->assertDontSee('3000000000');
     }
 

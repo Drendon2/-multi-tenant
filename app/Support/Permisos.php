@@ -414,21 +414,55 @@ class Permisos
         }
 
         if ($solicitante->rol === 'profesor') {
-            return $objetivo->rol === 'estudiante'
-                && Matricula::where('estudiante_id', $objetivo->id)
-                    ->whereIn('promotoria_id', Promotoria::where('profesor_id', $solicitante->id)->select('id'))
-                    ->exists();
+            return self::esEstudianteDe($solicitante, $objetivo);
         }
 
         return Companeros::sonCompaneros($solicitante, $objetivo);
     }
 
     /**
+     * ¿Es `$estudiante` alumno de `$profesor`? Con ALGUNA matricula en una
+     * promotoria que el dicta, en cualquier periodo y estado: la pendiente que
+     * tiene que confirmar y la retirada de su historial tambien son suyas.
+     *
+     * Una sola regla para la FOTO y la FICHA (desde el 05/10/2026): escrita en
+     * cada una, el dia que una cambie la otra se queda atras sin fallar.
+     */
+    public static function esEstudianteDe(Perfil $profesor, Perfil $estudiante): bool
+    {
+        if ($estudiante->rol !== 'estudiante') {
+            return false;
+        }
+
+        // UNA consulta por peticion y profesor, no una por estudiante: las
+        // listas del Panel preguntan por cada fila para pintar el enlace a la
+        // ficha. Se guarda en la PETICION y no en una estatica, que en la
+        // suite —y en un trabajador que viva varias peticiones— se quedaria con
+        // los alumnos de la primera.
+        $clave = 'permisos.estudiantes_de.'.$profesor->id;
+        $atributos = request()->attributes;
+
+        if (! $atributos->has($clave)) {
+            $atributos->set($clave, array_flip(
+                Matricula::whereIn('promotoria_id', Promotoria::where('profesor_id', $profesor->id)->select('id'))
+                    ->distinct()
+                    ->pluck('estudiante_id')
+                    ->all()
+            ));
+        }
+
+        return isset($atributos->get($clave)[$estudiante->id]);
+    }
+
+    /**
      * ¿Puede abrir la ficha de otra persona? Se mira hacia abajo, no hacia los
      * lados.
      *
-     * Administrador y director abren la de cualquiera. El profesor solo la de
-     * estudiantes — ni la de otro profesor, ni la de un director. Un estudiante
+     * Administrador y director abren la de cualquiera. El profesor, desde el
+     * 05/10/2026, solo la de SUS estudiantes (`esEstudianteDe`, la misma regla
+     * que la foto): hasta ese dia abria la de cualquier estudiante probando
+     * ids, con los datos sensibles ya recortados pero con nombre, foto y
+     * trayectoria. Ni la de otro profesor, ni la de un director. Un estudiante
      * no abre ninguna: sus pantallas ensenan los nombres como texto.
      */
     public static function puedeVerFicha(?Perfil $solicitante, ?Perfil $objetivo): bool
@@ -442,7 +476,7 @@ class Permisos
         }
 
         if ($solicitante->rol === 'profesor') {
-            return $objetivo->rol === 'estudiante';
+            return self::esEstudianteDe($solicitante, $objetivo);
         }
 
         return false;
