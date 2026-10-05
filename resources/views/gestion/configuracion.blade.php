@@ -66,10 +66,24 @@
       @error('logo')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
     </div>
 
+    </fieldset>
+
+    {{--
+      LOS COLORES, CON SU PROPIO BOTÓN (05/10/2026, pedido del usuario). Viven
+      dentro del formulario general en la página, pero sus campos pertenecen a
+      `form-colores` —el atributo `form`—, que está al final, fuera de este: no
+      se pueden anidar formularios. Ese otro formulario va con
+      `data-recarga-completa`, porque los colores están en el `<head>` y en el
+      `<header>`, fuera de `<main>`, y repintar solo `<main>` no los cambiaba.
+      El botón general de abajo NO los guarda.
+    --}}
+    <fieldset class="config-seccion" id="colores">
+    <legend class="config-seccion-titulo">Colores</legend>
+
     <div class="config-campo">
       <label class="config-etiqueta" for="color_acento">Color de acento</label>
       <div class="config-color">
-        <input type="color" name="color_acento" id="color_acento"
+        <input type="color" name="color_acento" id="color_acento" form="form-colores"
                value="{{ old('color_acento', $institucion->color_acento) }}">
         <span class="config-hex">{{ $institucion->color_acento }}</span>
       </div>
@@ -101,12 +115,12 @@
     <div class="config-campo">
       <label class="config-etiqueta" for="{{ $campo }}">{{ $rotulo }}</label>
       <div class="config-color">
-        <input type="color" name="{{ $campo }}" id="{{ $campo }}" data-color-propio="{{ $campo }}_fabrica"
+        <input type="color" name="{{ $campo }}" id="{{ $campo }}" data-color-propio="{{ $campo }}_fabrica" form="form-colores"
                value="{{ old($campo, $institucion->{$campo} ?: $fabrica) }}">
         <span class="config-hex">{{ $institucion->{$campo} ?: 'el de fábrica' }}</span>
       </div>
       <label class="config-logo-quitar">
-        <input type="checkbox" name="{{ $campo }}_fabrica" id="{{ $campo }}_fabrica" value="1"
+        <input type="checkbox" name="{{ $campo }}_fabrica" id="{{ $campo }}_fabrica" value="1" form="form-colores"
                @checked(old($campo.'_fabrica', $institucion->{$campo} === '' ? '1' : null))>
         <span>Usar el de fábrica</span>
       </label>
@@ -122,6 +136,9 @@
       });
     });
     </script>
+
+    <button type="submit" class="btn" form="form-colores">Guardar colores</button>
+    <p class="config-ayuda">Al guardar, la página se recarga ya con los colores nuevos.</p>
 
     </fieldset>
 
@@ -713,6 +730,11 @@
     </fieldset>
 
     <button type="submit" class="btn">Guardar</button>
+  </form>
+
+  {{-- El formulario de los colores: vacío aquí, sus campos están arriba (ver la sección «Colores»). --}}
+  <form id="form-colores" method="post" action="{{ route('gestion-colores') }}" data-recarga-completa>
+    @csrf
   </form>
 </div>
 

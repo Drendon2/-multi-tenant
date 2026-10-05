@@ -827,6 +827,9 @@ Route::middleware(['auth', 'rol:administrador'])->prefix('gestion')->group(funct
     Route::get('/institucion', [Gestion\ConfiguracionController::class, 'mostrar'])
         ->name('gestion-configuracion');
     Route::post('/institucion', [Gestion\ConfiguracionController::class, 'guardar']);
+    // Los colores, con su propio boton y recarga completa (ver `guardarColores`).
+    Route::post('/institucion/colores', [Gestion\ConfiguracionController::class, 'guardarColores'])
+        ->name('gestion-colores');
     Route::post('/institucion/documentos/nuevo', [Gestion\ConfiguracionController::class, 'documentoNuevo'])
         ->name('documento-requerido-nuevo');
     Route::post('/institucion/documentos/{documento}/alternar', [Gestion\ConfiguracionController::class, 'documentoAlternar'])

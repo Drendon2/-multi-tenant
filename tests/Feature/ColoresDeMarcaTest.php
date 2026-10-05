@@ -36,12 +36,7 @@ class ColoresDeMarcaTest extends TestCase
     /** @param array<string, mixed> $colores */
     private function guardar(array $colores): TestResponse
     {
-        return $this->actingAs($this->admin)->post(route('gestion-configuracion'), [
-            'nombre_institucion' => 'Casa de la Cultura',
-            'color_acento' => '#0a7a59',
-            'limite_promotorias_por_periodo' => 2,
-            'faltas_para_abandono' => 5,
-        ] + $colores);
+        return $this->actingAs($this->admin)->post(route('gestion-colores'), ['color_acento' => '#0a7a59'] + $colores);
     }
 
     private function pagina(): string
@@ -126,5 +121,57 @@ class ColoresDeMarcaTest extends TestCase
     public function test_con_la_casilla_no_se_mira_el_contraste(): void
     {
         $this->guardar(['color_fondo' => '#333333', 'color_fondo_fabrica' => '1'])->assertSessionHasNoErrors();
+    }
+
+    // -----------------------------------------------------------------------
+    // Su propio boton (05/10/2026)
+
+    /** El boton general ya no toca los colores: tienen el suyo. */
+    public function test_el_boton_general_no_toca_los_colores(): void
+    {
+        $this->guardar(['color_fondo' => '#fff8e7'])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->admin)->post(route('gestion-configuracion'), [
+            'nombre_institucion' => 'Casa de la Cultura',
+            'color_acento' => '#123456',
+            'color_fondo_fabrica' => '1',
+            'limite_promotorias_por_periodo' => 2,
+            'faltas_para_abandono' => 5,
+        ])->assertSessionHas('success');
+
+        $config = ConfiguracionInstitucion::actual()->fresh();
+        $this->assertSame('#0a7a59', $config->color_acento);
+        $this->assertSame('#fff8e7', $config->color_fondo);
+    }
+
+    /**
+     * Guardar y rechazar vuelven a la seccion de colores: con la recarga
+     * completa, `back()` dejaria la pagina arriba y el aviso sin verse.
+     */
+    public function test_guardar_y_rechazar_vuelven_a_la_seccion(): void
+    {
+        $this->guardar(['color_fondo' => '#fff8e7'])
+            ->assertRedirect(route('gestion-configuracion').'#colores');
+
+        $this->guardar(['color_fondo' => '#333333'])
+            ->assertRedirect(route('gestion-configuracion').'#colores')
+            ->assertSessionHasErrors('color_fondo')
+            ->assertSessionHasInput('color_fondo', '#333333');
+    }
+
+    /**
+     * Los colores viven fuera de `<main>`, y `acciones.js` solo repinta `<main>`:
+     * su formulario NAVEGA (`data-recarga-completa`) para que la pagina llegue
+     * ya pintada. Y sus campos le pertenecen por el atributo `form`.
+     */
+    public function test_el_formulario_de_colores_recarga_la_pagina_entera(): void
+    {
+        $html = (string) $this->actingAs($this->admin)->get(route('gestion-configuracion'))->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('#<form id="form-colores"[^>]*data-recarga-completa#', $html);
+        foreach (['color_acento', 'color_fondo', 'color_cabecera'] as $campo) {
+            $this->assertMatchesRegularExpression('#name="'.$campo.'"[^>]*form="form-colores"#', $html);
+        }
+        $this->assertMatchesRegularExpression('#<button[^>]*form="form-colores"#', $html);
     }
 }

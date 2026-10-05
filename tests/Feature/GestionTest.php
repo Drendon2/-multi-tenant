@@ -1431,12 +1431,7 @@ class GestionTest extends TestCase
     public function test_un_acento_demasiado_claro_avisa_del_contraste(): void
     {
         $this->actingAs($this->admin->user)
-            ->post(route('gestion-configuracion'), [
-                'nombre_institucion' => 'Casa',
-                'color_acento' => '#ffee00',
-                'limite_promotorias_por_periodo' => 2,
-                'faltas_para_abandono' => 5,
-            ])
+            ->post(route('gestion-colores'), ['color_acento' => '#ffee00'])
             ->assertSessionHas('success')
             ->assertSessionHas('error');
 

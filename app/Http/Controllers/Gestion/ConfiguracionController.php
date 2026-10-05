@@ -166,37 +166,6 @@ class ConfiguracionController extends Controller
             'firma' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096', new ImagenProcesable],
             'firmante_nombre' => Reglas::texto(120, obligatorio: false),
             'firmante_cargo' => Reglas::texto(80, obligatorio: false),
-            'color_acento' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            // FONDO Y CABECERA (05/10/2026). Al contrario que el acento, el
-            // contraste aqui BLOQUEA: un fondo oscuro deja ilegible el texto de
-            // todas las pantallas, y eso no lo pide ninguna marca. Con la
-            // casilla «el de fabrica» marcada no se mira el color.
-            'color_fondo' => [
-                'nullable', 'regex:/^#[0-9a-fA-F]{6}$/',
-                function (string $campo, mixed $valor, \Closure $falla) use ($request) {
-                    if ($request->boolean('color_fondo_fabrica') || ! is_string($valor) || ! Color::esHexValido($valor)) {
-                        return;
-                    }
-                    $razon = Color::contraste(Color::TINTA_SUAVE, $valor);
-                    if ($razon < Color::CONTRASTE_MINIMO_ACENTO) {
-                        $falla('Ese fondo es demasiado oscuro: el texto gris de las pantallas quedaría en '
-                            .number_format($razon, 1, ',', '').':1 de contraste y el mínimo es 4,5:1. Elige un tono más claro.');
-                    }
-                },
-            ],
-            'color_cabecera' => [
-                'nullable', 'regex:/^#[0-9a-fA-F]{6}$/',
-                function (string $campo, mixed $valor, \Closure $falla) use ($request) {
-                    if ($request->boolean('color_cabecera_fabrica') || ! is_string($valor) || ! Color::esHexValido($valor)) {
-                        return;
-                    }
-                    $razon = Color::contraste(Color::textoSobre($valor), $valor);
-                    if ($razon < Color::CONTRASTE_MINIMO_ACENTO) {
-                        $falla('Con ese color de cabecera ni el texto blanco ni el oscuro llegan a 4,5:1 (el mejor queda en '
-                            .number_format($razon, 1, ',', '').':1). Elige un tono más claro o más oscuro.');
-                    }
-                },
-            ],
             'limite_promotorias_por_periodo' => [
                 'required', 'integer', 'min:1', 'max:'.ConfiguracionInstitucion::RANURA_MAXIMA_ABSOLUTA,
             ],
@@ -213,9 +182,6 @@ class ConfiguracionController extends Controller
             'dias_para_reponer' => ['nullable', 'integer', 'min:1', 'max:180'],
             'alertas_desde' => ['nullable', 'date'],
         ], Reglas::mensajes() + [
-            'color_acento.regex' => 'El color de acento debe ir en formato #rrggbb.',
-            'color_fondo.regex' => 'El color de fondo debe ir en formato #rrggbb.',
-            'color_cabecera.regex' => 'El color de la cabecera debe ir en formato #rrggbb.',
             // El de Laravel para `regex` es «El formato de servidor de correo no
             // es válido», que no le dice a nadie que sobra el «https://».
             'correo_servidor.regex' => 'Escribe solo el nombre del servidor, como smtp.hostinger.com — '
@@ -322,10 +288,6 @@ class ConfiguracionController extends Controller
         // significa lo mismo —«usa la de fabrica»—, que resuelve el modelo.
         $configuracion->finalidad_datos = trim($datos['finalidad_datos'] ?? '');
         $configuracion->finalidad_imagen = trim($datos['finalidad_imagen'] ?? '');
-        $configuracion->color_acento = strtolower($datos['color_acento']);
-        // '' es «el de fabrica»: con la casilla marcada, o sin color enviado.
-        $configuracion->color_fondo = $request->boolean('color_fondo_fabrica') ? '' : strtolower((string) ($datos['color_fondo'] ?? ''));
-        $configuracion->color_cabecera = $request->boolean('color_cabecera_fabrica') ? '' : strtolower((string) ($datos['color_cabecera'] ?? ''));
         $configuracion->limite_promotorias_por_periodo = $datos['limite_promotorias_por_periodo'];
         $configuracion->promotorias_visibles_para_estudiantes = $request->boolean('promotorias_visibles_para_estudiantes');
         $configuracion->alerta_clase_no_dictada = $request->boolean('alerta_clase_no_dictada');
@@ -347,19 +309,6 @@ class ConfiguracionController extends Controller
 
         $respuesta = redirect()->route('gestion-configuracion')
             ->with('success', 'Configuración de la institución actualizada.');
-
-        // El contraste no bloquea: una marca clara puede ser legitima, pero el
-        // texto blanco de los botones deja de leerse y hay que avisarlo.
-        $razon = $configuracion->contraste_texto_boton;
-
-        if ($razon < 4.5) {
-            $respuesta->with(
-                'error',
-                'Ojo: el texto blanco sobre ese color de acento queda en '
-                .number_format($razon, 1).':1 de contraste, por debajo del mínimo de 4.5:1. '
-                .'Los botones serán difíciles de leer; considera un tono más oscuro.'
-            );
-        }
 
         // La prueba de envio va DESPUES de guardar y en la misma peticion, no
         // en un boton aparte. Es a proposito: separadas, se prueba lo que hay
@@ -534,6 +483,96 @@ class ConfiguracionController extends Controller
     }
 
     /** Agrega un papel a la lista de los que se piden. */
+    /**
+     * LOS COLORES, CON SU PROPIO BOTON (05/10/2026, pedido del usuario: «la
+     * seccion de colores deberia tener su propio boton de guardar y que apenas
+     * se guarde todo cambie de color»).
+     *
+     * Aparte del formulario general por dos razones. La primera es la pedida:
+     * probar un color no obliga a revisar treinta campos. La segunda es por
+     * que «no cambiaba»: los colores viven en el `<style>` del `<head>` y en el
+     * `<header>`, FUERA de `<main>`, y `acciones.js` solo repinta `<main>`. El
+     * formulario de colores va con `data-recarga-completa`, asi que guardar
+     * NAVEGA y la pagina entera llega ya pintada; vuelve a `#colores` para que
+     * quien guardo vea el resultado donde estaba.
+     */
+    public function guardarColores(Request $request): RedirectResponse
+    {
+        $configuracion = ConfiguracionInstitucion::actual();
+
+        // El rechazo vuelve a `#colores` y no con `back()`: con la recarga
+        // completa, `back()` dejaria la pagina arriba y el aviso a media
+        // pantalla, sin verse. Lleva lo elegido para no perderlo.
+        try {
+            $datos = $request->validate([
+                'color_acento' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+                // FONDO Y CABECERA (05/10/2026). Al contrario que el acento, el
+                // contraste aqui BLOQUEA: un fondo oscuro deja ilegible el texto de
+                // todas las pantallas, y eso no lo pide ninguna marca. Con la
+                // casilla «el de fabrica» marcada no se mira el color.
+                'color_fondo' => [
+                    'nullable', 'regex:/^#[0-9a-fA-F]{6}$/',
+                    function (string $campo, mixed $valor, \Closure $falla) use ($request) {
+                        if ($request->boolean('color_fondo_fabrica') || ! is_string($valor) || ! Color::esHexValido($valor)) {
+                            return;
+                        }
+                        $razon = Color::contraste(Color::TINTA_SUAVE, $valor);
+                        if ($razon < Color::CONTRASTE_MINIMO_ACENTO) {
+                            $falla('Ese fondo es demasiado oscuro: el texto gris de las pantallas quedaría en '
+                                .number_format($razon, 1, ',', '').':1 de contraste y el mínimo es 4,5:1. Elige un tono más claro.');
+                        }
+                    },
+                ],
+                'color_cabecera' => [
+                    'nullable', 'regex:/^#[0-9a-fA-F]{6}$/',
+                    function (string $campo, mixed $valor, \Closure $falla) use ($request) {
+                        if ($request->boolean('color_cabecera_fabrica') || ! is_string($valor) || ! Color::esHexValido($valor)) {
+                            return;
+                        }
+                        $razon = Color::contraste(Color::textoSobre($valor), $valor);
+                        if ($razon < Color::CONTRASTE_MINIMO_ACENTO) {
+                            $falla('Con ese color de cabecera ni el texto blanco ni el oscuro llegan a 4,5:1 (el mejor queda en '
+                                .number_format($razon, 1, ',', '').':1). Elige un tono más claro o más oscuro.');
+                        }
+                    },
+                ],
+            ], [
+                'color_acento.regex' => 'El color de acento debe ir en formato #rrggbb.',
+                'color_fondo.regex' => 'El color de fondo debe ir en formato #rrggbb.',
+                'color_cabecera.regex' => 'El color de la cabecera debe ir en formato #rrggbb.',
+            ]);
+        } catch (ValidationException $e) {
+            return redirect()->to(route('gestion-configuracion').'#colores')
+                ->withErrors($e->errors())
+                ->withInput($request->only(['color_acento', 'color_fondo', 'color_cabecera', 'color_fondo_fabrica', 'color_cabecera_fabrica']));
+        }
+
+        $configuracion->color_acento = strtolower($datos['color_acento']);
+        // '' es «el de fabrica»: con la casilla marcada, o sin color enviado.
+        $configuracion->color_fondo = $request->boolean('color_fondo_fabrica') ? '' : strtolower((string) ($datos['color_fondo'] ?? ''));
+        $configuracion->color_cabecera = $request->boolean('color_cabecera_fabrica') ? '' : strtolower((string) ($datos['color_cabecera'] ?? ''));
+        $configuracion->save();
+
+        $respuesta = redirect()->to(route('gestion-configuracion').'#colores')
+            ->with('success', 'Colores guardados.');
+
+        // El contraste del ACENTO no bloquea: una marca clara puede ser
+        // legitima, pero el texto blanco de los botones deja de leerse y hay
+        // que avisarlo. (El del fondo y la cabecera si bloquea; ver arriba.)
+        $razon = $configuracion->contraste_texto_boton;
+
+        if ($razon < 4.5) {
+            $respuesta->with(
+                'error',
+                'Ojo: el texto blanco sobre ese color de acento queda en '
+                .number_format($razon, 1).':1 de contraste, por debajo del mínimo de 4.5:1. '
+                .'Los botones serán difíciles de leer; considera un tono más oscuro.'
+            );
+        }
+
+        return $respuesta;
+    }
+
     public function documentoNuevo(Request $request): RedirectResponse
     {
         $datos = $request->validate([
