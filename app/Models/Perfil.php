@@ -61,6 +61,8 @@ use Illuminate\Support\Str;
  * cada `actingAs($perfil->user)` de la suite se leia como un posible null.
  *
  * @property-read User $user
+ * @property string|null $documento_identidad El del PERSONAL (guion 09); el del
+ *     estudiante vive en `datos_estudiante`.
  */
 class Perfil extends Model
 {
@@ -125,6 +127,18 @@ class Perfil extends Model
      */
     public const ROLES_PERSONAL = ['administrador', 'director', 'profesor'];
 
+    /**
+     * Quien tiene que tener documento y correo para poder usar el sistema
+     * (05/10/2026, decision del usuario). Se piden en el registro de profesores
+     * y, a quien ya tenia cuenta sin ellos, en una pantalla que no deja seguir
+     * hasta llenarlos (`App\Http\Middleware\DatosDelPersonal`).
+     *
+     * El administrador NO esta, a proposito: es quien arregla lo de los demas
+     * desde Gestion, y una puerta que lo dejara fuera de Gestion por un dato
+     * suyo dejaria a la institucion sin nadie que pudiera abrirla.
+     */
+    public const ROLES_CON_DOCUMENTO_Y_CORREO = ['director', 'profesor'];
+
     protected $table = 'perfiles';
 
     protected $fillable = [
@@ -133,6 +147,7 @@ class Perfil extends Model
         'nombre_completo',
         'fecha_nacimiento',
         'telefono',
+        'documento_identidad',
         'foto_perfil',
     ];
 
@@ -240,6 +255,24 @@ class Perfil extends Model
     public function esPersonal(): bool
     {
         return in_array($this->rol, self::ROLES_PERSONAL, true);
+    }
+
+    /** ¿Su rol le obliga a tener documento y correo? */
+    public function debeTenerDocumentoYCorreo(): bool
+    {
+        return in_array($this->rol, self::ROLES_CON_DOCUMENTO_Y_CORREO, true);
+    }
+
+    /**
+     * ¿Le falta el documento o el correo y su rol los exige?
+     *
+     * Una cuenta suprimida no pide nada: no tiene datos ni puede entrar.
+     */
+    public function faltanDocumentoOCorreo(): bool
+    {
+        return $this->debeTenerDocumentoYCorreo()
+            && ! $this->estaSuprimido()
+            && (($this->documento_identidad ?? '') === '' || ($this->user->email ?? '') === '');
     }
 
     /**

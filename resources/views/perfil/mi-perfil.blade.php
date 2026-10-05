@@ -254,6 +254,15 @@
              value="{{ old('acudiente_telefono', $datos?->acudiente?->telefono) }}">
       @error('acudiente_telefono')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
     </div>
+    @elseif ($perfil->esPersonal())
+    {{-- El del personal vive en el perfil y no en una ficha de estudiante. --}}
+    <div class="field">
+      <label for="mis-documento">Número de documento</label>
+      <input type="text" name="documento_identidad" id="mis-documento" @required($perfil->debeTenerDocumentoYCorreo())
+             maxlength="12" inputmode="numeric" pattern="[0-9]{6,12}" title="Solo números, entre 6 y 12 dígitos"
+             value="{{ old('documento_identidad', $perfil->documento_identidad) }}">
+      @error('documento_identidad')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
+    </div>
     @endif
 
     <button type="submit" class="btn">Guardar mis datos</button>

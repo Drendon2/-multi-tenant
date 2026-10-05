@@ -105,7 +105,11 @@ class MisDatosTest extends TestCase
         $this->assertSame('99887766', $ana->fresh()->datosEstudiante->documento_identidad);
     }
 
-    /** El personal tambien, y sin los campos de estudiante. */
+    /**
+     * El personal tambien, sin acudiente. Su documento viaja en el mismo
+     * formulario desde el 05/10/2026 (vive en el perfil y es obligatorio para
+     * profesor y director), asi que se manda como lo manda la pantalla.
+     */
     public function test_un_profesor_se_corrige_el_nombre(): void
     {
         $user = User::create(['username' => 'profe', 'password' => 'demo1234', 'activo' => true]);
@@ -122,10 +126,12 @@ class MisDatosTest extends TestCase
                 'accion' => 'datos',
                 'nombre_completo' => 'Camila Agudelo Ríos',
                 'fecha_nacimiento' => '1985-02-02',
+                'documento_identidad' => '43111222',
             ])
             ->assertSessionHasNoErrors();
 
         $this->assertSame('Camila Agudelo Ríos', $profe->fresh()->nombre_completo);
+        $this->assertSame('43111222', $profe->fresh()->documento_identidad);
     }
 
     // --------------------------------------------------------------------
@@ -333,8 +339,11 @@ class MisDatosTest extends TestCase
         $this->assertMatchesRegularExpression('/<details[^>]*id="bloque-datos"[^>]*\bopen\b/', $html);
     }
 
-    /** A un profesor no se le pintan los campos de estudiante. */
-    public function test_a_quien_no_es_estudiante_no_se_le_piden_documento_ni_acudiente(): void
+    /**
+     * A un profesor no se le pinta el acudiente. El documento SI, desde el
+     * 05/10/2026: el del personal vive en su perfil.
+     */
+    public function test_a_quien_no_es_estudiante_se_le_pide_documento_pero_no_acudiente(): void
     {
         $user = User::create(['username' => 'profe', 'password' => 'demo1234', 'activo' => true]);
         Perfil::create([
@@ -348,7 +357,7 @@ class MisDatosTest extends TestCase
         $html = (string) $this->actingAs($user)->get(route('mi-perfil'))->assertOk()->getContent();
 
         $this->assertStringContainsString('name="nombre_completo"', $html);
-        $this->assertStringNotContainsString('name="documento_identidad"', $html);
+        $this->assertStringContainsString('name="documento_identidad"', $html);
         $this->assertStringNotContainsString('name="acudiente_nombre"', $html);
     }
 }

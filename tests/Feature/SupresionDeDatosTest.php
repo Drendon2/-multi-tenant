@@ -187,6 +187,26 @@ class SupresionDeDatosTest extends TestCase
     }
 
     /** Las filas se iban solas; los ARCHIVOS no, y son cedulas. */
+    /**
+     * El documento que vive en el PERFIL (el del personal, desde el
+     * 05/10/2026) tambien se va. Con matricula, para que el perfil se quede y
+     * se pueda mirar: sin historial la fila entera desaparece y la prueba
+     * pasaria igual sin el arreglo.
+     */
+    public function test_tambien_se_va_el_documento_del_perfil(): void
+    {
+        $ana = $this->estudianteCompleto();
+        $ana->documento_identidad = '99887766';
+        $ana->save();
+        $this->matricular($ana, $this->periodo, Matricula::ACTIVA);
+
+        $this->suprimir($ana)->assertRedirect(route('usuario-lista'));
+
+        $ana->refresh();
+        $this->assertTrue($ana->estaSuprimido());
+        $this->assertNull($ana->documento_identidad);
+    }
+
     public function test_se_borran_la_foto_y_los_papeles_del_disco(): void
     {
         $ana = $this->estudianteCompleto();

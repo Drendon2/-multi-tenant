@@ -167,6 +167,37 @@ class AislamientoEntreInstitucionesTest extends TestCase
         );
     }
 
+    /**
+     * El documento del PERSONAL (05/10/2026) tambien es unico por institucion:
+     * un profesor puede dictar en dos municipios. Las dos mitades: el que ya
+     * tiene la otra casa no estorba, y el repetido dentro de la propia si.
+     */
+    public function test_el_documento_del_personal_es_unico_dentro_de_cada_institucion(): void
+    {
+        InstitucionActual::mientras($this->otra['institucion']->id, function () {
+            $this->otra['profesor']->update(['documento_identidad' => '71222333']);
+        });
+
+        $datos = fn (Perfil $quien) => [
+            'accion' => 'datos',
+            'nombre_completo' => $quien->nombre_completo,
+            'fecha_nacimiento' => '1980-01-01',
+            'documento_identidad' => '71222333',
+        ];
+
+        $profe = $this->casa['profesor'];
+        $this->actingAs($profe->user)->post(self::CASA.'/mi-perfil', $datos($profe))
+            ->assertSessionHasNoErrors();
+        $this->assertSame('71222333', InstitucionActual::mientras(
+            $this->institucionDePrueba->id,
+            fn () => Perfil::whereKey($profe->id)->value('documento_identidad'),
+        ));
+
+        $admin = $this->casa['admin'];
+        $this->actingAs($admin->user)->post(self::CASA.'/mi-perfil', $datos($admin))
+            ->assertSessionHasErrors('documento_identidad');
+    }
+
     public function test_la_marca_es_la_del_dominio(): void
     {
         $this->actingAs($this->otra['admin']->user)

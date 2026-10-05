@@ -20,6 +20,12 @@ use Illuminate\View\View;
  * desde Gestion → Usuarios. Hasta entonces la persona puede entrar, pero solo
  * ve la pantalla de "cuenta pendiente".
  *
+ * Pide documento y correo, los dos OBLIGATORIOS (05/10/2026, decision del
+ * usuario): son los datos con los que la institucion identifica y contacta a
+ * quien dicta. El correo aqui no mira el interruptor de la institucion
+ * (`correo_obligatorio`), que existe por los estudiantes menores sin correo
+ * propio; un profesor lo tiene.
+ *
  * NO pide foto de perfil, y no es un olvido: por seguridad, los archivos no se
  * suben desde un formulario publico sin autenticar. La persona la sube despues,
  * ya con sesion, en "Mi perfil".
@@ -39,8 +45,11 @@ class RegistroController extends Controller
             'nombre_completo' => Reglas::nombreDePersona(90),
             'fecha_nacimiento' => ['required', 'date', 'before:today'],
             'telefono' => Reglas::celular(),
+            'documento_identidad' => Reglas::documentoDelPersonal(),
+            'correo' => Reglas::correo(obligatorio: true),
         ], Reglas::mensajes() + [
             'username.unique' => 'Ya existe una cuenta con ese nombre de usuario.',
+            'documento_identidad.unique' => 'Ya hay una cuenta registrada con ese documento.',
             'password.confirmed' => 'Las contraseñas no coinciden.',
         ], [
             'username' => 'usuario',
@@ -48,6 +57,8 @@ class RegistroController extends Controller
             'nombre_completo' => 'nombre completo',
             'fecha_nacimiento' => 'fecha de nacimiento',
             'telefono' => 'teléfono',
+            'documento_identidad' => 'documento de identidad',
+            'correo' => 'correo electrónico',
         ]);
 
         // La cuenta y el perfil nacen juntos o no nacen: una cuenta sin perfil
@@ -56,6 +67,7 @@ class RegistroController extends Controller
             $user = User::create([
                 'username' => $datos['username'],
                 'password' => $datos['password'],
+                'email' => $datos['correo'],
                 'activo' => true,
             ]);
 
@@ -65,6 +77,7 @@ class RegistroController extends Controller
                 'nombre_completo' => $datos['nombre_completo'],
                 'fecha_nacimiento' => $datos['fecha_nacimiento'],
                 'telefono' => $datos['telefono'],
+                'documento_identidad' => $datos['documento_identidad'],
             ]);
         });
 

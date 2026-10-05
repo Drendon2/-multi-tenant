@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArchivoController;
+use App\Http\Controllers\Auth\CompletarDatosController;
 use App\Http\Controllers\Auth\InscripcionController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PostLoginController;
@@ -169,6 +170,13 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/pendiente-aprobacion', [PostLoginController::class, 'pendienteAprobacion'])
         ->name('pendiente-aprobacion');
+
+    // Documento y correo del personal que no los tiene. Sin rol, como Mi
+    // perfil: la barrera (`DatosDelPersonal`) mira el rol por su cuenta.
+    Route::get('/completar-datos', [CompletarDatosController::class, 'mostrar'])
+        ->name('completar-datos');
+    Route::post('/completar-datos', [CompletarDatosController::class, 'guardar'])
+        ->name('completar-datos.guardar');
 });
 
 // ---------------------------------------------------------------------------

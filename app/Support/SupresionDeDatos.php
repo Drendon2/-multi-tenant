@@ -22,8 +22,9 @@ use Illuminate\Support\Str;
  * matricula sigue en pie y nada de lo que queda dice quien era: un dato
  * anonimizado deja de ser un dato personal, que es lo que la supresion exige.
  *
- * LO QUE SE VA: nombre, fecha de nacimiento, telefono, foto, codigo del carne,
- * usuario y correo de la cuenta, la ficha de estudiante con su documento, su
+ * LO QUE SE VA: nombre, fecha de nacimiento, telefono, documento del personal,
+ * foto, codigo del carne, usuario y correo de la cuenta, la ficha de
+ * estudiante con su documento, su
  * acudiente y TODOS sus papeles (los archivos del disco tambien), las dos
  * encuestas, y lo que dejo en las listas de talleres y cursos.
  *
@@ -119,6 +120,8 @@ class SupresionDeDatos
             $perfil->nombre_completo = self::NOMBRE;
             $perfil->fecha_nacimiento = null;
             $perfil->telefono = null;
+            // El documento del personal (05/10/2026); el del estudiante se va con su ficha.
+            $perfil->documento_identidad = null;
             $perfil->foto_perfil = '';
             $perfil->codigo_qr = null;
             $perfil->suprimido_en = now();

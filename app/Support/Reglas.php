@@ -177,6 +177,24 @@ class Reglas
     }
 
     /**
+     * El documento del PERSONAL, que vive en `perfiles` y no en la ficha del
+     * estudiante. Unico entre el personal; el de un estudiante no choca con
+     * este, porque son dos tablas y una persona puede tener las dos cuentas.
+     *
+     * Cuatro formularios lo piden —registro, la pantalla que lo exige al
+     * entrar, Mi perfil y Gestion → Usuarios— y por eso vive aqui.
+     *
+     * @return list<mixed>
+     */
+    public static function documentoDelPersonal(?int $perfilQueSeIgnora = null, bool $obligatorio = true): array
+    {
+        return [
+            ...self::documento($obligatorio),
+            self::unica('perfiles', 'documento_identidad')->ignore($perfilQueSeIgnora),
+        ];
+    }
+
+    /**
      * El telefono del ACUDIENTE: obligatorio en cuanto hay un acudiente.
      *
      * `required_with` y no `required` a secas porque el acudiente entero es

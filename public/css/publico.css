@@ -145,6 +145,14 @@
   .enlace-pie { text-align: center; font-size: 0.85rem; margin: 1.1rem 0 0; }
   .enlace-pie a { color: var(--accent); text-decoration: none; font-weight: 700; }
   .enlace-pie a:hover { color: var(--accent-dark); text-decoration: underline; }
+  /* Una accion secundaria que es un formulario (salir) y tiene que leerse
+     como enlace, no como un segundo boton lleno al lado del principal. */
+  .caja .enlace-pie button.boton-enlace {
+    margin: 0; width: auto; min-height: 44px; padding: 0 0.6rem; background: none; border: 0;
+    color: var(--accent); font-weight: 700; font-size: 0.85rem;
+  }
+  .caja .enlace-pie button.boton-enlace:hover { background: none; color: var(--accent-dark); text-decoration: underline; }
+  .caja .enlace-pie button.boton-enlace:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .campo-info { color: var(--ink-soft); font-size: 0.85rem; margin: 0.3rem 0 0; line-height: 1.4; }
   .archivo-guardado { color: var(--accent-dark); }
   .archivo-guardado strong { color: inherit; }

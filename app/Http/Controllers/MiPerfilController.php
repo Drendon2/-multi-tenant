@@ -472,8 +472,8 @@ class MiPerfilController extends Controller
             'fecha_nacimiento' => ['required', 'date', 'before:today'],
         ];
 
-        // El documento y el acudiente solo existen para un estudiante: el
-        // personal no tiene fila en `datos_estudiante`.
+        // El acudiente solo existe para un estudiante: el personal no tiene
+        // fila en `datos_estudiante`. Su documento si, pero en `perfiles`.
         if ($esEstudiante) {
             $reglas['documento_identidad'] = [
                 ...Reglas::documento(),
@@ -481,10 +481,20 @@ class MiPerfilController extends Controller
             ];
             $reglas['acudiente_nombre'] = Reglas::nombreDePersona(90, obligatorio: false);
             $reglas['acudiente_telefono'] = Reglas::celularDeAcudiente();
+        } elseif ($perfil->esPersonal()) {
+            // El del personal vive en `perfiles`. Obligatorio para quien su rol
+            // lo exige: dejarlo vacio aqui lo mandaria de vuelta a la pantalla
+            // que no le deja seguir sin el.
+            $reglas['documento_identidad'] = Reglas::documentoDelPersonal(
+                $perfil->id,
+                obligatorio: $perfil->debeTenerDocumentoYCorreo(),
+            );
         }
 
         $valores = $request->validate($reglas, Reglas::mensajes() + [
-            'documento_identidad.unique' => 'Ya hay un estudiante registrado con ese documento.',
+            'documento_identidad.unique' => $esEstudiante
+                ? 'Ya hay un estudiante registrado con ese documento.'
+                : 'Ya hay otra cuenta registrada con ese documento.',
         ], [
             'nombre_completo' => 'nombre completo',
             'fecha_nacimiento' => 'fecha de nacimiento',
@@ -497,6 +507,11 @@ class MiPerfilController extends Controller
             DB::transaction(function () use ($perfil, $datos, $valores, $esEstudiante) {
                 $perfil->nombre_completo = $valores['nombre_completo'];
                 $perfil->fecha_nacimiento = $valores['fecha_nacimiento'];
+
+                if (! $esEstudiante && array_key_exists('documento_identidad', $valores)) {
+                    $perfil->documento_identidad = $valores['documento_identidad'] ?: null;
+                }
+
                 $perfil->save();
 
                 if (! $esEstudiante) {
@@ -561,8 +576,14 @@ class MiPerfilController extends Controller
             $cambios[] = 'fecha_nacimiento';
         }
 
-        if (isset($valores['documento_identidad'])
-            && $datos?->documento_identidad !== $valores['documento_identidad']) {
+        // El documento del estudiante esta en su ficha y el del personal en el
+        // perfil: se compara con el que corresponda.
+        $documentoGuardado = $perfil->rol === 'estudiante'
+            ? $datos?->documento_identidad
+            : $perfil->documento_identidad;
+
+        if (array_key_exists('documento_identidad', $valores)
+            && ($documentoGuardado ?? '') !== ($valores['documento_identidad'] ?? '')) {
             $cambios[] = 'documento';
         }
 
@@ -604,7 +625,12 @@ class MiPerfilController extends Controller
     private function guardarCorreo(Request $request, Perfil $perfil): RedirectResponse
     {
         $datos = $request->validate([
-            'correo' => Reglas::correoSegunLaInstitucion(),
+            // Al profesor y al director se les exige siempre (05/10/2026), mire
+            // lo que mire el interruptor de la institucion: vaciarlo aqui lo
+            // mandaria a la pantalla que no le deja seguir sin el.
+            'correo' => $perfil->debeTenerDocumentoYCorreo()
+                ? Reglas::correo(obligatorio: true)
+                : Reglas::correoSegunLaInstitucion(),
         ], Reglas::mensajes(), ['correo' => 'correo electrónico']);
 
         $user = $perfil->user;

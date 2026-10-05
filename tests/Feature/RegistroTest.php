@@ -21,7 +21,44 @@ class RegistroTest extends TestCase
         'nombre_completo' => 'Marta Solis',
         'fecha_nacimiento' => '1985-03-12',
         'telefono' => '3001234567',
+        'documento_identidad' => '43123456',
+        'correo' => 'marta@correo.com',
     ];
+
+    /** Documento y correo nacen con la cuenta (05/10/2026). */
+    public function test_guarda_el_documento_y_el_correo(): void
+    {
+        $this->post(route('registro.guardar'), $this->datos)->assertRedirect(route('login'));
+
+        $user = User::where('username', 'profe.nuevo')->first();
+
+        $this->assertSame('marta@correo.com', $user->email);
+        $this->assertSame('43123456', $user->perfil->documento_identidad);
+    }
+
+    /**
+     * Los dos son obligatorios, y el correo aunque la institucion tenga
+     * apagado `correo_obligatorio` (que es como nace).
+     */
+    public function test_sin_documento_o_sin_correo_no_se_crea_la_cuenta(): void
+    {
+        $this->post(route('registro.guardar'), [...$this->datos, 'documento_identidad' => ''])
+            ->assertSessionHasErrors('documento_identidad');
+        $this->post(route('registro.guardar'), [...$this->datos, 'correo' => ''])
+            ->assertSessionHasErrors('correo');
+
+        $this->assertSame(0, User::count());
+    }
+
+    public function test_el_documento_repetido_se_rechaza(): void
+    {
+        $this->post(route('registro.guardar'), $this->datos);
+
+        $this->post(route('registro.guardar'), [...$this->datos, 'username' => 'otro.profe'])
+            ->assertSessionHasErrors('documento_identidad');
+
+        $this->assertSame(1, User::count());
+    }
 
     /** La cuenta nace SIN rol: el acceso lo abre despues un director. */
     public function test_la_cuenta_creada_no_tiene_rol(): void
@@ -129,12 +166,15 @@ class RegistroTest extends TestCase
             $this->post(route('registro.guardar'), [
                 ...$this->datos,
                 'username' => "profe.nuevo{$n}",
+                // El documento es unico: cada alta trae el suyo.
+                'documento_identidad' => "4312345{$n}",
             ])->assertSessionHas('success');
         }
 
         $this->post(route('registro.guardar'), [
             ...$this->datos,
             'username' => 'profe.nuevo6',
+            'documento_identidad' => '431234566',
         ])->assertSessionHas('error');
 
         // El sexto no llego al controlador: no quedo ni la cuenta ni el perfil.

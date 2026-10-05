@@ -41,6 +41,16 @@
            maxlength="10" inputmode="numeric" pattern="[0-9]{10}" title="10 dígitos, sin espacios ni guiones" required>
     @error('telefono')<ul class="errorlist"><li>{{ $message }}</li></ul>@enderror
 
+    <label for="documento_identidad">Número de documento</label>
+    <input type="text" name="documento_identidad" id="documento_identidad" value="{{ old('documento_identidad') }}"
+           maxlength="12" inputmode="numeric" pattern="[0-9]{6,12}" title="Solo números, entre 6 y 12 dígitos, sin puntos ni espacios" required>
+    @error('documento_identidad')<ul class="errorlist"><li>{{ $message }}</li></ul>@enderror
+
+    <label for="correo">Correo electrónico</label>
+    <input type="email" name="correo" id="correo" value="{{ old('correo') }}" maxlength="255" autocomplete="email"
+           pattern="[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}" title="Un correo completo, con arroba y dominio. Ejemplo: nombre@correo.com" required>
+    @error('correo')<ul class="errorlist"><li>{{ $message }}</li></ul>@enderror
+
     <p class="campo-info">
       La foto de perfil se sube después, ya con la sesión iniciada, desde «Mi perfil».
     </p>

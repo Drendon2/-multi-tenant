@@ -320,6 +320,9 @@ class UsuarioController extends Controller
                     'nombre_completo' => $datos['nombre_completo'],
                     'fecha_nacimiento' => $datos['fecha_nacimiento'],
                     'telefono' => $datos['telefono'],
+                    'documento_identidad' => $datos['rol'] === 'estudiante'
+                        ? null
+                        : (($datos['documento_identidad'] ?? null) ?: null),
                     'foto_perfil' => $this->guardarFoto($request),
                 ]);
 
@@ -396,6 +399,13 @@ class UsuarioController extends Controller
                 $usuario->nombre_completo = $datos['nombre_completo'];
                 $usuario->fecha_nacimiento = $datos['fecha_nacimiento'];
                 $usuario->telefono = $datos['telefono'];
+
+                // El de un estudiante va a su ficha, mas abajo; el del perfil
+                // se deja como estaba para no borrarle a nadie el que dio al
+                // registrarse por cambiarle el rol.
+                if ($datos['rol'] !== 'estudiante') {
+                    $usuario->documento_identidad = ($datos['documento_identidad'] ?? null) ?: null;
+                }
 
                 $foto = $this->guardarFoto($request);
 
@@ -751,16 +761,25 @@ class UsuarioController extends Controller
             // corriente en un error que la familia no sabria resolver.
             'correo' => Reglas::correoSegunLaInstitucion(),
             'foto_perfil' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:8192', new ImagenProcesable],
-            'documento_identidad' => [
-                ...Reglas::documento(obligatorio: $esEstudiante),
-                Reglas::unica('datos_estudiante', 'documento_identidad')
-                    ->ignore($perfil?->datosEstudiante?->id),
-            ],
+            // El del estudiante vive en su ficha y el del personal en el perfil
+            // (desde el 05/10/2026), cada uno unico en su tabla. Para el
+            // personal es opcional AQUI a proposito: al que le falte se lo pide
+            // la barrera al entrar, y exigirlo en este formulario dejaria al
+            // administrador sin poder darle rol a nadie cuyo documento no sabe.
+            'documento_identidad' => $esEstudiante
+                ? [
+                    ...Reglas::documento(),
+                    Reglas::unica('datos_estudiante', 'documento_identidad')
+                        ->ignore($perfil?->datosEstudiante?->id),
+                ]
+                : Reglas::documentoDelPersonal($perfil?->id, obligatorio: false),
             'acudiente_nombre' => Reglas::nombreDePersona(90, obligatorio: false),
             'acudiente_telefono' => Reglas::celularDeAcudiente(),
         ], Reglas::mensajes() + [
             'username.unique' => 'Ya existe una cuenta con ese nombre de usuario.',
-            'documento_identidad.unique' => 'Ya hay un estudiante registrado con ese documento.',
+            'documento_identidad.unique' => $esEstudiante
+                ? 'Ya hay un estudiante registrado con ese documento.'
+                : 'Ya hay otra cuenta registrada con ese documento.',
             // Que no vuelva a decir «areas_dirigidas.0 debe ser un numero
             // entero», que es lo que leyo el usuario el 12/09/2026. Con el
             // marcador ya limpiado, lo unico que puede llegar aqui es un id

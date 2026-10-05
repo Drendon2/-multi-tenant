@@ -109,6 +109,18 @@
     @error('telefono')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
   </div>
 
+  {{--
+    Fuera del bloque de estudiante desde el 05/10/2026: el personal también
+    tiene documento, y vive en su perfil. El del estudiante sigue en su ficha;
+    el controlador decide dónde se guarda según el rol.
+  --}}
+  <div class="field">
+    <label for="documento_identidad">Documento de identidad</label>
+    <input type="text" name="documento_identidad" id="documento_identidad" maxlength="12" inputmode="numeric" pattern="[0-9]{6,12}" title="Solo números, entre 6 y 12 dígitos"
+           value="{{ old('documento_identidad', $datos?->documento_identidad ?? $perfil->documento_identidad) }}">
+    @error('documento_identidad')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
+  </div>
+
   <div class="field">
     <label for="foto_perfil">Foto de perfil</label>
     @if ($perfil->exists && $perfil->foto_perfil)
@@ -129,13 +141,6 @@
   --}}
   <div id="campos-estudiante">
     <h4 style="margin-top:0;">Datos de estudiante</h4>
-
-    <div class="field">
-      <label for="documento_identidad">Documento de identidad</label>
-      <input type="text" name="documento_identidad" id="documento_identidad" maxlength="12" inputmode="numeric" pattern="[0-9]{6,12}" title="Solo números, entre 6 y 12 dígitos"
-             value="{{ old('documento_identidad', $datos?->documento_identidad) }}">
-      @error('documento_identidad')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
-    </div>
 
     <div class="field">
       <label for="acudiente_nombre">Nombre del acudiente</label>
