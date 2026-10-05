@@ -62,7 +62,7 @@ use Illuminate\Support\Str;
  *
  * @property-read User $user
  * @property string|null $documento_identidad El del PERSONAL (guion 09); el del
- *     estudiante vive en `datos_estudiante`.
+ *                                            estudiante vive en `datos_estudiante`.
  */
 class Perfil extends Model
 {
