@@ -1,7 +1,7 @@
 {{--
   La rejilla semanal: dónde tiene que estar esta persona cada día.
 
-  Una fila por franja horaria y una columna por día, de lunes a sábado. Las
+  Una fila por franja horaria y una columna por día, de lunes a domingo. Las
   franjas son las que de verdad se usan y no las horas del reloj: una casa que
   solo da clase a las 4 y a las 6 no tiene por qué enseñar catorce filas vacías.
 

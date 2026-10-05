@@ -25,12 +25,12 @@ class HorariosController extends Controller
     {
         $horario = HorarioDeLaCasa::para($request->attributes->get('perfil'));
 
-        // `dayOfWeekIso` da 7 el domingo y la casa no abre: ese dia la pantalla
-        // arranca en el lunes, que es lo proximo que va a pasar.
+        // Arranca en HOY, tambien el domingo desde que hay clases ese dia. Un
+        // dia que no existe, escrito a mano en la URL, cae en hoy.
         $hoy = now()->dayOfWeekIso;
         $dia = (int) $request->query('dia', $hoy);
         if (! isset(SesionGrupo::DIAS[$dia])) {
-            $dia = isset(SesionGrupo::DIAS[$hoy]) ? $hoy : 1;
+            $dia = $hoy;
         }
 
         // Solo una promotoria que esta persona puede ver. Un id ajeno escrito a

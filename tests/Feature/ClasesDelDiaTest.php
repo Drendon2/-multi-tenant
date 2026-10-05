@@ -28,9 +28,9 @@ use Tests\TestCase;
  * 1. EL ORDEN POR HORA. Es la mitad del asunto: la pregunta que trae aqui a
  *    alguien no es «que promotorias tengo» sino «que me toca ahora». Ordenado
  *    por promotoria, esto no le ahorra nada a nadie.
- * 2. QUE EL DOMINGO NO LO ROMPA. La casa no abre —el CHECK `dia_valido` solo
- *    admite de 1 a 6— y este proyecto ya tuvo tres pruebas rojas un dia de cada
- *    siete por dar por hecho que `dayOfWeekIso` cae siempre en ese rango.
+ * 2. EL DOMINGO, que desde el 05/10/2026 es un dia de clase como los demas
+ *    (el CHECK `dia_valido` admite de 1 a 7). Antes la casa no abria y este
+ *    proyecto tuvo tres pruebas rojas un dia de cada siete por eso.
  * 3. Que cada quien vea sus clases y no las de otro.
  */
 class ClasesDelDiaTest extends TestCase
@@ -140,18 +140,13 @@ class ClasesDelDiaTest extends TestCase
     }
 
     /**
-     * EL DOMINGO NO ROMPE NADA.
-     *
-     * `dayOfWeekIso` devuelve 7 y el horario solo admite de 1 a 6. Lo único que
-     * cambia ese día es que el selector arranca en «toda la semana» en vez de
-     * en un día: `data-hoy` llega vacío y el guion cae en esa rama.
-     *
-     * Este proyecto ya tuvo tres pruebas rojas un día de cada siete por dar por
-     * hecho que ese número cae siempre en el rango.
+     * EL DOMINGO ES UN DIA MAS (05/10/2026). Hasta ese dia la casa no abria y
+     * el selector arrancaba en «toda la semana»; ahora arranca en el domingo
+     * como en cualquier otro dia, y la clase de ese dia sale.
      */
-    public function test_el_domingo_solo_cambia_donde_arranca_el_selector(): void
+    public function test_el_domingo_es_un_dia_de_clase_como_los_demas(): void
     {
-        $this->grupoConClase('Violín', 'A', dia: 1, hora: '08:00');
+        $this->grupoConClase('Violín', 'Dominical', dia: 7, hora: '08:00');
 
         Carbon::setTestNow(Carbon::parse('2026-09-06'));   // un domingo
         $domingo = $this->panel($this->profesor);
@@ -162,8 +157,9 @@ class ClasesDelDiaTest extends TestCase
         Carbon::setTestNow();
 
         $this->assertStringContainsString('bloque-clases-dia', $domingo, 'el bloque desapareció un domingo.');
-        $this->assertStringContainsString('data-hoy=""', $domingo);
+        $this->assertStringContainsString('data-hoy="7"', $domingo);
         $this->assertStringContainsString('data-hoy="1"', $lunes);
+        $this->assertStringContainsString('Dominical', $domingo);
     }
 
     /** Cada quien ve las suyas: un profesor no ve la clase de otro. */

@@ -261,11 +261,9 @@ class PanelController extends Controller
             // `clasesDeLaSemana()`.
             'clasesDeLaSemana' => $this->clasesDeLaSemana($perfil),
             'porReponer' => $this->clasesPorReponer($perfil),
-            // El dia de HOY, para que el selector arranque ahi. Nulo el
-            // domingo, que la casa no abre: entonces se ven los seis dias.
-            'diaDeHoy' => (int) Carbon::today()->dayOfWeekIso <= 6
-                ? (int) Carbon::today()->dayOfWeekIso
-                : null,
+            // El dia de HOY, para que el selector arranque ahi. Tambien el
+            // domingo, desde que la casa da clase ese dia (05/10/2026).
+            'diaDeHoy' => (int) Carbon::today()->dayOfWeekIso,
             'diasDeClase' => SesionGrupo::DIAS,
             // ABIERTA SIEMPRE que se pinte, porque ya solo se pinta a quien
             // dicta y son sus pocas clases. Estuvo condicionada al rol

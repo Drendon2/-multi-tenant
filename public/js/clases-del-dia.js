@@ -33,7 +33,7 @@
 (function () {
     'use strict';
 
-    var DIAS = { 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado' };
+    var DIAS = { 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 7: 'Domingo' };
 
     /** Monta el selector de un bloque, si no lo tiene ya. */
     function montar(bloque) {
@@ -126,7 +126,7 @@
         lista.parentNode.insertBefore(barra, lista);
 
         // Arranca en HOY si esta persona tiene clase hoy; si no, en toda la
-        // semana. El domingo `data-hoy` llega vacio, que cae en lo mismo.
+        // semana.
         var hoy = bloque.dataset.hoy || '';
         elegir(conClase.indexOf(hoy) === -1 ? '' : hoy);
 

@@ -110,9 +110,9 @@
     @if ($promotoria && ! collect($bloques)->contains('id', $promotoria))
       {{ $nombrePromotoria }} no tiene grupos con horario.
     @elseif ($promotoria)
-      {{ $nombrePromotoria }} no tiene clases {{ $dia === 6 ? 'los sábados' : 'los '.mb_strtolower($diaNombre) }}.
+      {{ $nombrePromotoria }} no tiene clases {{ $dia >= 6 ? 'los '.mb_strtolower($diaNombre).'s' : 'los '.mb_strtolower($diaNombre) }}.
     @else
-      {{ $dia === 6 ? 'Los sábados' : 'Los '.mb_strtolower($diaNombre) }} no hay clases.
+      {{ $dia >= 6 ? 'Los '.mb_strtolower($diaNombre).'s' : 'Los '.mb_strtolower($diaNombre) }} no hay clases.
     @endif
   </p>
 

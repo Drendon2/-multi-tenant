@@ -22,7 +22,7 @@ use Tests\TestCase;
  * Las afirmaciones van atadas a atributos (`data-dia`, `data-promotoria`,
  * `hidden`, `data-cruce`) y no a rotulos, que se quedan mudos al renombrarlos.
  * El DIA va siempre escrito en la URL: una prueba que dedujera el de hoy
- * heredaria el calendario, y el domingo la pantalla arranca en el lunes.
+ * heredaria el calendario.
  */
 class HorariosDeLaCasaTest extends TestCase
 {
@@ -157,6 +157,19 @@ class HorariosDeLaCasaTest extends TestCase
         $this->assertSame('0', trim($x->query('//a[@data-dia="1"]//*[@data-cuenta]')->item(0)->textContent));
     }
 
+    /** El domingo tiene su pestaña y sus clases (05/10/2026). */
+    public function test_el_domingo_tiene_pestana_y_ensena_sus_clases(): void
+    {
+        $this->grupo($this->piano, 'Grupo A', 'Salón 1', [[7, '09:00', '11:00']]);
+
+        $x = $this->pagina($this->admin, ['dia' => 7]);
+
+        $this->assertSame(1, $x->query('//a[@data-dia="7"][@aria-current="true"]')->length);
+        $this->assertSame('1', trim($x->query('//a[@data-dia="7"]//*[@data-cuenta]')->item(0)->textContent));
+        $this->assertSame([$this->piano->id], $this->bloquesVisibles($x));
+        $this->assertSame(1, $x->query('//tr[@data-dia="7"][not(@hidden)]')->length);
+    }
+
     public function test_el_filtro_deja_una_sola_promotoria_y_las_pestanas_cuentan_solo_la_suya(): void
     {
         $this->grupo($this->piano, 'Grupo A', 'Salón 1', [[2, '16:00', '18:00']]);
@@ -173,7 +186,7 @@ class HorariosDeLaCasaTest extends TestCase
     {
         $this->grupo($this->piano, 'Grupo A', 'Salón 1', [[1, '16:00', '18:00']]);
 
-        // El domingo (7) y la basura caen en un dia de la casa: siempre hay una
+        // El domingo (7) es un dia mas, y la basura cae en hoy: siempre hay una
         // pestaña marcada.
         foreach ([7, 99, 'x'] as $dia) {
             $x = $this->pagina($this->admin, ['dia' => $dia]);

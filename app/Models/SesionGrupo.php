@@ -23,9 +23,9 @@ class SesionGrupo extends Model
     /**
      * Los dias en que la casa abre, numerados como ISO-8601 (1 = lunes).
      *
-     * Llega hasta el SABADO y no hasta el viernes: hay promotorias que solo se
-     * dan en fin de semana, y son justo las que mas gente reunen. El domingo se
-     * queda fuera porque la casa no abre.
+     * La semana ENTERA desde el 05/10/2026 (pedido del usuario). Hasta ese dia
+     * llegaba al sabado porque la casa no abria el domingo; ahora hay clases
+     * ese dia tambien. El CHECK `dia_valido` del motor dice lo mismo (1-7).
      */
     public const DIAS = [
         1 => 'Lunes',
@@ -34,6 +34,7 @@ class SesionGrupo extends Model
         4 => 'Jueves',
         5 => 'Viernes',
         6 => 'Sábado',
+        7 => 'Domingo',
     ];
 
     /** La forma corta, para las cabeceras de la rejilla del horario. */
@@ -44,6 +45,7 @@ class SesionGrupo extends Model
         4 => 'Jue',
         5 => 'Vie',
         6 => 'Sáb',
+        7 => 'Dom',
     ];
 
     protected $table = 'sesiones_grupo';

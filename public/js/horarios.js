@@ -19,11 +19,12 @@
 (function () {
     'use strict';
 
-    var DIAS = { 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado' };
+    var DIAS = { 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 7: 'Domingo' };
 
     /** «los lunes», «los sábados»: los cinco primeros no cambian en plural. */
     function enPlural(dia) {
-        return dia === '6' ? 'sábados' : DIAS[dia].toLowerCase();
+        var nombre = DIAS[dia].toLowerCase();
+        return dia === '6' || dia === '7' ? nombre + 's' : nombre;
     }
 
     function montar(raiz) {

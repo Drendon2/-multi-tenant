@@ -771,11 +771,6 @@ class DirectorPorDepartamentoTest extends TestCase
                 'promotoria_id' => $promotoria->id, 'nombre' => 'Grupo '.$quien,
                 'nivel' => 'basico', 'salon' => 'B1', 'cupo_maximo' => 10,
             ]);
-            // Un domingo no admite sesion (CHECK 1-6): se escribe el dia, no se
-            // deduce, y la fecha se mueve al lunes si mañana es domingo.
-            if ($manana->dayOfWeekIso === 7) {
-                $manana = $manana->addDay();
-            }
             $grupos[$quien]->sesiones()->create(['dia' => $manana->dayOfWeekIso, 'hora_inicio' => '08:00', 'hora_fin' => '10:00']);
         }
 

@@ -211,15 +211,27 @@ class HorarioTest extends TestCase
         ]);
     }
 
-    /** El domingo no existe: la casa no abre. */
-    public function test_el_dia_siete_se_rechaza(): void
+    /** El domingo (7) es dia de clase desde el 05/10/2026. */
+    public function test_el_domingo_se_admite(): void
+    {
+        $grupo = $this->crearGrupo($this->violin, 'Normal', [[2, '16:00', '18:00']]);
+
+        SesionGrupo::create([
+            'grupo_id' => $grupo->id, 'dia' => 7, 'hora_inicio' => '09:00', 'hora_fin' => '11:00',
+        ]);
+
+        $this->assertSame([2, 7], $grupo->sesiones()->orderBy('dia')->pluck('dia')->all());
+    }
+
+    /** Un octavo dia no existe: el motor lo rechaza. */
+    public function test_el_dia_ocho_se_rechaza(): void
     {
         $grupo = $this->crearGrupo($this->violin, 'Normal', [[2, '16:00', '18:00']]);
 
         $this->expectException(QueryException::class);
 
         SesionGrupo::create([
-            'grupo_id' => $grupo->id, 'dia' => 7, 'hora_inicio' => '09:00', 'hora_fin' => '11:00',
+            'grupo_id' => $grupo->id, 'dia' => 8, 'hora_inicio' => '09:00', 'hora_fin' => '11:00',
         ]);
     }
 
@@ -452,7 +464,7 @@ class HorarioTest extends TestCase
         // No hay tope de dias, y esta prueba existe para que no aparezca uno.
         // Se reporto desde produccion que un grupo «no dejaba escoger mas de 2
         // dias» teniendo clase 3; en el codigo no hay tal limite —ni en el
-        // formulario, que pinta los seis, ni en `HorarioDeGrupo::leer()`, que
+        // formulario, que pinta los siete, ni en `HorarioDeGrupo::leer()`, que
         // los recorre todos— asi que esto fija la garantia por si alguien la
         // rompe al tocar la rejilla.
         $marcados = [];

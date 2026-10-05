@@ -3260,7 +3260,7 @@
   .horarios-controles { display: contents; }
   .horarios-dias {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 0.35rem;
     position: sticky; top: 0; z-index: 3;
     background: var(--bg);
