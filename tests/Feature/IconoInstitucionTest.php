@@ -164,6 +164,7 @@ class IconoInstitucionTest extends TestCase
         ]);
 
         $this->actingAs($user)->post(route('gestion-configuracion'), [
+            'seccion' => 'marca',
             'nombre_institucion' => 'Casa de la Cultura',
             'nombre_corto' => '  Cultura  ',
             'color_acento' => '#0a7a59',

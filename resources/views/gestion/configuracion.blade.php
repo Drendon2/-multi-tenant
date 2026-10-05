@@ -17,9 +17,20 @@
 </p>
 
 <div class="card">
-  <form method="post" action="{{ route('gestion-configuracion') }}" enctype="multipart/form-data">
+  {{--
+    UN FORMULARIO POR SECCIÓN (05/10/2026, pedido del usuario: «a todas las
+    partes donde se gestiona institución agrégale botones individuales de
+    guardado y al guardar debe cambiar inmediatamente», y «al cargar debe
+    volver al mismo lugar»). Cada uno manda su `seccion` y el controlador
+    guarda SOLO esos campos. Todos van con `data-recarga-completa`: el nombre,
+    el logo y los colores viven en el `<head>` y en el `<header>`, fuera de
+    `<main>`, y repintar solo `<main>` los dejaba viejos hasta recargar a mano.
+    Al guardar —y al rechazar— vuelven a SU ancla, para que quien edita no
+    pierda el sitio.
+  --}}
+  <form id="marca" method="post" action="{{ route('gestion-configuracion') }}" enctype="multipart/form-data" class="config-formulario" data-recarga-completa>
     @csrf
-
+    <input type="hidden" name="seccion" value="marca">
     <fieldset class="config-seccion">
     <legend class="config-seccion-titulo">Marca</legend>
 
@@ -66,24 +77,24 @@
       @error('logo')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
     </div>
 
+
+    <button type="submit" class="btn">Guardar marca</button>
     </fieldset>
+  </form>
 
     {{--
-      LOS COLORES, CON SU PROPIO BOTÓN (05/10/2026, pedido del usuario). Viven
-      dentro del formulario general en la página, pero sus campos pertenecen a
-      `form-colores` —el atributo `form`—, que está al final, fuera de este: no
-      se pueden anidar formularios. Ese otro formulario va con
-      `data-recarga-completa`, porque los colores están en el `<head>` y en el
-      `<header>`, fuera de `<main>`, y repintar solo `<main>` no los cambiaba.
-      El botón general de abajo NO los guarda.
+      LOS COLORES van a su propia ruta (`gestion-colores`), con el contraste
+      del fondo y la cabecera. Ver la nota de arriba sobre los formularios.
     --}}
-    <fieldset class="config-seccion" id="colores">
+  <form id="colores" method="post" action="{{ route('gestion-colores') }}" enctype="multipart/form-data" class="config-formulario" data-recarga-completa>
+    @csrf
+    <fieldset class="config-seccion">
     <legend class="config-seccion-titulo">Colores</legend>
 
     <div class="config-campo">
       <label class="config-etiqueta" for="color_acento">Color de acento</label>
       <div class="config-color">
-        <input type="color" name="color_acento" id="color_acento" form="form-colores"
+        <input type="color" name="color_acento" id="color_acento"
                value="{{ old('color_acento', $institucion->color_acento) }}">
         <span class="config-hex">{{ $institucion->color_acento }}</span>
       </div>
@@ -115,12 +126,12 @@
     <div class="config-campo">
       <label class="config-etiqueta" for="{{ $campo }}">{{ $rotulo }}</label>
       <div class="config-color">
-        <input type="color" name="{{ $campo }}" id="{{ $campo }}" data-color-propio="{{ $campo }}_fabrica" form="form-colores"
+        <input type="color" name="{{ $campo }}" id="{{ $campo }}" data-color-propio="{{ $campo }}_fabrica"
                value="{{ old($campo, $institucion->{$campo} ?: $fabrica) }}">
         <span class="config-hex">{{ $institucion->{$campo} ?: 'el de fábrica' }}</span>
       </div>
       <label class="config-logo-quitar">
-        <input type="checkbox" name="{{ $campo }}_fabrica" id="{{ $campo }}_fabrica" value="1" form="form-colores"
+        <input type="checkbox" name="{{ $campo }}_fabrica" id="{{ $campo }}_fabrica" value="1"
                @checked(old($campo.'_fabrica', $institucion->{$campo} === '' ? '1' : null))>
         <span>Usar el de fábrica</span>
       </label>
@@ -137,11 +148,15 @@
     });
     </script>
 
-    <button type="submit" class="btn" form="form-colores">Guardar colores</button>
-    <p class="config-ayuda">Al guardar, la página se recarga ya con los colores nuevos.</p>
 
+
+    <button type="submit" class="btn">Guardar colores</button>
     </fieldset>
+  </form>
 
+  <form id="firma" method="post" action="{{ route('gestion-configuracion') }}" enctype="multipart/form-data" class="config-formulario" data-recarga-completa>
+    @csrf
+    <input type="hidden" name="seccion" value="firma">
     <fieldset class="config-seccion">
     <legend class="config-seccion-titulo">Firma para certificados</legend>
 
@@ -199,7 +214,10 @@
       </p>
     </div>
 
+
+    <button type="submit" class="btn">Guardar firma</button>
     </fieldset>
+  </form>
 
     {{--
       LOS DATOS DE LA ENTIDAD Y LA POLÍTICA DE TRATAMIENTO DE DATOS.
@@ -234,11 +252,12 @@
     --}}
     @php($camposDeDatos = ['entidad_nit', 'entidad_direccion', 'entidad_correo',
                            'entidad_telefono', 'politica_datos', 'finalidad_datos', 'finalidad_imagen',
-                           'consentimiento_mayor', 'consentimiento_menor',
-                           'correo_servidor', 'correo_puerto', 'correo_cifrado',
-                           'correo_usuario', 'correo_clave', 'correo_prueba'])
+                           'consentimiento_mayor', 'consentimiento_menor'])
+  <form id="entidad" method="post" action="{{ route('gestion-configuracion') }}" enctype="multipart/form-data" class="config-formulario" data-recarga-completa>
+    @csrf
+    <input type="hidden" name="seccion" value="entidad">
     <details class="perfil-seccion" id="bloque-datos-entidad" style="max-width:none;"
-             @if ($errors->hasAny($camposDeDatos)) open @endif>
+             @if ($errors->hasAny($camposDeDatos) || session('seccion_guardada') === 'entidad') open @endif>
     <summary class="perfil-seccion-cabecera">
       <span class="perfil-seccion-icono icono-documento" aria-hidden="true">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -404,7 +423,10 @@
       </div>
     @endforeach
 
+
+    <button type="submit" class="btn">Guardar datos y textos legales</button>
     </details>
+  </form>
 
     {{--
       EL SERVIDOR DE CORREO.
@@ -418,6 +440,9 @@
       más que los campos: lo primero que hay que poder ver de un vistazo es si
       la recuperación de contraseña funciona o no.
     --}}
+  <form id="correo" method="post" action="{{ route('gestion-configuracion') }}" enctype="multipart/form-data" class="config-formulario" data-recarga-completa>
+    @csrf
+    <input type="hidden" name="seccion" value="correo">
     <fieldset class="config-seccion">
     <legend class="config-seccion-titulo">Correo</legend>
 
@@ -529,8 +554,14 @@
       </p>
     </div>
 
-    </fieldset>
 
+    <button type="submit" class="btn">Guardar correo</button>
+    </fieldset>
+  </form>
+
+  <form id="reglas" method="post" action="{{ route('gestion-configuracion') }}" enctype="multipart/form-data" class="config-formulario" data-recarga-completa>
+    @csrf
+    <input type="hidden" name="seccion" value="reglas">
     <fieldset class="config-seccion">
     <legend class="config-seccion-titulo">Reglas de matrícula</legend>
 
@@ -563,7 +594,10 @@
       </p>
     </div>
 
+
+    <button type="submit" class="btn">Guardar reglas</button>
     </fieldset>
+  </form>
 
     {{--
       Las alertas van en su propio grupo, y no sueltas con las de arriba: son
@@ -572,6 +606,9 @@
       mirar. Por eso también se pueden apagar: hay instituciones que llevan la
       asistencia en papel y para las que estos avisos serían ruido.
     --}}
+  <form id="alertas" method="post" action="{{ route('gestion-configuracion') }}" enctype="multipart/form-data" class="config-formulario" data-recarga-completa>
+    @csrf
+    <input type="hidden" name="seccion" value="alertas">
     <fieldset class="config-seccion">
       <legend class="config-seccion-titulo">Alertas</legend>
 
@@ -727,15 +764,11 @@
           Déjalo vacío para no poner plazo.
         </p>
       </div>
+
+    <button type="submit" class="btn">Guardar alertas</button>
     </fieldset>
-
-    <button type="submit" class="btn">Guardar</button>
   </form>
 
-  {{-- El formulario de los colores: vacío aquí, sus campos están arriba (ver la sección «Colores»). --}}
-  <form id="form-colores" method="post" action="{{ route('gestion-colores') }}" data-recarga-completa>
-    @csrf
-  </form>
 </div>
 
 {{--

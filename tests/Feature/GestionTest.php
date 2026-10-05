@@ -1408,12 +1408,18 @@ class GestionTest extends TestCase
 
     public function test_se_guarda_la_configuracion(): void
     {
+        // Cada seccion con su boton desde el 05/10/2026: dos envios.
         $this->actingAs($this->admin->user)
             ->post(route('gestion-configuracion'), [
+                'seccion' => 'marca',
                 'nombre_institucion' => 'Casa de la Cultura El Santuario',
-                'color_acento' => '#0a7a59',
+            ])
+            ->assertSessionHas('success');
+
+        $this->actingAs($this->admin->user)
+            ->post(route('gestion-configuracion'), [
+                'seccion' => 'reglas',
                 'limite_promotorias_por_periodo' => 3,
-                'faltas_para_abandono' => 5,
                 'promotorias_visibles_para_estudiantes' => 1,
             ])
             ->assertSessionHas('success');

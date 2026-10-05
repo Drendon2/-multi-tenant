@@ -2315,13 +2315,13 @@
      así que van en <fieldset> separados: el grupo es real, no decorativo, y así
      los lectores de pantalla anuncian a qué sección pertenece cada campo. */
   .config-seccion { border: 0; padding: 0; margin: 0; }
-  .config-seccion + .config-seccion,
-  /* Y la que va detras del PLEGADO de «Datos de la entidad», que es un
-     <details> y no un <fieldset>: sin esta mitad, el hermano adyacente no
-     casa y la seccion siguiente se pega a la anterior sin separador ni linea.
-     No se ve al escribirla —solo se nota comparandola con sus vecinas— y
-     mordio el 09/09/2026 al meter la seccion de Correo justo ahi. */
-  .perfil-seccion + .config-seccion {
+  /* EL SEPARADOR VA ENTRE FORMULARIOS desde el 05/10/2026, cuando cada
+     seccion paso a tener el suyo con su boton. Antes iba entre secciones
+     hermanas (`.config-seccion + .config-seccion`, y el plegado de «Datos de
+     la entidad» con su vecina), y envolverlas en un <form> rompio esa
+     adyacencia: la linea desaparecio y cada boton quedo pegado al titulo de
+     la seccion siguiente, sin fallar. Aqui casan todas, el plegado tambien. */
+  .config-formulario + .config-formulario {
     margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--border);
   }
   .config-seccion-titulo {

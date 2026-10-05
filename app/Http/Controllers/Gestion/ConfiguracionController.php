@@ -84,140 +84,177 @@ class ConfiguracionController extends Controller
         ]);
     }
 
+    /**
+     * Las secciones de la pantalla, cada una con su boton (05/10/2026, pedido
+     * del usuario). El valor es el aviso al guardar. Los COLORES no estan:
+     * tienen su propia ruta (`guardarColores`).
+     */
+    private const SECCIONES = [
+        'marca' => 'Marca guardada.',
+        'firma' => 'Firma guardada.',
+        'entidad' => 'Datos de la entidad y textos legales guardados.',
+        'correo' => 'Correo guardado.',
+        'reglas' => 'Reglas de matrícula guardadas.',
+        'alertas' => 'Alertas guardadas.',
+    ];
+
+    /** Los nombres de campo que salen en los mensajes de rechazo. */
+    private const NOMBRES_DE_CAMPO = [
+        'firma' => 'firma',
+        'consentimiento_mayor' => 'formato de mayor de edad',
+        'consentimiento_menor' => 'formato de menor de edad',
+        'correo_servidor' => 'servidor de correo',
+        'correo_puerto' => 'puerto',
+        'correo_cifrado' => 'cifrado',
+        'correo_usuario' => 'usuario del correo',
+        'correo_clave' => 'contraseña del correo',
+        'correo_prueba' => 'correo de prueba',
+        'firmante_nombre' => 'nombre de quien firma',
+        'firmante_cargo' => 'cargo de quien firma',
+        'entidad_nit' => 'NIT',
+        'entidad_direccion' => 'dirección',
+        'entidad_correo' => 'correo de contacto',
+        'entidad_telefono' => 'teléfono',
+        'politica_datos' => 'texto de la política',
+        'finalidad_datos' => 'finalidad del tratamiento de datos',
+        'finalidad_imagen' => 'finalidad del uso de imagen',
+    ];
+
+    /**
+     * Guarda UNA seccion: valida y escribe solo sus campos, y vuelve a su ancla
+     * con la pagina entera ya cambiada (el formulario va con
+     * `data-recarga-completa`). El rechazo vuelve tambien a su ancla y no con
+     * `back()`, que dejaria la pagina arriba y el aviso sin verse: quien edita
+     * no tiene que buscar donde estaba.
+     *
+     * Hasta el 05/10/2026 habia un solo boton para todo: probar un logo
+     * obligaba a reenviar treinta campos, y el nombre o el logo nuevos no se
+     * veian hasta recargar, porque viven fuera de `<main>`.
+     */
     public function guardar(Request $request): RedirectResponse
     {
-        $configuracion = ConfiguracionInstitucion::actual();
+        $seccion = (string) $request->input('seccion');
 
-        $datos = $request->validate([
-            'nombre_institucion' => Reglas::texto(80),
-            'nombre_corto' => Reglas::texto(20, obligatorio: false),
+        abort_unless(isset(self::SECCIONES[$seccion]), 404);
+
+        $configuracion = ConfiguracionInstitucion::actual();
+        $ancla = route('gestion-configuracion').'#'.$seccion;
+
+        try {
+            $datos = $request->validate(
+                $this->reglasDe($seccion),
+                Reglas::mensajes() + [
+                    'correo_servidor.regex' => 'Escribe solo el nombre del servidor, como smtp.hostinger.com — '
+                        .'sin «https://», sin barras y sin el puerto.',
+                ],
+                self::NOMBRES_DE_CAMPO,
+            );
+
+            match ($seccion) {
+                'marca' => $this->guardarMarca($request, $datos, $configuracion),
+                'firma' => $this->guardarFirma($request, $datos, $configuracion),
+                'entidad' => $this->guardarEntidad($request, $datos, $configuracion),
+                'correo' => $this->guardarCorreo($request, $datos, $configuracion),
+                'reglas' => $this->guardarReglas($request, $datos, $configuracion),
+                'alertas' => $this->guardarAlertas($request, $configuracion),
+            };
+        } catch (ValidationException $e) {
+            // Sin la clave: un campo de contraseña con otro nombre que
+            // `password` acabaria en la sesion, que en produccion es una tabla.
+            return redirect()->to($ancla)
+                ->withErrors($e->errors())
+                ->withInput($request->except(['correo_clave']));
+        }
+
+        $configuracion->save();
+
+        $respuesta = redirect()->to($ancla)
+            ->with('success', self::SECCIONES[$seccion])
+            ->with('seccion_guardada', $seccion);
+
+        // La prueba de envio va DESPUES de guardar y en la misma peticion, no
+        // en un boton aparte: asi se prueba siempre lo que se acaba de guardar.
+        if ($seccion === 'correo' && $request->filled('correo_prueba')) {
+            $this->probarElCorreo($request->string('correo_prueba')->toString(), $respuesta);
+        }
+
+        return $respuesta;
+    }
+
+    /**
+     * Las reglas de UNA seccion. Son las mismas que habia con el boton unico,
+     * repartidas: ninguna se aflojo.
+     *
+     * @return array<string, mixed>
+     */
+    private function reglasDe(string $seccion): array
+    {
+        return match ($seccion) {
+            'marca' => [
+                'nombre_institucion' => Reglas::texto(80),
+                'nombre_corto' => Reglas::texto(20, obligatorio: false),
+                'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096', new ImagenProcesable],
+            ],
+            'firma' => [
+                'firma' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096', new ImagenProcesable],
+                'firmante_nombre' => Reglas::texto(120, obligatorio: false),
+                'firmante_cargo' => Reglas::texto(80, obligatorio: false),
+            ],
             // Los cuatro datos de la entidad son OPCIONALES, y no por descuido:
             // se anadieron el 06/09/2026 a una instalacion que ya estaba
-            // corriendo, y exigirlos habria dejado esta pantalla imposible de
-            // guardar —para cambiar el color de acento, por ejemplo— hasta que
-            // alguien los rellenara. La pagina publica se lee igual sin ellos:
-            // esconde el renglon que falta.
-            'entidad_nit' => Reglas::texto(40, obligatorio: false),
-            'entidad_direccion' => Reglas::texto(160, obligatorio: false),
-            'entidad_correo' => Reglas::correo(120),
-            // El telefono de la ENTIDAD no lleva la regla de los diez digitos
-            // que llevan las personas, y el porque esta en `Reglas`: aqui va un
-            // fijo con extension o dos numeros, no un celular.
-            'entidad_telefono' => Reglas::telefonoDeEntidad(),
-            // El tope es enorme a proposito. La linea que habia aqui decia «sin
-            // tope de largo: es un texto legal», y eso sigue siendo verdad —lo
-            // que no puede seguir siendo verdad es que un campo acepte lo que
-            // le echen: sin ningun maximo esto es una via de escribir megabytes
-            // en la base por peticion. Veinte mil caracteres son unas diez
-            // paginas, muchisimo mas de lo que ocupa el texto de fabrica, y
-            // caben de sobra en la columna TEXT (65.535 BYTES, que con tildes
-            // no son 65.535 caracteres).
-            'politica_datos' => Reglas::texto(20000, obligatorio: false),
-            // Las dos finalidades SI llevan tope corto: son una frase que se
-            // incrusta dentro de otra, en la politica y en el papel que se
-            // firma. Un parrafo entero ahi rompe las dos.
-            'finalidad_datos' => Reglas::texto(255, obligatorio: false),
-            'finalidad_imagen' => Reglas::texto(255, obligatorio: false),
-            // Los dos formatos de autorizacion que puede subir la entidad.
-            //
-            // Se admite PDF Y TAMBIEN imagen, y no es una comodidad: hay
-            // entidades cuyo formato aprobado existe solo en papel, y lo que
-            // tienen es la foto del escaneo. Lo que llega como imagen se
-            // convierte a PDF antes de guardarse, igual que los papeles que
-            // sube el estudiante, asi que en disco solo hay PDF y quien lo baje
-            // lo abre igual.
-            //
-            // El tope de 8 MB es el mismo que el de los papeles del estudiante
-            // y por lo mismo: es una foto de celular lo que puede llegar.
-            //
-            // `PdfOImagen` mira el CONTENIDO y no la extension. `mimes:` haria
-            // lo mismo en produccion y NO en las pruebas —ahi `UploadedFile`
-            // se cree el tipo que declara el nombre del archivo—, asi que una
-            // prueba de rechazo por ese camino pasaria en verde con la regla
-            // quitada. El porque entero esta en la regla.
-            'consentimiento_mayor' => ['nullable', 'file', 'max:8192', new PdfOImagen, new ImagenProcesable(puedeNoSerImagen: true)],
-            'consentimiento_menor' => ['nullable', 'file', 'max:8192', new PdfOImagen, new ImagenProcesable(puedeNoSerImagen: true)],
-            // El servidor de correo de la entidad. Los cinco son OPCIONALES: sin
-            // ellos manda lo del `.env`, que es como funcionaba antes.
-            //
-            // El servidor va con lista blanca de nombre de maquina —letras,
-            // digitos, puntos y guiones— y no como texto libre. Dos razones: un
-            // «https://smtp...» pegado del panel del proveedor no es un nombre
-            // de maquina y fallaria luego sin decir por que, y esto acaba
-            // siendo una conexion de salida que abre el servidor, asi que
-            // cuanto menos quepa ahi, mejor.
-            'correo_servidor' => ['nullable', 'string', 'max:160', 'regex:/^[A-Za-z0-9]([A-Za-z0-9.\-]*[A-Za-z0-9])?$/'],
-            // Estos dos son OPCIONALES aunque el formulario los mande siempre, y
-            // no es dejadez: `required` aqui obliga a que TODO guardado de esta
-            // pantalla los traiga, y lo primero que rompe es cualquier
-            // guardado que no venga de este formulario. Ausentes significa
-            // «deja lo que hay», que es lo unico que puede significar.
-            'correo_puerto' => ['nullable', 'integer', 'min:1', 'max:65535'],
-            'correo_cifrado' => ['nullable', Rule::in(['smtps', 'smtp'])],
-            // El usuario ES la direccion del buzon, y ademas es el «De:» de lo
-            // que salga. Por eso se valida como correo y no como texto.
-            'correo_usuario' => Reglas::correo(160),
-            'correo_clave' => ['nullable', 'string', 'max:255'],
-            // A donde se manda la prueba. Solo se mira si se pulso el boton de
-            // probar, pero la regla va siempre: un campo que se valida a veces
-            // es un campo que un dia se guarda sin validar.
-            'correo_prueba' => ['nullable', 'email', 'max:160'],
-            'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096', new ImagenProcesable],
-            'firma' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096', new ImagenProcesable],
-            'firmante_nombre' => Reglas::texto(120, obligatorio: false),
-            'firmante_cargo' => Reglas::texto(80, obligatorio: false),
-            'limite_promotorias_por_periodo' => [
-                'required', 'integer', 'min:1', 'max:'.ConfiguracionInstitucion::RANURA_MAXIMA_ABSOLUTA,
+            // corriendo, y exigirlos habria dejado esta seccion imposible de
+            // guardar hasta que alguien los rellenara. La pagina publica se lee
+            // igual sin ellos: esconde el renglon que falta.
+            'entidad' => [
+                'entidad_nit' => Reglas::texto(40, obligatorio: false),
+                'entidad_direccion' => Reglas::texto(160, obligatorio: false),
+                'entidad_correo' => Reglas::correo(120),
+                'entidad_telefono' => Reglas::telefonoDeEntidad(),
+                'politica_datos' => Reglas::texto(20000, obligatorio: false),
+                'finalidad_datos' => Reglas::texto(255, obligatorio: false),
+                'finalidad_imagen' => Reglas::texto(255, obligatorio: false),
+                'consentimiento_mayor' => ['nullable', 'file', 'max:8192', new PdfOImagen, new ImagenProcesable(puedeNoSerImagen: true)],
+                'consentimiento_menor' => ['nullable', 'file', 'max:8192', new PdfOImagen, new ImagenProcesable(puedeNoSerImagen: true)],
             ],
-            'promotorias_visibles_para_estudiantes' => ['nullable', 'boolean'],
-            'alerta_clase_no_dictada' => ['nullable', 'boolean'],
-            'alerta_abandono' => ['nullable', 'boolean'],
-            'recordar_encuesta' => ['nullable', 'boolean'],
-            'correo_obligatorio' => ['nullable', 'boolean'],
-            // El maximo no es capricho: una racha mas larga que el periodo no
-            // se alcanza nunca y la alerta quedaria apagada sin decirlo.
-            'faltas_para_abandono' => ['required', 'integer', 'min:2', 'max:20'],
-            // Vacio es «sin plazo». El tope es el de un periodo largo: mas alla
-            // el plazo no vence nunca y el aviso quedaria apagado sin decirlo.
-            'dias_para_reponer' => ['nullable', 'integer', 'min:1', 'max:180'],
-            'alertas_desde' => ['nullable', 'date'],
-        ], Reglas::mensajes() + [
-            // El de Laravel para `regex` es «El formato de servidor de correo no
-            // es válido», que no le dice a nadie que sobra el «https://».
-            'correo_servidor.regex' => 'Escribe solo el nombre del servidor, como smtp.hostinger.com — '
-                .'sin «https://», sin barras y sin el puerto.',
-        ], [
-            'firma' => 'firma',
-            'consentimiento_mayor' => 'formato de mayor de edad',
-            'consentimiento_menor' => 'formato de menor de edad',
-            'correo_servidor' => 'servidor de correo',
-            'correo_puerto' => 'puerto',
-            'correo_cifrado' => 'cifrado',
-            'correo_usuario' => 'usuario del correo',
-            'correo_clave' => 'contraseña del correo',
-            'correo_prueba' => 'correo de prueba',
-            'firmante_nombre' => 'nombre de quien firma',
-            'firmante_cargo' => 'cargo de quien firma',
-            'entidad_nit' => 'NIT',
-            'entidad_direccion' => 'dirección',
-            'entidad_correo' => 'correo de contacto',
-            'entidad_telefono' => 'teléfono',
-            'politica_datos' => 'texto de la política',
-            'finalidad_datos' => 'finalidad del tratamiento de datos',
-            'finalidad_imagen' => 'finalidad del uso de imagen',
-        ]);
+            'correo' => [
+                'correo_servidor' => ['nullable', 'string', 'max:160', 'regex:/^[A-Za-z0-9]([A-Za-z0-9.\-]*[A-Za-z0-9])?$/'],
+                'correo_puerto' => ['nullable', 'integer', 'min:1', 'max:65535'],
+                'correo_cifrado' => ['nullable', Rule::in(['smtps', 'smtp'])],
+                'correo_usuario' => Reglas::correo(160),
+                'correo_clave' => ['nullable', 'string', 'max:255'],
+                'correo_prueba' => ['nullable', 'email', 'max:160'],
+            ],
+            'reglas' => [
+                'limite_promotorias_por_periodo' => [
+                    'required', 'integer', 'min:1', 'max:'.ConfiguracionInstitucion::RANURA_MAXIMA_ABSOLUTA,
+                ],
+                'promotorias_visibles_para_estudiantes' => ['nullable', 'boolean'],
+            ],
+            default => [
+                'alerta_clase_no_dictada' => ['nullable', 'boolean'],
+                'alerta_abandono' => ['nullable', 'boolean'],
+                'recordar_encuesta' => ['nullable', 'boolean'],
+                'correo_obligatorio' => ['nullable', 'boolean'],
+                // El maximo no es capricho: una racha mas larga que el periodo
+                // no se alcanza nunca y la alerta quedaria apagada sin decirlo.
+                'faltas_para_abandono' => ['required', 'integer', 'min:2', 'max:20'],
+                // Vacio es «sin plazo». El tope es el de un periodo largo: mas
+                // alla el plazo no vence nunca y el aviso quedaria apagado.
+                'dias_para_reponer' => ['nullable', 'integer', 'min:1', 'max:180'],
+                'alertas_desde' => ['nullable', 'date'],
+            ],
+        };
+    }
 
-        // Quitar el logo es una casilla aparte y no "subir vacio": dejar el
-        // campo de archivo en blanco significa conservar el que hay, que es lo
-        // que uno espera al venir solo a cambiar el color.
+    /** @param array<string, mixed> $datos */
+    private function guardarMarca(Request $request, array $datos, ConfiguracionInstitucion $configuracion): void
+    {
         if ($request->boolean('quitar_logo') && $configuracion->logo !== '') {
             Storage::disk('local')->delete($configuracion->logo);
             $configuracion->logo = '';
         }
 
         if ($request->hasFile('logo')) {
-            // El logo es lo unico de esta pantalla que sale a internet en cada
-            // pagina, asi que pasa por la misma conversion que las fotos.
             $ruta = 'institucion/logo-'.uniqid().'.webp';
             Storage::disk('local')->put($ruta, Imagen::aWebp($request->file('logo'), 320));
 
@@ -228,10 +265,13 @@ class ConfiguracionController extends Controller
             $configuracion->logo = $ruta;
         }
 
-        // La firma, con la misma pareja de casilla-y-archivo que el logo. Se
-        // guarda en PNG y no en WebP como todo lo demas: el generador de PDF no
-        // entiende WebP, y una firma en WebP saldria como un hueco en el
-        // certificado sin que nada fallara en pantalla.
+        $configuracion->nombre_institucion = $datos['nombre_institucion'];
+        $configuracion->nombre_corto = trim($datos['nombre_corto'] ?? '');
+    }
+
+    /** @param array<string, mixed> $datos */
+    private function guardarFirma(Request $request, array $datos, ConfiguracionInstitucion $configuracion): void
+    {
         if ($request->boolean('quitar_firma') && $configuracion->firma !== '') {
             Storage::disk('local')->delete($configuracion->firma);
             $configuracion->firma = '';
@@ -248,48 +288,44 @@ class ConfiguracionController extends Controller
             $configuracion->firma = $ruta;
         }
 
-        // Los dos formatos de autorizacion, con la misma pareja de
-        // casilla-y-archivo que el logo y la firma, y por la misma razon: dejar
-        // el campo de archivo en blanco significa conservar el que hay, que es
-        // lo que uno espera al venir solo a cambiar otra cosa de esta pantalla.
-        //
-        // VAN POR SEPARADO A PROPOSITO. Se puede subir la del menor y dejar que
-        // el sistema imprima la del mayor: no son el mismo papel con otro
-        // titulo —un menor no otorga esta autorizacion por si mismo— y atarlas
-        // obligaria a tener los dos antes de poder usar ninguno.
+        // Recortados y admiten quedarse vacios: una institucion puede tener la
+        // firma escaneada antes de haber decidido como se escribe el cargo.
+        $configuracion->firmante_nombre = trim($datos['firmante_nombre'] ?? '');
+        $configuracion->firmante_cargo = trim($datos['firmante_cargo'] ?? '');
+    }
+
+    /** @param array<string, mixed> $datos */
+    private function guardarEntidad(Request $request, array $datos, ConfiguracionInstitucion $configuracion): void
+    {
+        // Los dos formatos van por separado —una entidad puede tener solo el
+        // de mayores—, y `guardarFormato` lanza un rechazo si una imagen no se
+        // puede convertir, que vuelve a esta misma seccion.
         foreach (['mayor', 'menor'] as $version) {
             $this->guardarFormato($request, $configuracion, $version);
         }
 
-        $this->guardarCorreo($request, $datos, $configuracion);
-
-        $configuracion->nombre_institucion = $datos['nombre_institucion'];
-        $configuracion->nombre_corto = trim($datos['nombre_corto'] ?? '');
-        // Los dos textos del firmante se guardan recortados y admiten quedarse
-        // vacios: una institucion puede tener la firma escaneada antes de haber
-        // decidido como se escribe el cargo.
-        $configuracion->firmante_nombre = trim($datos['firmante_nombre'] ?? '');
-        $configuracion->firmante_cargo = trim($datos['firmante_cargo'] ?? '');
         $configuracion->entidad_nit = trim($datos['entidad_nit'] ?? '');
         $configuracion->entidad_direccion = trim($datos['entidad_direccion'] ?? '');
         $configuracion->entidad_correo = trim($datos['entidad_correo'] ?? '');
         $configuracion->entidad_telefono = trim($datos['entidad_telefono'] ?? '');
-        // VACIA SE GUARDA COMO NULL, y esa distincion es la funcion entera del
-        // campo: null significa «publica el texto de fabrica», que se escribe
-        // solo con el nombre y el contacto de esta entidad y se pone al dia
-        // cuando cambian. Guardando '' se publicaria una politica en blanco, y
-        // ademas no habria forma de volver atras desde la pantalla.
-        //
-        // El `?: null` no sobra aunque `ConvertEmptyStringsToNull` ya lo haga:
-        // aqui se recorta antes, asi que un textarea con solo espacios o saltos
-        // de linea —que ese middleware deja pasar— tambien vuelve al de fabrica.
+        // Vacia se guarda como NULL: es lo que significa «publica la de
+        // fabrica» (`PoliticaDatos`).
         $configuracion->politica_datos = trim($datos['politica_datos'] ?? '') ?: null;
         // Estas dos guardan '' y no null: la columna no admite nulo y su vacio
         // significa lo mismo —«usa la de fabrica»—, que resuelve el modelo.
         $configuracion->finalidad_datos = trim($datos['finalidad_datos'] ?? '');
         $configuracion->finalidad_imagen = trim($datos['finalidad_imagen'] ?? '');
+    }
+
+    /** @param array<string, mixed> $datos */
+    private function guardarReglas(Request $request, array $datos, ConfiguracionInstitucion $configuracion): void
+    {
         $configuracion->limite_promotorias_por_periodo = $datos['limite_promotorias_por_periodo'];
         $configuracion->promotorias_visibles_para_estudiantes = $request->boolean('promotorias_visibles_para_estudiantes');
+    }
+
+    private function guardarAlertas(Request $request, ConfiguracionInstitucion $configuracion): void
+    {
         $configuracion->alerta_clase_no_dictada = $request->boolean('alerta_clase_no_dictada');
         $configuracion->alerta_abandono = $request->boolean('alerta_abandono');
         $configuracion->recordar_encuesta = $request->boolean('recordar_encuesta');
@@ -299,27 +335,9 @@ class ConfiguracionController extends Controller
             ? (int) $request->input('dias_para_reponer')
             : null;
         // Vacia se guarda como NULL: es lo que significa «desde el inicio del
-        // periodo». Quien lo consigue de verdad es el middleware
-        // `ConvertEmptyStringsToNull` de Laravel; el `?: null` es el cinturon
-        // para el dia que ese middleware se quite, y no es adorno — con una
-        // cadena vacia, MariaDB rechaza el INSERT con «Incorrect date value» y
-        // la pantalla contesta un 500.
+        // periodo». Con una cadena vacia, MariaDB rechaza el INSERT con
+        // «Incorrect date value» y la pantalla contesta un 500.
         $configuracion->alertas_desde = $request->input('alertas_desde') ?: null;
-        $configuracion->save();
-
-        $respuesta = redirect()->route('gestion-configuracion')
-            ->with('success', 'Configuración de la institución actualizada.');
-
-        // La prueba de envio va DESPUES de guardar y en la misma peticion, no
-        // en un boton aparte. Es a proposito: separadas, se prueba lo que hay
-        // guardado y no lo que se acaba de escribir, y el orden —guardar
-        // primero, probar despues— hay que acordarselo. Aqui no hay orden que
-        // recordar, y lo que se prueba es siempre lo que se acaba de guardar.
-        if ($request->filled('correo_prueba')) {
-            $this->probarElCorreo($request->string('correo_prueba')->toString(), $respuesta);
-        }
-
-        return $respuesta;
     }
 
     /**
@@ -482,7 +500,6 @@ class ConfiguracionController extends Controller
         $configuracion->{$campo} = $ruta;
     }
 
-    /** Agrega un papel a la lista de los que se piden. */
     /**
      * LOS COLORES, CON SU PROPIO BOTON (05/10/2026, pedido del usuario: «la
      * seccion de colores deberia tener su propio boton de guardar y que apenas
@@ -573,6 +590,7 @@ class ConfiguracionController extends Controller
         return $respuesta;
     }
 
+    /** Agrega un papel a la lista de los que se piden. */
     public function documentoNuevo(Request $request): RedirectResponse
     {
         $datos = $request->validate([

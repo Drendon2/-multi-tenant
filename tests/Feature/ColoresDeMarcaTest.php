@@ -132,6 +132,7 @@ class ColoresDeMarcaTest extends TestCase
         $this->guardar(['color_fondo' => '#fff8e7'])->assertSessionHasNoErrors();
 
         $this->actingAs($this->admin)->post(route('gestion-configuracion'), [
+            'seccion' => 'marca',
             'nombre_institucion' => 'Casa de la Cultura',
             'color_acento' => '#123456',
             'color_fondo_fabrica' => '1',
@@ -160,18 +161,20 @@ class ColoresDeMarcaTest extends TestCase
     }
 
     /**
-     * Los colores viven fuera de `<main>`, y `acciones.js` solo repinta `<main>`:
-     * su formulario NAVEGA (`data-recarga-completa`) para que la pagina llegue
-     * ya pintada. Y sus campos le pertenecen por el atributo `form`.
+     * Cada seccion tiene su formulario y su boton (05/10/2026), y todos NAVEGAN
+     * (`data-recarga-completa`): el nombre, el logo y los colores viven fuera
+     * de `<main>`, y `acciones.js` solo repinta `<main>`. El `id` del
+     * formulario es el ancla a la que vuelve al guardar.
      */
-    public function test_el_formulario_de_colores_recarga_la_pagina_entera(): void
+    public function test_cada_seccion_tiene_su_formulario_y_recarga_la_pagina_entera(): void
     {
         $html = (string) $this->actingAs($this->admin)->get(route('gestion-configuracion'))->assertOk()->getContent();
 
-        $this->assertMatchesRegularExpression('#<form id="form-colores"[^>]*data-recarga-completa#', $html);
-        foreach (['color_acento', 'color_fondo', 'color_cabecera'] as $campo) {
-            $this->assertMatchesRegularExpression('#name="'.$campo.'"[^>]*form="form-colores"#', $html);
+        foreach (['marca', 'colores', 'firma', 'entidad', 'correo', 'reglas', 'alertas'] as $seccion) {
+            $this->assertMatchesRegularExpression('#<form id="'.$seccion.'"[^>]*data-recarga-completa#', $html, "la sección {$seccion} no tiene su formulario.");
         }
-        $this->assertMatchesRegularExpression('#<button[^>]*form="form-colores"#', $html);
+
+        // Y cada una con su boton: siete, ni uno general que lo guarde todo.
+        $this->assertSame(7, preg_match_all('#<button type="submit" class="btn">Guardar [^<]+</button>#', $html));
     }
 }

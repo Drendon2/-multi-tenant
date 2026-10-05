@@ -59,6 +59,7 @@ class FormatoPropioTest extends TestCase
 
     /** Los campos sin los que la pantalla de Institucion no guarda. */
     private const MINIMO = [
+        'seccion' => 'entidad',
         'nombre_institucion' => 'Casa de la Cultura',
         'color_acento' => '#0a7a59',
         'limite_promotorias_por_periodo' => 2,

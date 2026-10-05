@@ -470,6 +470,7 @@ class CertificadoTest extends TestCase
         [$userAdmin] = $this->crearPerfil('admin', 'administrador');
 
         $this->actingAs($userAdmin)->post(route('gestion-configuracion'), [
+            'seccion' => 'firma',
             'nombre_institucion' => 'Casa de la Cultura',
             'color_acento' => '#0a7a59',
             'limite_promotorias_por_periodo' => 2,
@@ -477,7 +478,7 @@ class CertificadoTest extends TestCase
             'firma' => UploadedFile::fake()->image('firma.png', 600, 200),
             'firmante_nombre' => 'Marta Ruiz',
             'firmante_cargo' => 'Directora',
-        ])->assertRedirect(route('gestion-configuracion'));
+        ])->assertRedirect(route('gestion-configuracion').'#firma');
 
         $configuracion = ConfiguracionInstitucion::actual()->refresh();
 
@@ -495,6 +496,7 @@ class CertificadoTest extends TestCase
         [$userAdmin] = $this->crearPerfil('admin', 'administrador');
 
         $this->actingAs($userAdmin)->post(route('gestion-configuracion'), [
+            'seccion' => 'firma',
             'nombre_institucion' => 'Casa de la Cultura',
             'color_acento' => '#0a7a59',
             'limite_promotorias_por_periodo' => 2,
@@ -506,6 +508,7 @@ class CertificadoTest extends TestCase
         $this->assertNotSame('', $anterior);
 
         $this->actingAs($userAdmin)->post(route('gestion-configuracion'), [
+            'seccion' => 'firma',
             'nombre_institucion' => 'Casa de la Cultura',
             'color_acento' => '#0a7a59',
             'limite_promotorias_por_periodo' => 2,
@@ -536,6 +539,7 @@ class CertificadoTest extends TestCase
         [$userAdmin] = $this->crearPerfil('admin', 'administrador');
 
         $this->actingAs($userAdmin)->post(route('gestion-configuracion'), [
+            'seccion' => 'firma',
             'nombre_institucion' => 'Casa de la Cultura',
             'color_acento' => '#0a7a59',
             'limite_promotorias_por_periodo' => 2,

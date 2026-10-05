@@ -305,6 +305,7 @@ class AlertasTest extends TestCase
     {
         $this->actingAs($this->admin->user)
             ->post(route('gestion-configuracion'), [
+                'seccion' => 'alertas',
                 'nombre_institucion' => 'Casa de la Cultura',
                 'color_acento' => '#0a7a59',
                 'limite_promotorias_por_periodo' => 2,
@@ -333,6 +334,7 @@ class AlertasTest extends TestCase
 
         $this->actingAs($this->admin->user)
             ->post(route('gestion-configuracion'), [
+                'seccion' => 'alertas',
                 'nombre_institucion' => 'Casa de la Cultura',
                 'color_acento' => '#0a7a59',
                 'limite_promotorias_por_periodo' => 2,

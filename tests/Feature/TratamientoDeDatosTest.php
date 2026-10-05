@@ -276,7 +276,7 @@ class TratamientoDeDatosTest extends TestCase
                 'entidad_correo' => 'esto-no-es-un-correo',
             ]));
 
-        $rechazo->assertRedirect(route('gestion-configuracion'));
+        $rechazo->assertRedirect(route('gestion-configuracion').'#entidad');
 
         // Se SIGUE la redirección: el error vive en la sesión y la sección se
         // abre al pintar la pantalla siguiente, no en la respuesta del POST.
@@ -473,6 +473,7 @@ class TratamientoDeDatosTest extends TestCase
     private function formularioDeInstitucion(array $cambios = []): array
     {
         return $cambios + [
+            'seccion' => 'entidad',
             'nombre_institucion' => 'Casa de la Cultura',
             'color_acento' => '#0a7a59',
             'limite_promotorias_por_periodo' => 2,
