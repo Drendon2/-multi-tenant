@@ -10,6 +10,7 @@
 --}}
 <form action="{{ route('gestion-clasificar-omisiones-lote') }}" method="post" id="{{ $loteId }}" class="lote-barra">
   @csrf
+  @include('partials.lote-marcar-todas', ['loteId' => $loteId])
   <span class="lote-cuenta" data-lote-cuenta>Ninguno marcado</span>
   @foreach ($causas as $valor => $rotulo)
     <button type="submit" name="causa" value="{{ $valor }}" class="btn btn-blanco btn-sm" data-lote-enviar disabled>

@@ -439,6 +439,21 @@ class ClasesPorReponerTest extends TestCase
             ]));
     }
 
+    /**
+     * En el TELEFONO la cabecera de la tabla se esconde, y con ella su casilla
+     * de «todas»: la barra del lote lleva la suya (05/10/2026). Sin nombre, para
+     * que no viaje con el formulario.
+     */
+    public function test_la_barra_del_lote_trae_marcar_todas_para_el_telefono(): void
+    {
+        $html = (string) $this->actingAs($this->admin->user)->get(route('gestion-cancelaciones'))->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '#<form[^>]*id="lote-omisiones"[^>]*>.*?<input type="checkbox" data-lote-todos-de="lote-omisiones">#s',
+            $html
+        );
+    }
+
     public function test_el_lote_clasifica_todas_las_marcadas(): void
     {
         $id = $this->grupo->id;

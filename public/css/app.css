@@ -1451,6 +1451,13 @@
     font-variant-numeric: tabular-nums;
   }
   .lote-barra + table { margin-top: 0; }
+  /* «Marcar todas» de la barra: solo en el telefono, donde la cabecera de la
+     tabla (y su casilla) se esconde. Ver `partials.lote-marcar-todas`. */
+  .lote-todas { display: none; align-items: center; gap: 0.4rem; min-height: 44px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+  .lote-todas input { width: auto; margin: 0; }
+  @media (max-width: 640px) {
+    .lote-barra .lote-todas { display: inline-flex; }
+  }
 
   /* ---- La puerta a la tercera bandeja de Alertas ------------------------
      Un boton con su cifra dentro, y debajo el desglose por motivo. Es una

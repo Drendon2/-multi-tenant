@@ -106,6 +106,7 @@
 <form action="{{ route('panel-pendientes-lote', $item['promotoria']) }}" method="post"
       id="{{ $lotePendientes }}" class="lote-barra">
   @csrf
+  @include('partials.lote-marcar-todas', ['loteId' => $lotePendientes])
   <span class="lote-cuenta" data-lote-cuenta>Ninguno marcado</span>
   <button type="submit" name="decision" value="confirmar" class="btn btn-sm" data-lote-enviar disabled>
     Confirmar marcados
@@ -346,6 +347,7 @@
 <form action="{{ route('panel-asignar-grupo-lote', $item['promotoria']) }}" method="post"
       id="lote-{{ $item['promotoria']->id }}" class="lote-barra" data-lote>
   @csrf
+  @include('partials.lote-marcar-todas', ['loteId' => 'lote-'.$item['promotoria']->id])
   <span class="lote-cuenta" data-lote-cuenta>Ninguno marcado</span>
   <select name="grupo_id" required>
     <option value="">-- elegir grupo --</option>
