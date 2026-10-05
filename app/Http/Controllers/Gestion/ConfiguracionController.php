@@ -10,6 +10,7 @@ use App\Models\Periodo;
 use App\Models\User;
 use App\Rules\ImagenProcesable;
 use App\Rules\PdfOImagen;
+use App\Support\Color;
 use App\Support\CorreoDeLaInstitucion;
 use App\Support\Documento;
 use App\Support\Imagen;
@@ -166,6 +167,36 @@ class ConfiguracionController extends Controller
             'firmante_nombre' => Reglas::texto(120, obligatorio: false),
             'firmante_cargo' => Reglas::texto(80, obligatorio: false),
             'color_acento' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            // FONDO Y CABECERA (05/10/2026). Al contrario que el acento, el
+            // contraste aqui BLOQUEA: un fondo oscuro deja ilegible el texto de
+            // todas las pantallas, y eso no lo pide ninguna marca. Con la
+            // casilla «el de fabrica» marcada no se mira el color.
+            'color_fondo' => [
+                'nullable', 'regex:/^#[0-9a-fA-F]{6}$/',
+                function (string $campo, mixed $valor, \Closure $falla) use ($request) {
+                    if ($request->boolean('color_fondo_fabrica') || ! is_string($valor) || ! Color::esHexValido($valor)) {
+                        return;
+                    }
+                    $razon = Color::contraste(Color::TINTA_SUAVE, $valor);
+                    if ($razon < Color::CONTRASTE_MINIMO_ACENTO) {
+                        $falla('Ese fondo es demasiado oscuro: el texto gris de las pantallas quedaría en '
+                            .number_format($razon, 1, ',', '').':1 de contraste y el mínimo es 4,5:1. Elige un tono más claro.');
+                    }
+                },
+            ],
+            'color_cabecera' => [
+                'nullable', 'regex:/^#[0-9a-fA-F]{6}$/',
+                function (string $campo, mixed $valor, \Closure $falla) use ($request) {
+                    if ($request->boolean('color_cabecera_fabrica') || ! is_string($valor) || ! Color::esHexValido($valor)) {
+                        return;
+                    }
+                    $razon = Color::contraste(Color::textoSobre($valor), $valor);
+                    if ($razon < Color::CONTRASTE_MINIMO_ACENTO) {
+                        $falla('Con ese color de cabecera ni el texto blanco ni el oscuro llegan a 4,5:1 (el mejor queda en '
+                            .number_format($razon, 1, ',', '').':1). Elige un tono más claro o más oscuro.');
+                    }
+                },
+            ],
             'limite_promotorias_por_periodo' => [
                 'required', 'integer', 'min:1', 'max:'.ConfiguracionInstitucion::RANURA_MAXIMA_ABSOLUTA,
             ],
@@ -183,6 +214,8 @@ class ConfiguracionController extends Controller
             'alertas_desde' => ['nullable', 'date'],
         ], Reglas::mensajes() + [
             'color_acento.regex' => 'El color de acento debe ir en formato #rrggbb.',
+            'color_fondo.regex' => 'El color de fondo debe ir en formato #rrggbb.',
+            'color_cabecera.regex' => 'El color de la cabecera debe ir en formato #rrggbb.',
             // El de Laravel para `regex` es «El formato de servidor de correo no
             // es válido», que no le dice a nadie que sobra el «https://».
             'correo_servidor.regex' => 'Escribe solo el nombre del servidor, como smtp.hostinger.com — '
@@ -290,6 +323,9 @@ class ConfiguracionController extends Controller
         $configuracion->finalidad_datos = trim($datos['finalidad_datos'] ?? '');
         $configuracion->finalidad_imagen = trim($datos['finalidad_imagen'] ?? '');
         $configuracion->color_acento = strtolower($datos['color_acento']);
+        // '' es «el de fabrica»: con la casilla marcada, o sin color enviado.
+        $configuracion->color_fondo = $request->boolean('color_fondo_fabrica') ? '' : strtolower((string) ($datos['color_fondo'] ?? ''));
+        $configuracion->color_cabecera = $request->boolean('color_cabecera_fabrica') ? '' : strtolower((string) ($datos['color_cabecera'] ?? ''));
         $configuracion->limite_promotorias_por_periodo = $datos['limite_promotorias_por_periodo'];
         $configuracion->promotorias_visibles_para_estudiantes = $request->boolean('promotorias_visibles_para_estudiantes');
         $configuracion->alerta_clase_no_dictada = $request->boolean('alerta_clase_no_dictada');

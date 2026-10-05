@@ -33,6 +33,11 @@
     --accent-soft: {{ $configuracion->color_acento_suave }};
     --accent-soft: light-dark({{ $configuracion->color_acento_suave }}, {{ $oscuro['suave'] }});
     --caja-ancho: @yield('ancho', '400px');
+@if ($configuracion->color_fondo !== '')
+    /* El fondo propio, solo en modo claro (ver `layouts.app`). */
+    --bg: {{ $configuracion->color_fondo }};
+    --bg: light-dark({{ $configuracion->color_fondo }}, #121715);
+@endif
   }
 </style>
 </head>

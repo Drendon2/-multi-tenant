@@ -87,6 +87,42 @@
       <p class="config-ayuda">Los dos últimos se derivan del acento automáticamente; no se configuran por separado.</p>
     </div>
 
+    {{--
+      FONDO Y CABECERA (05/10/2026). Vacíos son «los de fábrica», y un
+      `<input type="color">` no puede quedarse vacío: por eso cada uno lleva su
+      casilla. El guion de abajo la desmarca al elegir un color; sin él, se
+      desmarca a mano y el formulario funciona igual. En modo oscuro no se usan,
+      y la pantalla lo dice porque no se deduce.
+    --}}
+    @foreach ([
+        'color_fondo' => ['Fondo de página', '#f2f5f3', 'El fondo detrás de las tarjetas. Tiene que ser claro: si el texto gris no se lee sobre él, no se guarda.'],
+        'color_cabecera' => ['Cabecera', '#ffffff', 'La barra de arriba, con el nombre y el logo. Puede ser oscura: el texto se pone blanco o negro solo, el que mejor se lea.'],
+    ] as $campo => [$rotulo, $fabrica, $ayuda])
+    <div class="config-campo">
+      <label class="config-etiqueta" for="{{ $campo }}">{{ $rotulo }}</label>
+      <div class="config-color">
+        <input type="color" name="{{ $campo }}" id="{{ $campo }}" data-color-propio="{{ $campo }}_fabrica"
+               value="{{ old($campo, $institucion->{$campo} ?: $fabrica) }}">
+        <span class="config-hex">{{ $institucion->{$campo} ?: 'el de fábrica' }}</span>
+      </div>
+      <label class="config-logo-quitar">
+        <input type="checkbox" name="{{ $campo }}_fabrica" id="{{ $campo }}_fabrica" value="1"
+               @checked(old($campo.'_fabrica', $institucion->{$campo} === '' ? '1' : null))>
+        <span>Usar el de fábrica</span>
+      </label>
+      @error($campo)<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
+      <p class="config-ayuda">{{ $ayuda }} En modo oscuro no se usa: se queda la paleta oscura del sistema.</p>
+    </div>
+    @endforeach
+    <script>
+    document.querySelectorAll('[data-color-propio]').forEach(function (color) {
+      color.addEventListener('input', function () {
+        var casilla = document.getElementById(color.dataset.colorPropio);
+        if (casilla) { casilla.checked = false; }
+      });
+    });
+    </script>
+
     </fieldset>
 
     <fieldset class="config-seccion">

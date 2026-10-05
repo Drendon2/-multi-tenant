@@ -234,6 +234,41 @@
   header nav a:hover { background: var(--surface-alt); color: var(--ink); }
   header nav form { margin-left: 0.5rem; }
 
+  /* ── LA CABECERA PROPIA (05/10/2026) ──────────────────────────────────────
+     Solo con la clase, que `layouts.app` pone cuando la institucion eligio un
+     color: sin ella, ni un pixel cambia. `--cabecera` y `--cabecera-ink` los
+     escribe la plantilla, con el texto ya elegido (blanco u oscuro) y la
+     paleta oscura de siempre en modo oscuro.
+
+     El hover y el foco se toman del TEXTO y no del acento ni de
+     `--surface-alt`: sobre una cabecera de color, esos dos pueden desaparecer.
+
+     OJO, LA BARRA DEL TELEFONO VIVE DENTRO DE <header> pero se pinta fija
+     abajo con fondo blanco: sus enlaces NO se recolorean bajo 640px, o saldrian
+     blancos sobre blanco. Por eso esa parte va en el complemento exacto de la
+     consulta del telefono, con el selector entero repetido (una consulta de
+     medios no suma especificidad). */
+  header.cabecera-propia { background: var(--cabecera); color: var(--cabecera-ink); }
+  header.cabecera-propia h1,
+  header.cabecera-propia .tema-boton { color: var(--cabecera-ink); }
+  header.cabecera-propia .tema-boton:hover {
+    background: color-mix(in srgb, var(--cabecera-ink) 14%, transparent); color: var(--cabecera-ink);
+  }
+  header.cabecera-propia .tema-boton:focus-visible { outline-color: var(--cabecera-ink); }
+  @media not all and (max-width: 640px) {
+    header.cabecera-propia nav a,
+    header.cabecera-propia .nav-barra a,
+    header.cabecera-propia .nav-barra button,
+    header.cabecera-propia .nav-salir { color: var(--cabecera-ink); }
+    header.cabecera-propia .nav-barra a:hover,
+    header.cabecera-propia .nav-barra button:hover {
+      background: color-mix(in srgb, var(--cabecera-ink) 14%, transparent); color: var(--cabecera-ink);
+    }
+    header.cabecera-propia .nav-barra a:focus-visible,
+    header.cabecera-propia .nav-barra button:focus-visible { outline-color: var(--cabecera-ink); }
+    header.cabecera-propia .nav-raya { background: color-mix(in srgb, var(--cabecera-ink) 35%, transparent); }
+  }
+
   /* ── EL MENU COMO BARRA, EN EL TELEFONO (12/09/2026) ──────────────────────
      Lo pidio el usuario: «este menu no es muy funcional para movil, y el boton
      de cerrar sesion es el mas visible y queda muy cerca de los otros, puede

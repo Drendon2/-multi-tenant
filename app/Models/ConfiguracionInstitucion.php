@@ -32,6 +32,8 @@ use Throwable;
  *
  * @property int|null $dias_para_reponer
  * @property string $nombre_corto Vacio = el nombre largo (guion 11).
+ * @property string $color_fondo Vacio = el de fabrica (guion 12).
+ * @property string $color_cabecera Vacio = el de fabrica (guion 12).
  */
 class ConfiguracionInstitucion extends Model
 {
@@ -103,6 +105,8 @@ class ConfiguracionInstitucion extends Model
         'firmante_nombre',
         'firmante_cargo',
         'color_acento',
+        'color_fondo',
+        'color_cabecera',
         'limite_promotorias_por_periodo',
         'promotorias_visibles_para_estudiantes',
         'alerta_clase_no_dictada',
@@ -172,6 +176,9 @@ class ConfiguracionInstitucion extends Model
         'firmante_nombre' => '',
         'firmante_cargo' => '',
         'color_acento' => '#0a7a59',
+        // Vacios = «los de fabrica». Aqui por la trampa de `firstOrCreate`.
+        'color_fondo' => '',
+        'color_cabecera' => '',
         'limite_promotorias_por_periodo' => 2,
         'promotorias_visibles_para_estudiantes' => true,
         // Las tres de las alertas van AQUI y no solo en la migracion, como
@@ -342,6 +349,14 @@ class ConfiguracionInstitucion extends Model
         $corto = trim((string) $this->nombre_corto);
 
         return $corto !== '' ? $corto : (string) $this->nombre_institucion;
+    }
+
+    /** El texto de la cabecera propia, o '' si la cabecera es la de fabrica. */
+    public function getColorTextoCabeceraAttribute(): string
+    {
+        $cabecera = (string) $this->color_cabecera;
+
+        return $cabecera === '' ? '' : Color::textoSobre($cabecera);
     }
 
     public function getColorAcentoOscuroAttribute(): string

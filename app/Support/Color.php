@@ -169,6 +169,24 @@ class Color
         return 0.92;
     }
 
+    /** El texto oscuro de la paleta (`--ink` en modo claro). */
+    public const TINTA = '#182420';
+
+    /** El texto secundario de la paleta (`--ink-soft` en modo claro). */
+    public const TINTA_SUAVE = '#55645c';
+
+    /**
+     * El texto que se lee sobre ese fondo: blanco u oscuro, el que mas
+     * contraste de. Es lo que deja elegir CUALQUIER color de cabecera sin que
+     * nadie tenga que pensar en el texto.
+     */
+    public static function textoSobre(string $fondo): string
+    {
+        return self::contraste('#ffffff', $fondo) >= self::contraste(self::TINTA, $fondo)
+            ? '#ffffff'
+            : self::TINTA;
+    }
+
     /** Razon de contraste WCAG entre dos colores hex. */
     public static function contraste(string $a, string $b): float
     {

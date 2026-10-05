@@ -44,11 +44,23 @@
     --accent-dark: light-dark({{ $configuracion->color_acento_oscuro }}, {{ $oscuro['hover'] }});
     --accent-soft: {{ $configuracion->color_acento_suave }};
     --accent-soft: light-dark({{ $configuracion->color_acento_suave }}, {{ $oscuro['suave'] }});
+    /* Fondo y cabecera propios (05/10/2026), SOLO en modo claro: la segunda
+       mitad de cada `light-dark()` es la paleta oscura de siempre. */
+@if ($configuracion->color_fondo !== '')
+    --bg: {{ $configuracion->color_fondo }};
+    --bg: light-dark({{ $configuracion->color_fondo }}, #121715);
+@endif
+@if ($configuracion->color_cabecera !== '')
+    --cabecera: {{ $configuracion->color_cabecera }};
+    --cabecera: light-dark({{ $configuracion->color_cabecera }}, #1c2421);
+    --cabecera-ink: {{ $configuracion->color_texto_cabecera }};
+    --cabecera-ink: light-dark({{ $configuracion->color_texto_cabecera }}, #e7ede9);
+@endif
   }
 </style>
 </head>
 <body>
-<header>
+<header @if ($configuracion->color_cabecera !== '') class="cabecera-propia" @endif>
   <div class="marca-header">
     <img src="{{ route('logo-institucion') }}?v={{ \App\Support\LogoInstitucion::version() }}"
          alt="" width="30" height="30">
