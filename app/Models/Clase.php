@@ -366,9 +366,35 @@ class Clase extends Model
          */
         $porGrupo = [];
 
+        /*
+         * DESDE CUANDO cuenta cada grupo (05/10/2026). Un grupo AÑADIDO despues
+         * de los primeros cuenta desde que se lo asignaron: antes le salian las
+         * clases de ese grupo desde su fecha de matricula, a las que no fue.
+         *
+         * Los PRIMEROS grupos de la matricula (la asignacion mas antigua) siguen
+         * contando desde la matricula, y no es un descuido: las asignaciones
+         * que existian el 10/09/2026 se volcaron con la fecha de ese dia
+         * (`NOW()` en la migracion de `asignaciones_grupo`), asi que su
+         * `created_at` no dice cuando entro nadie. Cortar por el esconderia a
+         * todos las clases anteriores al 10/09.
+         */
+        $desdeGrupo = [];
+
         foreach ($matriculas as $matricula) {
+            $asignados = [];
+
             foreach ($matricula->grupos as $grupo) {
                 $porGrupo[$grupo->id] = $matricula;
+                $asignados[$grupo->id] = self::asignadoEl($grupo);
+            }
+
+            $fechas = array_filter($asignados);
+            $primera = $fechas === [] ? null : min($fechas);
+
+            foreach ($asignados as $grupoId => $asignado) {
+                if ($asignado !== null && $primera !== null && $asignado->gt($primera)) {
+                    $desdeGrupo[$grupoId] = $asignado;
+                }
             }
         }
 
@@ -432,6 +458,11 @@ class Clase extends Model
                 continue;
             }
 
+            // Y la del grupo, si se lo añadieron despues (ver `$desdeGrupo`).
+            if (! $asistio && isset($desdeGrupo[$clase->grupo_id]) && Carbon::parse($clase->fecha_hora)->lt($desdeGrupo[$clase->grupo_id])) {
+                continue;
+            }
+
             $total = $clase->confirmaciones_count;
 
             $filas[] = [
@@ -453,6 +484,18 @@ class Clase extends Model
         }
 
         return $filas;
+    }
+
+    /**
+     * Cuando se le asigno ese grupo a la matricula: el `created_at` de la
+     * tabla puente, que llega como `pivot` con `grupos()`.
+     */
+    private static function asignadoEl(Grupo $grupo): ?Carbon
+    {
+        $pivot = $grupo->getRelation('pivot');
+        $fecha = $pivot instanceof Model ? $pivot->getAttribute('created_at') : null;
+
+        return $fecha === null ? null : Carbon::parse($fecha);
     }
 
     /**

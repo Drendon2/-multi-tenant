@@ -400,6 +400,93 @@ class VariosGruposPorMatriculaTest extends TestCase
      *
      * @return array{0: Matricula, 1: Clase, 2: Clase}
      */
+    // -----------------------------------------------------------------------
+    // Desde cuando cuenta un grupo AÑADIDO (05/10/2026)
+
+    /** Una clase sin asistencia de nadie, en esa fecha. */
+    private function claseEl(Grupo $grupo, string $fecha): Clase
+    {
+        return Clase::create([
+            'grupo_id' => $grupo->id,
+            'periodo_id' => $this->periodo->id,
+            'fecha_hora' => Carbon::parse($fecha),
+            'registrada_por_id' => $this->profesorDeViolin()->id,
+            'confirmaciones_requeridas' => 1,
+        ]);
+    }
+
+    /** @return list<int> */
+    private function clasesDe(Matricula $matricula): array
+    {
+        return collect(Clase::porConfirmar($matricula->estudiante, $this->periodo))
+            ->pluck('clase.id')->sort()->values()->all();
+    }
+
+    /**
+     * Quien entra a un SEGUNDO grupo a mitad de periodo no ve las clases que
+     * ese grupo dio antes de que lo metieran: no estuvo. Antes contaban desde
+     * su fecha de matricula.
+     */
+    public function test_el_grupo_añadido_despues_no_trae_sus_clases_anteriores(): void
+    {
+        Carbon::setTestNow('2026-03-02 08:00:00');
+        $matricula = $this->matricula('ana');
+        $matricula->grupos()->attach($this->lunes->id);
+
+        $lunesAntes = $this->claseEl($this->lunes, '2026-03-09 16:00:00');
+        $miercolesAntes = $this->claseEl($this->miercoles, '2026-03-11 16:00:00');
+
+        Carbon::setTestNow('2026-03-12 08:00:00');
+        $matricula->grupos()->attach($this->miercoles->id);
+
+        $miercolesDespues = $this->claseEl($this->miercoles, '2026-03-18 16:00:00');
+        Carbon::setTestNow('2026-03-19 08:00:00');
+
+        $this->assertSame([$lunesAntes->id, $miercolesDespues->id], $this->clasesDe($matricula));
+        $this->assertNotContains($miercolesAntes->id, $this->clasesDe($matricula));
+
+        Carbon::setTestNow();
+    }
+
+    /** Si consta que estuvo, sale igual: la asistencia manda sobre la fecha. */
+    public function test_si_consta_su_asistencia_la_clase_anterior_si_sale(): void
+    {
+        Carbon::setTestNow('2026-03-02 08:00:00');
+        $matricula = $this->matricula('ana');
+        $matricula->grupos()->attach($this->lunes->id);
+
+        $miercolesAntes = $this->claseEl($this->miercoles, '2026-03-11 16:00:00');
+        Asistencia::create(['clase_id' => $miercolesAntes->id, 'matricula_id' => $matricula->id, 'estado' => Asistencia::ASISTIO]);
+
+        Carbon::setTestNow('2026-03-12 08:00:00');
+        $matricula->grupos()->attach($this->miercoles->id);
+        Carbon::setTestNow('2026-03-13 08:00:00');
+
+        $this->assertContains($miercolesAntes->id, $this->clasesDe($matricula));
+
+        Carbon::setTestNow();
+    }
+
+    /**
+     * Los PRIMEROS grupos cuentan desde la matricula aunque su asignacion
+     * tenga fecha posterior: las que existian el 10/09/2026 se volcaron con la
+     * fecha de ese dia, y cortar por ella le esconderia a todos lo de antes.
+     */
+    public function test_los_primeros_grupos_cuentan_desde_la_matricula(): void
+    {
+        Carbon::setTestNow('2026-03-02 08:00:00');
+        $matricula = $this->matricula('ana');
+        $lunes = $this->claseEl($this->lunes, '2026-03-09 16:00:00');
+
+        // La asignacion lleva una fecha posterior a la clase, como las volcadas.
+        Carbon::setTestNow('2026-03-20 08:00:00');
+        $matricula->grupos()->attach($this->lunes->id);
+
+        $this->assertSame([$lunes->id], $this->clasesDe($matricula));
+
+        Carbon::setTestNow();
+    }
+
     private function dosClasesPendientes(): array
     {
         $matricula = $this->matricula('ana');
