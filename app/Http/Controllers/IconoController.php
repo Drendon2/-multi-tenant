@@ -45,7 +45,9 @@ class IconoController extends Controller
 
         return response()->json([
             'name' => $configuracion->nombre_institucion,
-            'short_name' => $configuracion->nombre_institucion,
+            // El corto si la entidad lo puso: bajo el icono caben unos doce
+            // caracteres y el nombre largo salia cortado.
+            'short_name' => $configuracion->nombre_para_icono,
             'start_url' => '/',
             'display' => 'browser',
             'background_color' => '#ffffff',

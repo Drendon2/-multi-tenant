@@ -31,6 +31,7 @@ use Throwable;
  * solo deduce las columnas de las migraciones de Laravel.
  *
  * @property int|null $dias_para_reponer
+ * @property string $nombre_corto Vacio = el nombre largo (guion 11).
  */
 class ConfiguracionInstitucion extends Model
 {
@@ -82,6 +83,7 @@ class ConfiguracionInstitucion extends Model
 
     protected $fillable = [
         'nombre_institucion',
+        'nombre_corto',
         'entidad_nit',
         'entidad_direccion',
         'entidad_correo',
@@ -127,6 +129,9 @@ class ConfiguracionInstitucion extends Model
      */
     protected $attributes = [
         'nombre_institucion' => 'Casa de la Cultura',
+        // Vacio = «usa el nombre largo». Va aqui por la trampa de siempre:
+        // `actual()` crea la fila con `firstOrCreate` y no relee el defecto.
+        'nombre_corto' => '',
         // Los cuatro datos de contacto de la entidad, por la misma razon que
         // sus vecinas: `actual()` crea la fila con `firstOrCreate` y esa
         // instancia NO relee lo que la base puso por defecto. Sin esta linea
@@ -326,6 +331,17 @@ class ConfiguracionInstitucion extends Model
             'menor' => (string) $this->consentimiento_menor,
             default => '',
         };
+    }
+
+    /**
+     * El nombre que va bajo el icono del celular: el corto si la entidad lo
+     * puso, y si no el de siempre.
+     */
+    public function getNombreParaIconoAttribute(): string
+    {
+        $corto = trim((string) $this->nombre_corto);
+
+        return $corto !== '' ? $corto : (string) $this->nombre_institucion;
     }
 
     public function getColorAcentoOscuroAttribute(): string

@@ -32,6 +32,18 @@
     </div>
 
     <div class="config-campo">
+      <label class="config-etiqueta" for="nombre_corto">Nombre corto</label>
+      <input type="text" name="nombre_corto" id="nombre_corto" maxlength="20"
+             value="{{ old('nombre_corto', $institucion->nombre_corto) }}">
+      @error('nombre_corto')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
+      <p class="config-ayuda">
+        Va debajo del icono cuando alguien pone el sistema en la pantalla de
+        inicio del celular, donde caben unos 12 caracteres. Vacío, se usa el
+        nombre de la institución.
+      </p>
+    </div>
+
+    <div class="config-campo">
       <label class="config-etiqueta" for="logo">Logo</label>
       <div class="config-logo">
         <img class="config-logo-vista"

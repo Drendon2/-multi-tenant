@@ -12,9 +12,11 @@
 --}}
 <link rel="icon" type="image/png" sizes="192x192" href="{{ route('icono-institucion', 192) }}?v={{ $versionMarca }}">
 <link rel="apple-touch-icon" sizes="180x180" href="{{ route('icono-institucion', 180) }}?v={{ $versionMarca }}">
-<link rel="manifest" href="{{ route('manifiesto') }}?v={{ $versionMarca }}">
+{{-- El manifiesto lleva tambien la huella del nombre del icono: si cambia el
+     nombre corto, la URL cambia y el telefono no se queda con el viejo. --}}
+<link rel="manifest" href="{{ route('manifiesto') }}?v={{ $versionMarca }}-{{ substr(md5($configuracion->nombre_para_icono), 0, 8) }}">
 <meta name="theme-color" content="{{ $configuracion->color_acento }}">
-<meta name="apple-mobile-web-app-title" content="{{ $configuracion->nombre_institucion }}">
+<meta name="apple-mobile-web-app-title" content="{{ $configuracion->nombre_para_icono }}">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="{{ $configuracion->nombre_institucion }}">
 <meta property="og:title" content="{{ $configuracion->nombre_institucion }}">

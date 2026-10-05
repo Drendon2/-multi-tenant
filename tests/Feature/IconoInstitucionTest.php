@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\ConfiguracionInstitucion;
+use App\Models\Perfil;
+use App\Models\User;
 use App\Support\IconoInstitucion;
 use App\Support\LogoInstitucion;
 use GdImage;
@@ -106,6 +108,70 @@ class IconoInstitucionTest extends TestCase
         $this->assertSame('browser', $manifiesto['display']);
         $this->assertCount(2, $manifiesto['icons']);
         $this->assertStringContainsString('?v='.IconoInstitucion::version(), $manifiesto['icons'][0]['src']);
+    }
+
+    // -----------------------------------------------------------------------
+    // El nombre corto (05/10/2026)
+
+    private function nombres(string $largo, string $corto): void
+    {
+        $configuracion = ConfiguracionInstitucion::actual();
+        $configuracion->nombre_institucion = $largo;
+        $configuracion->nombre_corto = $corto;
+        $configuracion->save();
+    }
+
+    /** Bajo el icono caben unos doce caracteres: ahi va el corto. */
+    public function test_el_icono_lleva_el_nombre_corto(): void
+    {
+        $this->nombres('Casa de la Cultura Luis Norberto Gómez', 'Cultura');
+
+        $manifiesto = $this->get(route('manifiesto'))->assertOk()->json();
+        $this->assertSame('Cultura', $manifiesto['short_name']);
+        $this->assertSame('Casa de la Cultura Luis Norberto Gómez', $manifiesto['name']);
+
+        $this->get(route('login'))->assertSee('<meta name="apple-mobile-web-app-title" content="Cultura">', false);
+    }
+
+    /** Vacio es como era hasta hoy: el nombre de la institucion. */
+    public function test_sin_nombre_corto_el_icono_lleva_el_largo(): void
+    {
+        $this->nombres('Casa de la Cultura de Prueba', '');
+
+        $this->assertSame('Casa de la Cultura de Prueba', $this->get(route('manifiesto'))->json()['short_name']);
+        $this->get(route('login'))->assertSee('<meta name="apple-mobile-web-app-title" content="Casa de la Cultura de Prueba">', false);
+    }
+
+    /** Cambiar el nombre corto cambia la URL del manifiesto, como el logo. */
+    public function test_cambiar_el_nombre_corto_cambia_la_url_del_manifiesto(): void
+    {
+        $url = fn () => preg_match('#rel="manifest" href="([^"]+)"#', (string) $this->get(route('login'))->getContent(), $m) ? $m[1] : '';
+
+        $this->nombres('Casa de la Cultura', 'Cultura');
+        $antes = $url();
+        $this->nombres('Casa de la Cultura', 'Casa Cultura');
+
+        $this->assertNotSame('', $antes);
+        $this->assertNotSame($antes, $url());
+    }
+
+    public function test_el_nombre_corto_se_guarda_desde_institucion(): void
+    {
+        $user = User::create(['username' => 'jefa', 'password' => 'x', 'activo' => true]);
+        Perfil::create([
+            'user_id' => $user->id, 'rol' => 'administrador', 'nombre_completo' => 'Jefa',
+            'fecha_nacimiento' => '1980-01-01', 'telefono' => '3000000000',
+        ]);
+
+        $this->actingAs($user)->post(route('gestion-configuracion'), [
+            'nombre_institucion' => 'Casa de la Cultura',
+            'nombre_corto' => '  Cultura  ',
+            'color_acento' => '#0a7a59',
+            'limite_promotorias_por_periodo' => 2,
+            'faltas_para_abandono' => 5,
+        ])->assertSessionHas('success');
+
+        $this->assertSame('Cultura', ConfiguracionInstitucion::actual()->fresh()->nombre_corto);
     }
 
     /** La pagina que se comparte (entrar) lleva el icono y la vista previa. */

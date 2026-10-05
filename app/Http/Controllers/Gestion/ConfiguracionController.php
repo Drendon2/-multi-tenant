@@ -89,6 +89,7 @@ class ConfiguracionController extends Controller
 
         $datos = $request->validate([
             'nombre_institucion' => Reglas::texto(80),
+            'nombre_corto' => Reglas::texto(20, obligatorio: false),
             // Los cuatro datos de la entidad son OPCIONALES, y no por descuido:
             // se anadieron el 06/09/2026 a una instalacion que ya estaba
             // corriendo, y exigirlos habria dejado esta pantalla imposible de
@@ -264,6 +265,7 @@ class ConfiguracionController extends Controller
         $this->guardarCorreo($request, $datos, $configuracion);
 
         $configuracion->nombre_institucion = $datos['nombre_institucion'];
+        $configuracion->nombre_corto = trim($datos['nombre_corto'] ?? '');
         // Los dos textos del firmante se guardan recortados y admiten quedarse
         // vacios: una institucion puede tener la firma escaneada antes de haber
         // decidido como se escribe el cargo.
