@@ -152,6 +152,37 @@ class InformeCuadradoTest extends TestCase
     }
 
     /**
+     * El documento va AL LADO DEL NOMBRE (05/10/2026, pedido del usuario): el
+     * del estudiante sale de su ficha y el del personal, de su perfil.
+     */
+    public function test_el_documento_va_al_lado_del_nombre(): void
+    {
+        $ana = $this->estudiante('ana');
+        $profe = $this->perfil('profe', 'profesor');
+        $profe->documento_identidad = '71222333';
+        $profe->save();
+
+        $filas = $this->descargar(route('informe-institucion'));
+        $cabecera = array_shift($filas);
+
+        $nombre = array_search('Nombre completo', $cabecera, true);
+        $this->assertSame('Documento', $cabecera[$nombre + 1]);
+
+        $documentoDe = function (string $quien) use ($filas, $nombre) {
+            foreach ($filas as $fila) {
+                if ($fila[$nombre] === $quien) {
+                    return $fila[$nombre + 1];
+                }
+            }
+
+            return null;
+        };
+
+        $this->assertSame('1'.$ana->id, $documentoDe('Ana'));
+        $this->assertSame('71222333', $documentoDe('Profe'));
+    }
+
+    /**
      * La misma comprobacion en el informe de estudiantes.
      *
      * Este NO estaba roto —tiene una sola rama— y precisamente por eso conviene

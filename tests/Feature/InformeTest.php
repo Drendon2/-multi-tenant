@@ -398,9 +398,16 @@ class InformeTest extends TestCase
      */
     private function celdaDeEdad(string $csv, string $nombre): string
     {
-        foreach (explode("\n", $csv) as $linea) {
+        $lineas = explode("\n", ltrim($csv, "\xEF\xBB\xBF"));
+        // La columna se busca por su CABECERA y no por posicion: el 05/10/2026
+        // entro «Documento» al lado del nombre y un indice fijo leyo otra
+        // columna sin fallar por lo que vigilaba.
+        $columna = array_search('Edad', explode(';', trim($lineas[0])), true);
+        $this->assertNotFalse($columna, 'El informe no trae columna «Edad».');
+
+        foreach ($lineas as $linea) {
             if (str_contains($linea, $nombre)) {
-                return explode(';', trim($linea))[3];
+                return explode(';', trim($linea))[$columna];
             }
         }
 

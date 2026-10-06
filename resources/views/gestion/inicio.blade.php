@@ -272,9 +272,9 @@
   <a class="tarjeta-enlace" href="{{ route('informe-institucion') }}">
     Informe completo de la institución
     <span class="tarjeta-nota">
-      Incluye la <strong>encuesta demográfica con nombre</strong>, datos de
-      menores y <strong>quién ha entregado cada papel</strong>. Trátalo como
-      confidencial.
+      Incluye el <strong>número de documento</strong>, la <strong>encuesta
+      demográfica con nombre</strong>, datos de menores y <strong>quién ha
+      entregado cada papel</strong>. Trátalo como confidencial.
     </span>
   </a>
   {{--

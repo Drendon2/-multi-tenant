@@ -89,6 +89,9 @@ final class InformeInstitucion
         return [
             'Rol',
             'Nombre completo',
+            // Al lado del nombre y no al final (05/10/2026, pedido del usuario),
+            // sabiendo que corre una columna las hojas armadas por posicion.
+            'Documento',
             'Usuario',
             'Edad',
             'Teléfono',
@@ -199,6 +202,9 @@ final class InformeInstitucion
         return [
             $perfil->rol === '' ? 'Pendiente de rol' : (Perfil::ROLES[$perfil->rol] ?? $perfil->rol),
             $perfil->nombre_completo,
+            // El del estudiante vive en su ficha; el del personal, en el perfil
+            // (desde el 05/10/2026). Quien no tiene ninguno sale en blanco.
+            $perfil->datosEstudiante->documento_identidad ?? $perfil->documento_identidad,
             $perfil->user->username,
             $perfil->esPersonal() ? null : $perfil->edad,
             $perfil->telefono,
