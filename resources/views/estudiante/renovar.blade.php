@@ -53,7 +53,7 @@
       @foreach ($disponibles as $d)
         @php($sinCupo = $d['llena'] ? ' — sin cupo' : '')
         <option value="{{ $d['promotoria']->id }}" @disabled($d['llena'])
-                @selected(old('promotoria_nueva') == $d['promotoria']->id)>{{ $d['promotoria']->nombre }} ({{ $d['promotoria']->area->nombre }}){{ $sinCupo }}</option>
+                @selected(old('promotoria_nueva') == $d['promotoria']->id)>{{ $d['promotoria']->nombre }}{{ $sinCupo }}</option>
       @endforeach
     </select>
 
@@ -63,7 +63,7 @@
       @foreach ($disponibles as $d)
         @php($sinCupo = $d['llena'] ? ' — sin cupo' : '')
         <option value="{{ $d['promotoria']->id }}" @disabled($d['llena'])
-                @selected(old('promotoria_nueva_2') == $d['promotoria']->id)>{{ $d['promotoria']->nombre }} ({{ $d['promotoria']->area->nombre }}){{ $sinCupo }}</option>
+                @selected(old('promotoria_nueva_2') == $d['promotoria']->id)>{{ $d['promotoria']->nombre }}{{ $sinCupo }}</option>
       @endforeach
     </select>
   </div>

@@ -251,8 +251,15 @@ class Promotoria extends Model
         return $maximo - $this->ocupadosEn($periodo);
     }
 
+    /**
+     * El nombre A SECAS (05/10/2026, pedido del usuario). Llevaba el
+     * departamento entre parentesis —«Guitarra (Musica)»—, que alargaba los
+     * nombres y confundia a la gente; no distinguia nada, porque no hay dos
+     * promotorias con el mismo nombre. Donde el departamento sirve va aparte,
+     * en su columna o como nota, no pegado al nombre.
+     */
     public function __toString(): string
     {
-        return "{$this->nombre} ({$this->area->nombre})";
+        return (string) $this->nombre;
     }
 }

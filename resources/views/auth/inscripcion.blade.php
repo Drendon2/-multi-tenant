@@ -153,7 +153,7 @@
             <option value="">-- elegir --</option>
             @foreach ($catalogo as $promotoria)
               <option value="{{ $promotoria->id }}" @selected(old($campo) == $promotoria->id)>
-                {{ $promotoria->nombre }} ({{ $promotoria->area->nombre }})
+                {{ $promotoria->nombre }}
               </option>
             @endforeach
           </select>

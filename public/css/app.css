@@ -2029,6 +2029,8 @@
      mano, en cada sitio, el margen negativo de una clase pensada para otra cosa. */
   .lista-nota { color: var(--ink-soft); font-size: 0.85rem; font-weight: 400; }
   .lista-nota-bloque { display: block; margin-top: 0.15rem; }
+  /* La nota mas discreta: el horario de un grupo bajo su nombre. */
+  .lista-nota-sutil { font-size: 0.78rem; }
   /* Una accion que existe pero hoy no se puede hacer —«Eliminar» sobre algo con
      historial—. Se queda a la vista y apagada, no se oculta: si desapareciera,
      enterarse de que esta protegido exigiria pulsarla y que te lo nieguen. El

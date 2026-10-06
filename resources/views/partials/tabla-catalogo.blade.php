@@ -64,9 +64,13 @@
     <tr>
       <td data-celda="detalle">
         @if ($mostrarTagArea)<span class="tag-dot {{ $obj->tag_color }}"></span>@endif
-        <span class="lista-nombre">@if ($rutaFila)<a href="{{ route($rutaFila, $obj) }}">{{ $obj }}</a>@else{{ $obj }}@endif</span>
+        <span class="lista-nombre">@if ($rutaFila)<a href="{{ route($rutaFila, $obj) }}">{{ $fila['nombre'] ?? $obj }}</a>@else{{ $fila['nombre'] ?? $obj }}@endif</span>
         @if ($etiquetaPlural && $fila['hijos'] !== null)
           <span class="lista-nota">— {{ $fila['hijos'] }} {{ $fila['hijos'] == 1 ? $etiquetaSingular : $etiquetaPlural }}</span>
+        @endif
+        {{-- Una nota opcional por fila, en su renglón: hoy, el horario de un grupo. --}}
+        @if (! empty($fila['nota']))
+          <span class="lista-nota lista-nota-bloque lista-nota-sutil">{{ $fila['nota'] }}</span>
         @endif
         {{--
           AQUÍ IBA «· N registros en historial» y se quitó el 06/09/2026, a
@@ -118,7 +122,7 @@
           proyecto ya pagó, así que aquí no se pinta.
         --}}
         @include('partials.menu-fila', [
-            'etiqueta' => $obj,
+            'etiqueta' => $fila['nombre'] ?? $obj,
             'opciones' => ($solo_admin ?? false) && $yo->rol !== 'administrador' ? [] : [
                 ['texto' => 'Editar', 'url' => route($ruta_editar, $obj), 'modal' => $abreEnModal],
                 [

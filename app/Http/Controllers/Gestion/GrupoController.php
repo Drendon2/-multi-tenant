@@ -210,7 +210,9 @@ class GrupoController extends RecursoController
         return view('gestion.lista', [
             ...$this->textos(),
             'titulo' => "Grupos de {$promotoria->nombre}",
-            'objetos' => $this->filas(Grupo::where('promotoria_id', $promotoria->id)),
+            // Dentro de UNA promotoria, el grupo a secas: «Danza - Grupo A» bajo
+            // el titulo «Grupos de Danza» la repetia en cada fila.
+            'objetos' => $this->filas(Grupo::where('promotoria_id', $promotoria->id), conPromotoria: false),
             ...$this->columnas(),
             'preset_campo' => 'promotoria_id',
             'preset_valor' => $promotoria->id,
@@ -263,10 +265,12 @@ class GrupoController extends RecursoController
     }
 
     /** @return list<array<string, mixed>> */
-    private function filas($consulta): array
+    private function filas($consulta, bool $conPromotoria = true): array
     {
         return $consulta
-            ->with('promotoria.area')
+            // `sesiones` para el horario de cada fila: sin cargarlas aqui seria
+            // una consulta por grupo.
+            ->with(['promotoria.area', 'sesiones'])
             ->withCount([
                 'matriculas as activas_count' => fn ($q) => $q->where('estado', Matricula::ACTIVA),
                 'matriculas',
@@ -285,6 +289,12 @@ class GrupoController extends RecursoController
                 // estudiantes ACTIVOS, y un grupo del que todos se retiraron
                 // muestra cero y aun asi no se deja borrar. Esta cuenta todas.
                 'protegido' => $g->matriculas_count,
+                // El dia y la hora, pequeño y gris bajo el nombre (05/10/2026,
+                // pedido del usuario): es lo que distingue «Grupo A» de
+                // «Grupo B» sin abrir ninguno.
+                'nota' => $g->horario !== '' ? $g->horario : 'Sin horario',
+                // La lista plana mezcla promotorias y necesita el nombre entero.
+                'nombre' => $conPromotoria ? (string) $g : $g->nombre,
             ])
             ->all();
     }
@@ -295,14 +305,13 @@ class GrupoController extends RecursoController
         // horarios de sus promotorias lo es— pero con la lista entera podia
         // colgar un grupo de una promotoria ajena, y entonces ni lo veia
         // despues. Ver `Promotoria::queVe()`.
+        // Por NOMBRE y sin el departamento entre parentesis (05/10/2026, pedido
+        // del usuario: en los formularios era donde mas confundia). Ordenada por
+        // departamento sin decirlo, la lista habria parecido desordenada.
         $promotorias = Promotoria::queVe($request->attributes->get('perfil'))
-            ->with('area')
-            ->join('areas', 'areas.id', '=', 'promotorias.area_id')
-            ->orderBy('areas.nombre')
-            ->orderBy('promotorias.nombre')
-            ->select('promotorias.*')
-            ->get()
-            ->mapWithKeys(fn (Promotoria $p) => [$p->id => (string) $p])
+            ->orderBy('nombre')
+            ->orderBy('id')
+            ->pluck('nombre', 'id')
             ->all();
 
         return [
