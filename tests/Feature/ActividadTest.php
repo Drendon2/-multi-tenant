@@ -1072,6 +1072,74 @@ class ActividadTest extends TestCase
         $this->assertSame('asistio', $sesion->asistencias()->where('inscrito_id', $nuevo->id)->value('estado'));
     }
 
+    public function test_anadir_en_clase_guarda_las_marcas_que_viajan_con_el(): void
+    {
+        // Reportado desde produccion el 14/10/2026: pasar lista, anadir a
+        // alguien al final y perder todas las marcas sin guardar. El boton
+        // envia la hoja entera; la ruta de anadir las guarda primero.
+        $sesion = $this->sesionEnMarcha(2);
+        [$uno, $dos] = $sesion->actividad->inscritos()->orderBy('nombre_completo')->get()->all();
+
+        $this->actingAs($this->profesor->user)->post(route('panel-actividad-anadir', $sesion), [
+            "estado_{$uno->id}" => 'asistio',
+            "estado_{$dos->id}" => 'falto',
+            'nombre_completo' => 'Pedro Nel Gómez',
+        ])->assertSessionHas('success');
+
+        $marcas = $sesion->asistencias()->pluck('estado', 'inscrito_id');
+        $this->assertSame('asistio', $marcas[$uno->id]);
+        $this->assertSame('falto', $marcas[$dos->id]);
+        $this->assertCount(3, $marcas);
+    }
+
+    public function test_un_nombre_rechazado_no_se_lleva_las_marcas(): void
+    {
+        $sesion = $this->sesionEnMarcha(1);
+        $uno = $sesion->actividad->inscritos()->first();
+
+        $this->actingAs($this->profesor->user)->post(route('panel-actividad-anadir', $sesion), [
+            "estado_{$uno->id}" => 'asistio',
+            'nombre_completo' => '12345',
+        ])->assertSessionHasErrors('nombre_completo');
+
+        $this->assertSame('asistio', $sesion->asistencias()->where('inscrito_id', $uno->id)->value('estado'));
+        $this->assertSame(1, $sesion->actividad->inscritos()->count());
+    }
+
+    public function test_guardar_la_lista_con_un_nombre_escrito_tambien_lo_anade(): void
+    {
+        // Un Enter en el campo del nombre envia la hoja con su primer boton,
+        // que es «Guardar lista». El nombre escrito no se puede perder.
+        $sesion = $this->sesionEnMarcha(1);
+        $uno = $sesion->actividad->inscritos()->first();
+
+        $this->actingAs($this->profesor->user)->post(route('panel-actividad-lista', $sesion), [
+            "estado_{$uno->id}" => 'asistio',
+            'nombre_completo' => 'Pedro Nel Gómez',
+        ])->assertSessionHas('success');
+
+        $this->assertSame(2, $sesion->actividad->inscritos()->count());
+        $this->assertSame(2, $sesion->asistencias()->where('estado', 'asistio')->count());
+    }
+
+    public function test_el_boton_de_anadir_envia_la_hoja_de_asistencia(): void
+    {
+        $sesion = $this->sesionEnMarcha(1);
+
+        $html = $this->actingAs($this->profesor->user)
+            ->get(route('panel-actividad-lista', $sesion))
+            ->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/<input type="text" form="form-asistencia" name="nombre_completo"/',
+            $html
+        );
+        $this->assertMatchesRegularExpression(
+            '/<button type="submit" form="form-asistencia" formaction="'.preg_quote(route('panel-actividad-anadir', $sesion), '/').'"/',
+            $html
+        );
+    }
+
     public function test_anadir_el_mismo_nombre_dos_veces_avisa_en_vez_de_duplicar(): void
     {
         // El unico de (actividad, documento) no ataja esto: quien se anade en

@@ -366,6 +366,14 @@ class PanelActividadController extends Controller
 
         $sinMarcar = $inscritos->count() - $marcados;
 
+        // El campo de «llego alguien sin inscribirse» viaja en esta misma hoja
+        // (ver la vista), y un Enter en el nombre la envia con ESTE boton, que
+        // es el primero del formulario. Se trata como si hubieran pulsado
+        // anadir: la lista ya quedo guardada justo arriba.
+        if ($request->filled('nombre_completo')) {
+            return $this->anadir($request, $sesion, $actividad, $marcados > 0);
+        }
+
         return $this->volverALista(
             $sesion,
             $sinMarcar
@@ -406,6 +414,35 @@ class PanelActividadController extends Controller
             return $this->volverALista($sesion, 'Solo quien dirige la actividad puede pasar lista.');
         }
 
+        // Las marcas que el profesor llevaba puestas viajan con este boton: el
+        // campo del nombre vive dentro de la hoja de asistencia. Antes era un
+        // formulario aparte, y pulsarlo recargaba la pagina con lo que habia en
+        // la base: se perdia la lista sin guardar, sin aviso (reportado desde
+        // produccion el 14/10/2026). Se guarda ANTES de validar el nombre, para
+        // que un nombre mal escrito no se lleve la lista por delante.
+        $guardoLista = false;
+
+        if ($sesion->yaEmpezo()) {
+            $guardoLista = PaseDeLista::guardar(
+                request: $request,
+                asistencias: AsistenciaActividad::class,
+                sesion: ['sesion_id' => $sesion->id],
+                quien: 'inscrito_id',
+                ids: $actividad->inscritos()->pluck('id'),
+            ) > 0;
+        }
+
+        return $this->anadir($request, $sesion, $actividad, $guardoLista);
+    }
+
+    /**
+     * Lo comun a los dos botones de la hoja: dar de alta a quien llego. Los
+     * permisos y la lista ya los resolvio quien llama.
+     */
+    private function anadir(Request $request, SesionActividad $sesion, Actividad $actividad, bool $guardoLista): RedirectResponse
+    {
+        $previo = $guardoLista ? 'Lista guardada. ' : '';
+
         $reglas = ['nombre_completo' => Reglas::nombreDePersona(90)];
 
         if ($actividad->esExterno()) {
@@ -427,7 +464,7 @@ class PanelActividadController extends Controller
         if ($repetido) {
             return $this->volverALista(
                 $sesion,
-                "Ya hay alguien con el nombre «{$datos['nombre_completo']}» en la lista. "
+                $previo."Ya hay alguien con el nombre «{$datos['nombre_completo']}» en la lista. "
                 .'Si son dos personas distintas, escribe el nombre completo de cada una.'
             );
         }
@@ -451,7 +488,7 @@ class PanelActividadController extends Controller
 
         return $this->volverALista(
             $sesion,
-            "{$datos['nombre_completo']} queda en la lista y marcado como asistió.",
+            $previo."{$datos['nombre_completo']} queda en la lista y marcado como asistió.",
             exito: true
         );
     }

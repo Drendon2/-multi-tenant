@@ -75,7 +75,7 @@
 
   @if ($dirige)
   <div class="asistencia-pie">
-    <button type="submit" class="btn">Guardar lista</button>
+    <button type="submit" class="btn" formnovalidate>Guardar lista</button>
     <button type="button" class="btn btn-secundario btn-sm" id="marcar-todos">Marcar todos como asistió</button>
   </div>
   @endif
@@ -90,39 +90,49 @@
     se pide igual que al armar la lista de la ficha (obligatoria, 25/09/2026):
     por este camino entraba con la edad vacia. Misma forma que aquel
     formulario, para que los dos se lean como el mismo gesto.
+
+    Los campos y el boton pertenecen a la HOJA DE ASISTENCIA (atributo form),
+    no a su propio formulario. Siendo uno aparte, «Añadir» recargaba la pagina
+    con lo guardado en la base y se llevaba todas las marcas que el profesor
+    aun no habia guardado, sin aviso (14/10/2026, desde produccion). Asi el
+    boton envia la hoja entera a la ruta de anadir, que guarda las marcas
+    primero. «Guardar lista» lleva formnovalidate porque el nombre, que es
+    obligatorio para anadir, ahora vive en su formulario. El form-anadir de
+    aqui solo se usa cuando no hay hoja (nadie inscrito todavia).
   --}}
+  @php($hoja = $inscritos->isEmpty() ? 'form-anadir' : 'form-asistencia')
   @if ($actividad->esExterno())
   <p class="campo-ayuda" style="margin-top:0;margin-bottom:0.9rem;">
     Nombre y edad. Queda en la lista de {{ $actividad->nombre }} y marcado como que asistió hoy.
   </p>
-  <form method="post" action="{{ route('panel-actividad-anadir', $sesion) }}" class="lista-externa-forma">
+  <form method="post" action="{{ route('panel-actividad-anadir', $sesion) }}" class="lista-externa-forma" id="form-anadir">
     @csrf
     <div class="field">
       <label for="nombre_completo">Nombre</label>
-      <input type="text" name="nombre_completo" id="nombre_completo" required maxlength="90"
+      <input type="text" form="{{ $hoja }}" name="nombre_completo" id="nombre_completo" required maxlength="90"
              pattern="[\p{L}\p{M}][\p{L}\p{M} .'-]*" title="Solo letras, espacios, apóstrofo y guion. Sin números"
              autocomplete="off" value="{{ old('nombre_completo') }}">
       @error('nombre_completo')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
     </div>
     <div class="field">
       <label for="edad">Edad</label>
-      <input type="number" name="edad" id="edad" required min="1" max="119" step="1"
+      <input type="number" form="{{ $hoja }}" name="edad" id="edad" required min="1" max="119" step="1"
              inputmode="numeric" value="{{ old('edad') }}">
       @error('edad')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
     </div>
-    <button type="submit" class="btn">Añadir a la lista</button>
+    <button type="submit" form="{{ $hoja }}" formaction="{{ route('panel-actividad-anadir', $sesion) }}" class="btn">Añadir a la lista</button>
   </form>
   @else
   <p class="campo-info" style="margin-top:0;">
     Solo el nombre: nadie le va a pedir el documento con la clase empezando.
     Queda inscrito en {{ $actividad->nombre }} y marcado como que asistió hoy.
   </p>
-  <form method="post" action="{{ route('panel-actividad-anadir', $sesion) }}" class="cupo-form" style="margin-left:0;">
+  <form method="post" action="{{ route('panel-actividad-anadir', $sesion) }}" class="cupo-form" style="margin-left:0;" id="form-anadir">
     @csrf
     <label class="sr-solo" for="nombre_completo">Nombre completo</label>
-    <input type="text" name="nombre_completo" id="nombre_completo" maxlength="90" pattern="[\p{L}\p{M}][\p{L}\p{M} .'-]*" title="Solo letras, espacios, apóstrofo y guion. Sin números"
+    <input type="text" form="{{ $hoja }}" name="nombre_completo" id="nombre_completo" maxlength="90" pattern="[\p{L}\p{M}][\p{L}\p{M} .'-]*" title="Solo letras, espacios, apóstrofo y guion. Sin números"
            placeholder="Nombre completo" style="width:18rem;margin:0;" required>
-    <button type="submit" class="btn btn-sm">Añadir a la lista</button>
+    <button type="submit" form="{{ $hoja }}" formaction="{{ route('panel-actividad-anadir', $sesion) }}" class="btn btn-sm">Añadir a la lista</button>
   </form>
   @error('nombre_completo')<div class="errorlist" style="color:var(--danger);font-size:0.82rem;">{{ $message }}</div>@enderror
   @endif

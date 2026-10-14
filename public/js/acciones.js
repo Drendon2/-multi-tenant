@@ -305,7 +305,12 @@
 
     var estado = abiertos();
     var scroll = window.scrollY;
-    var destino = form.action || window.location.href;
+    // Un boton con formaction manda el formulario a OTRA ruta (la hoja de
+    // asistencia de actividades: «Añadir» envia las marcas con el nombre).
+    // Se mira el atributo y no `enviador.formAction`, que sin atributo
+    // devuelve la URL de la pagina y no la del formulario.
+    var destino = (enviador && enviador.hasAttribute("formaction") && enviador.formAction)
+      || form.action || window.location.href;
     main.setAttribute("aria-busy", "true");
 
     fetch(destino, {
